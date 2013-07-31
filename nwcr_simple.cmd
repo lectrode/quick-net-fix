@@ -1,5 +1,5 @@
 ::Quick detect&fix
-@SET version=2.1.199
+@SET version=2.1.205
 
 ::-Settings-
 set checkdelay=5
@@ -36,7 +36,7 @@ echo  --------------------------------------------------
 echo.
 if not "%NETWORK%"=="" 		echo  Connection: %NETWORK%
 if not "%router%"=="" 		echo  Router:     %router%
-if not "%uptime%"=="" 		echo  Uptime:     %uptime%
+if not "%uptime%"=="" 		echo  Uptime:     %uptime%        U:%dispUP% D:%dispDN%
 echo.
 if not %numfixes%==0 		echo  Fixes:      %numfixes%
 if not "%lastresult%"=="" 	echo  Last Test:  %lastresult%
@@ -80,17 +80,22 @@ if %up% geq 10000 set /a up=up/10&set /a down=down/10
 set /a uptime=((up*10000)/(up+down))
 set /a uptime+=0
 set uptime=%uptime:~0,-2%.%uptime:~-2%%%
+set /a dispUP=up/checkdelay
+set /a dispDN=down/checkdelay
 
+if "%result%"=="Connected" if not "%lastresult%"=="Connected" if "%resetted%"=="1" set /a numfixes+=1
 set lastresult=%result%
+if "%result%"=="Connected" set resetted=0
 if not "%result%"=="Connected" if not "%dbl%"=="1" call :sleep 1&goto :doublecheck
-if "%result%"=="TimeOut" if "%dbl%"=="1" set dbl=0&set /a down+=5&call :resetAdapter
+if not "%result%"=="Connected" if "%dbl%"=="1" call :resetAdapter
+set dbl=0
 goto :eof
 
 
 :resetAdapter
 @set curstatus=Resetting connection...
 %debgn%call :header
-set /a numfixes+=1
+set resetted=1
 netsh interface set interface "%NETWORK%" admin=disable>NUL 2>&1
 netsh interface set interface "%NETWORK%" admin=enable>NUL 2>&1
 call :sleep 15
