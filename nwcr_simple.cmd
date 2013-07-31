@@ -1,8 +1,9 @@
 ::Quick detect&fix
+@SET version=2.1.199
 
 ::-Settings-
-set router=192.168.0.1
-set checkdelay=2
+set checkdelay=5
+set fixdelay=20
 set debgn=
 
 
@@ -15,10 +16,11 @@ set debgn=
 setlocal enabledelayedexpansion
 call :init
 
-call :getadapters
-call :Ask4Connection
+call :getrouter
+call :getadapter
 
 :loop
+MODE CON COLS=52 LINES=12
 call :check
 call :sleep %checkdelay%
 goto :loop
@@ -29,16 +31,16 @@ goto :loop
 :header
 cls
 echo  --------------------------------------------------
-echo  -     Lectrode's Quick Net Fix v%version%         -
+echo  -      %ThisTitle%         -
 echo  --------------------------------------------------
 echo.
 if not "%NETWORK%"=="" 		echo  Connection: %NETWORK%
+if not "%router%"=="" 		echo  Router:     %router%
 if not "%uptime%"=="" 		echo  Uptime:     %uptime%
 echo.
 if not %numfixes%==0 		echo  Fixes:      %numfixes%
 if not "%lastresult%"=="" 	echo  Last Test:  %lastresult%
 if not "%curstatus%"=="" 	echo  Status:     %curstatus%
-echo. 
 goto :eof
 
 
@@ -61,20 +63,26 @@ set dbl=1
 @set curstatus=Testing connection...
 %debgn%call :header
 set result=
-for /f "tokens=* delims=" %%p in ('ping -n 1 %router%') do set ping_test=%%p
+set testrouter=www.google.com
+if not "%router%"=="" set testrouter=%router%
+set /a pts=checkdelay
+if "%dbl%"=="1" set pts=1
+for /f "tokens=* delims=" %%p in ('ping -n 1 %testrouter%') do set ping_test=%%p
 echo %ping_test% |findstr "request could not find" >NUL
-if %errorlevel% equ 0 set result=NotConnected&set /a down+=1
+if %errorlevel% equ 0 set result=NotConnected&set /a down+=pts
 echo %ping_test% |findstr "Unreachable" >NUL
-if %errorlevel% equ 0 set result=Unreachable&set /a down+=1
+if %errorlevel% equ 0 set result=Unreachable&set /a down+=pts
 echo %ping_test% |findstr "Minimum " >NUL
-if %errorlevel% equ 0 set result=Connected&set /a up+=1
-if "%result%"=="" set result=TimeOut
+if %errorlevel% equ 0 set result=Connected&set /a up+=pts
+if "%result%"=="" set result=TimeOut&set /a down+=pts
 
 if %up% geq 10000 set /a up=up/10&set /a down=down/10
-set /a uptime=(up*100)/(up+down)
-set uptime=%uptime%%%
+set /a uptime=((up*10000)/(up+down))
+set /a uptime+=0
+set uptime=%uptime:~0,-2%.%uptime:~-2%%%
+
 set lastresult=%result%
-if "%result%"=="TimeOut" if not "%dbl%"=="1" call :sleep 1&goto :doublecheck
+if not "%result%"=="Connected" if not "%dbl%"=="1" call :sleep 1&goto :doublecheck
 if "%result%"=="TimeOut" if "%dbl%"=="1" set dbl=0&set /a down+=5&call :resetAdapter
 goto :eof
 
@@ -83,16 +91,63 @@ goto :eof
 @set curstatus=Resetting connection...
 %debgn%call :header
 set /a numfixes+=1
-netsh interface set interface "%NETWORK%" admin=disable
-netsh interface set interface "%NETWORK%" admin=enable
+netsh interface set interface "%NETWORK%" admin=disable>NUL 2>&1
+netsh interface set interface "%NETWORK%" admin=enable>NUL 2>&1
 call :sleep 15
+set /a down+=(fixdelay/checkdelay)+1
+call :getrouter
+call :getadapter
 goto :eof
 
 
 
-:getAdapters
+:getrouter
+set numrouters=0
+for /f "tokens=2 delims=:" %%r in ('ipconfig ^|findstr "Gateway"') do call :setrouter%%r
+set router=%router1%
+if %numrouters% geq 2 call :chooserouter
+set lastrouter=%router%
+goto :eof
+
+:setrouter
+if "%1"=="" goto :eof
+set testrtr=1
+:checkrtrs
+if "!router%testrtr%!"=="%1" goto :eof
+if %testrtr% leq %numrouters% set /a testrtr+=1&goto :checkrtrs
+set /a numrouters+=1
+set router%numrouters%=%1
+goto :eof
+
+
+:chooserouter
+set hasrouter=0
+FOR /L %%n IN (1,1,%numrouters%) DO if "!router%%n!"=="%lastrouter%" set hasrouter=1
+if %hasrouter%==1 goto :eof
+set /a lines=%numrouters%+5
+%debgn%MODE CON COLS=52 LINES=%lines%
+%debgn%CALL :HEADER
+SET router=
+ECHO Which Router would you like to use?
+ECHO.
+FOR /L %%n IN (1,1,%numrouters%) DO SET SHOWROUTR%%n=!router%%n!%STATSpacer%
+FOR /L %%n IN (1,1,%numrouters%) DO ECHO -!SHOWROUTR%%n:~0,20! [%%n]
+ECHO.
+SET usrInput=
+SET /P usrInput=[] 
+IF "%usrInput%"=="" SET usrInput=0
+FOR /L %%n IN (1,1,%numrouters%) DO IF "%usrInput%"=="%%n" SET router=!router%%n!
+IF "%router%"=="" GOTO :chooserouter
+ECHO.
+goto :eof
+
+
+
+:getAdapter
+if not "%router%"=="" goto :autoAdapter
 SET CON_NUM=0
 FOR /F "tokens=* DELIMS=" %%n IN ('wmic nic get NetConnectionID') DO CALL :GET_NETWORK_CONNECTIONS_PARSE %%n
+call :Ask4Connection
 GOTO :EOF
 
 :GET_NETWORK_CONNECTIONS_PARSE
@@ -106,6 +161,8 @@ GOTO :EOF
 
 
 :Ask4Connection
+set /a lines=%CON_NUM%+5
+%debgn%MODE CON COLS=52 LINES=%lines%
 %debgn%CALL :HEADER
 SET NETWORK=
 ECHO Which Connection would you like to reset?
@@ -121,12 +178,44 @@ IF "%NETWORK%"=="" GOTO :Ask4Connection
 ECHO.
 goto :eof
 
+
+:autoAdapter
+set curadapter=
+set curgateway=
+for /f "tokens=* delims=" %%r in ('ipconfig') do call :autoAdapter_parse %%r
+goto :eof
+
+:autoAdapter_parse
+set line=%*
+echo %line% |findstr "adapter">NUL
+if %errorlevel% equ 0 goto :autoAdapter_parseAdapter
+
+echo %line% |findstr "Gateway">NUL
+if %errorlevel% equ 0 goto :autoAdapter_parseGateway
+goto :eof
+
+:autoAdapter_parseAdapter
+set line=%line:adapter =:%
+for /f "tokens=2 delims=:" %%a in ("%line%") do set curadapter=%%a
+goto :eof
+
+:autoAdapter_parseGateway
+for /f "tokens=2 delims=:" %%a in ("%line%") do set curGateway=%%a
+set curGateway=%curGateway:~1%
+if %curGateway%==%router% set NETWORK=%curadapter%
+goto :eof
+
+
+
+
+
+
+
 :init
-cls
+%debgn%cls
 @PROMPT=^>
 %debgn%MODE CON COLS=52 LINES=20
 @echo initializing...
-@SET version=1.1.051
 @SET ThisTitle=Lectrode's Quick Net Fix v%version%
 @TITLE %ThisTitle%
 @set numfixes=0
