@@ -1,9 +1,11 @@
 ::Quick detect&fix
-@SET version=2.1.205
+@SET version=2.1.208
 
 ::-Settings-
 set checkdelay=5
 set fixdelay=20
+set doublecheck=3
+set doublecheckdelay=2
 set debgn=
 
 
@@ -58,7 +60,7 @@ goto :eof
 
 
 :doublecheck
-set dbl=1
+set /a dbl+=1
 :check
 @set curstatus=Testing connection...
 %debgn%call :header
@@ -66,7 +68,7 @@ set result=
 set testrouter=www.google.com
 if not "%router%"=="" set testrouter=%router%
 set /a pts=checkdelay
-if "%dbl%"=="1" set pts=1
+if %dbl% geq 1 set pts=doublecheckdelay
 for /f "tokens=* delims=" %%p in ('ping -n 1 %testrouter%') do set ping_test=%%p
 echo %ping_test% |findstr "request could not find" >NUL
 if %errorlevel% equ 0 set result=NotConnected&set /a down+=pts
@@ -76,19 +78,24 @@ echo %ping_test% |findstr "Minimum " >NUL
 if %errorlevel% equ 0 set result=Connected&set /a up+=pts
 if "%result%"=="" set result=TimeOut&set /a down+=pts
 
-if %up% geq 10000 set /a up=up/10&set /a down=down/10
+call :set_uptime
+
+if "%result%"=="Connected" if not "%lastresult%"=="Connected" if "%resetted%"=="1" set /a numfixes+=1
+set lastresult=%result%
+if "%result%"=="Connected" set resetted=0
+if not "%result%"=="Connected" if not "%dbl%"=="%doublecheck%" call :sleep %doublecheckdelay%&goto :doublecheck
+if not "%result%"=="Connected" if "%dbl%"=="%doublecheck%" call :resetAdapter
+set dbl=0
+goto :eof
+
+
+:set_uptime
+if %up% geq 100000 set /a up=up/10&set /a down=down/10
 set /a uptime=((up*10000)/(up+down))
 set /a uptime+=0
 set uptime=%uptime:~0,-2%.%uptime:~-2%%%
 set /a dispUP=up/checkdelay
 set /a dispDN=down/checkdelay
-
-if "%result%"=="Connected" if not "%lastresult%"=="Connected" if "%resetted%"=="1" set /a numfixes+=1
-set lastresult=%result%
-if "%result%"=="Connected" set resetted=0
-if not "%result%"=="Connected" if not "%dbl%"=="1" call :sleep 1&goto :doublecheck
-if not "%result%"=="Connected" if "%dbl%"=="1" call :resetAdapter
-set dbl=0
 goto :eof
 
 
@@ -226,6 +233,7 @@ goto :eof
 @set numfixes=0
 @set up=0
 @set down=0
+@set dbl=0
 goto :eof
 
 
