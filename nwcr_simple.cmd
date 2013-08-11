@@ -1,11 +1,12 @@
 ::Quick detect&fix
-@SET version=2.1.208
+@SET version=2.2.215
 
 ::-Settings-
 set checkdelay=5
 set fixdelay=20
 set doublecheck=3
 set doublecheckdelay=2
+set manualrouter=
 set debgn=
 
 
@@ -114,8 +115,9 @@ goto :eof
 
 
 :getrouter
+if not "%manualrouter%"=="" set router=%manualrouter%&call :Ask4Connection&goto :eof
 set numrouters=0
-for /f "tokens=2 delims=:" %%r in ('ipconfig ^|findstr "Gateway"') do call :setrouter%%r
+for /f "tokens=2 delims=:" %%r in ('ipconfig ^|findstr "Default Gateway"') do call :setrouter%%r
 set router=%router1%
 if %numrouters% geq 2 call :chooserouter
 set lastrouter=%router%
@@ -123,6 +125,8 @@ goto :eof
 
 :setrouter
 if "%1"=="" goto :eof
+call :testvalidrouter valid %1
+if "%valid%"=="invalid" goto :eof
 set testrtr=1
 :checkrtrs
 if "!router%testrtr%!"=="%1" goto :eof
@@ -130,6 +134,32 @@ if %testrtr% leq %numrouters% set /a testrtr+=1&goto :checkrtrs
 set /a numrouters+=1
 set router%numrouters%=%1
 goto :eof
+
+:testvalidrouter
+set isValid=%1
+set %isValid%=valid
+set line=%2
+set testrtrSTR=%line:.=$!$%
+echo %testrtrSTR% |FIND "$!$">NUL
+if %errorlevel% geq 1 set %isValid%=invalid&goto :eof
+for /f "tokens=1,2,3,4 delims=." %%r in ("%line%") do call :testvalidrouter_4numbers %%r %%s %%t %%u
+goto :eof
+
+:testvalidrouter_4numbers
+set ipplace=0
+:testvalidrouter_4numbers_shift
+set /a ipplace+=1
+set "ip%ipplace%=%1"
+if "!ip%ipplace%!"=="0" goto :testvalidrouter_4numbers_shift_next
+set /a ip%ipplace%=!ip%ipplace%!
+if "!ip%ipplace%!"=="0" set %isValid%=invalid&goto :eof
+:testvalidrouter_4numbers_shift_next
+shift
+if not "%1"=="" goto :testvalidrouter_4numbers_shift
+if %ipplace% gtr 4 set %isValid%=invalid
+goto :eof
+
+
 
 
 :chooserouter
