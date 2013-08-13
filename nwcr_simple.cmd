@@ -1,12 +1,17 @@
 ::Quick detect&fix
-@SET version=2.2.216
+@SET version=2.3.218
 
 ::-Settings-
-set checkdelay=5
-set fixdelay=20
-set flukecheck=3
-set flukecheckdelay=2
 set manualrouter=
+set manualAdapter=
+
+set STN_flukechecks=3		REM Default: 3 (test x times to verify result)
+set STN_checkdelay=5		REM Default: 5 seconds
+set STN_fixdelay=20			REM Default: 20 seconds
+set STN_flukecheckdelay=2	REM Default: 2 seconds
+set STN_timeoutmilsecs=1000	REM Default: 1000 miliseconds
+
+::-Advanced-
 set debgn=
 
 
@@ -25,7 +30,7 @@ call :getadapter
 :loop
 MODE CON COLS=52 LINES=12
 call :check
-call :sleep %checkdelay%
+call :sleep %STN_checkdelay%
 goto :loop
 
 
@@ -66,9 +71,9 @@ goto :eof
 set result=
 set testrouter=www.google.com
 if not "%router%"=="" set testrouter=%router%
-set /a pts=checkdelay
-if %dbl% geq 1 set pts=flukecheckdelay
-for /f "tokens=* delims=" %%p in ('ping -n 1 %testrouter%') do set ping_test=%%p
+set /a pts=STN_checkdelay
+if %dbl% geq 1 set pts=STN_flukecheckdelay
+for /f "tokens=* delims=" %%p in ('ping -w %STN_timeoutmilsecs% -n 1 %testrouter%') do set ping_test=%%p
 echo %ping_test% |findstr "request could not find" >NUL
 if %errorlevel% equ 0 set result=NotConnected %showdlb%&set /a down+=pts
 echo %ping_test% |findstr "Unreachable" >NUL
@@ -78,15 +83,15 @@ if %errorlevel% equ 0 set result=Connected&set /a up+=pts
 if "%result%"=="" set result=TimeOut %showdlb%&set /a down+=pts
 
 set /a dbl+=1
-set showdbl=(fluke check %dbl%/%flukecheck%)
+set showdbl=(fluke check %dbl%/%STN_flukechecks%)
 
 call :set_uptime
 
 if "%result%"=="Connected" if not "%lastresult%"=="Connected" if "%resetted%"=="1" set /a numfixes+=1
 set lastresult=%result%
 if "%result%"=="Connected" set resetted=0
-if not "%result%"=="Connected" if not "%dbl%"=="%flukecheck%" call :sleep %flukecheckdelay%&goto :check
-if not "%result%"=="Connected" if "%dbl%"=="%flukecheck%" call :resetAdapter
+if not "%result%"=="Connected" if not "%dbl%"=="%STN_flukechecks%" call :sleep %STN_flukecheckdelay%&goto :check
+if not "%result%"=="Connected" if "%dbl%"=="%STN_flukechecks%" call :resetAdapter
 set dbl=0
 set showdbl=
 goto :eof
@@ -97,8 +102,8 @@ if %up% geq 100000 set /a up=up/10&set /a down=down/10
 set /a uptime=((up*10000)/(up+down))
 set /a uptime+=0
 set uptime=%uptime:~0,-2%.%uptime:~-2%%%
-set /a dispUP=up/checkdelay
-set /a dispDN=down/checkdelay
+set /a dispUP=up/STN_checkdelay
+set /a dispDN=down/STN_checkdelay
 goto :eof
 
 
@@ -109,7 +114,7 @@ set resetted=1
 netsh interface set interface "%NETWORK%" admin=disable>NUL 2>&1
 netsh interface set interface "%NETWORK%" admin=enable>NUL 2>&1
 call :sleep 15
-set /a down+=(fixdelay/checkdelay)+1
+set /a down+=(STN_fixdelay/STN_checkdelay)+1
 call :getrouter
 call :getadapter
 goto :eof
@@ -117,7 +122,7 @@ goto :eof
 
 
 :getrouter
-if not "%manualrouter%"=="" set router=%manualrouter%&call :Ask4Connection&goto :eof
+if not "%manualrouter%"=="" set router=%manualrouter%&goto :eof
 set numrouters=0
 for /f "tokens=2 delims=:" %%r in ('ipconfig ^|findstr "Default Gateway"') do call :setrouter%%r
 set router=%router1%
@@ -188,6 +193,8 @@ goto :eof
 
 
 :getAdapter
+if not "%manualAdapter%"=="" set NETWORK=%manualAdapter%&goto :eof
+if not "%manualRouter%"=="" call :Ask4Connection &goto :eof
 if not "%router%"=="" goto :autoAdapter
 SET CON_NUM=0
 FOR /F "tokens=* DELIMS=" %%n IN ('wmic nic get NetConnectionID') DO CALL :GET_NETWORK_CONNECTIONS_PARSE %%n
@@ -266,6 +273,9 @@ goto :eof
 @set up=0
 @set down=0
 @set dbl=0
+@for /f "tokens=1,* DELIMS==" %%s in ('set STN_') do call :init_settn %%s %%t
 goto :eof
 
-
+:init_settn
+set /a %1=%2
+goto :eof
