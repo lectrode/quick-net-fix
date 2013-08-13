@@ -1,11 +1,11 @@
 ::Quick detect&fix
-@SET version=2.2.215
+@SET version=2.2.216
 
 ::-Settings-
 set checkdelay=5
 set fixdelay=20
-set doublecheck=3
-set doublecheckdelay=2
+set flukecheck=3
+set flukecheckdelay=2
 set manualrouter=
 set debgn=
 
@@ -60,8 +60,6 @@ ping -n %pn% -w 1000 127.0.0.1>nul
 goto :eof
 
 
-:doublecheck
-set /a dbl+=1
 :check
 @set curstatus=Testing connection...
 %debgn%call :header
@@ -69,24 +67,28 @@ set result=
 set testrouter=www.google.com
 if not "%router%"=="" set testrouter=%router%
 set /a pts=checkdelay
-if %dbl% geq 1 set pts=doublecheckdelay
+if %dbl% geq 1 set pts=flukecheckdelay
 for /f "tokens=* delims=" %%p in ('ping -n 1 %testrouter%') do set ping_test=%%p
 echo %ping_test% |findstr "request could not find" >NUL
-if %errorlevel% equ 0 set result=NotConnected&set /a down+=pts
+if %errorlevel% equ 0 set result=NotConnected %showdlb%&set /a down+=pts
 echo %ping_test% |findstr "Unreachable" >NUL
-if %errorlevel% equ 0 set result=Unreachable&set /a down+=pts
+if %errorlevel% equ 0 set result=Unreachable %showdlb%&set /a down+=pts
 echo %ping_test% |findstr "Minimum " >NUL
 if %errorlevel% equ 0 set result=Connected&set /a up+=pts
-if "%result%"=="" set result=TimeOut&set /a down+=pts
+if "%result%"=="" set result=TimeOut %showdlb%&set /a down+=pts
+
+set /a dbl+=1
+set showdbl=(fluke check %dbl%/%flukecheck%)
 
 call :set_uptime
 
 if "%result%"=="Connected" if not "%lastresult%"=="Connected" if "%resetted%"=="1" set /a numfixes+=1
 set lastresult=%result%
 if "%result%"=="Connected" set resetted=0
-if not "%result%"=="Connected" if not "%dbl%"=="%doublecheck%" call :sleep %doublecheckdelay%&goto :doublecheck
-if not "%result%"=="Connected" if "%dbl%"=="%doublecheck%" call :resetAdapter
+if not "%result%"=="Connected" if not "%dbl%"=="%flukecheck%" call :sleep %flukecheckdelay%&goto :check
+if not "%result%"=="Connected" if "%dbl%"=="%flukecheck%" call :resetAdapter
 set dbl=0
+set showdbl=
 goto :eof
 
 
