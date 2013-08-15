@@ -1,15 +1,15 @@
 ::Quick detect&fix
-@SET version=2.3.218
+@SET version=2.3.219
 
 ::-Settings-
 set manualrouter=
 set manualAdapter=
 
-set STN_flukechecks=3		REM Default: 3 (test x times to verify result)
-set STN_checkdelay=5		REM Default: 5 seconds
-set STN_fixdelay=20			REM Default: 20 seconds
-set STN_flukecheckdelay=2	REM Default: 2 seconds
-set STN_timeoutmilsecs=1000	REM Default: 1000 miliseconds
+set STN_flukechecks=3		Default: 3 (test x times to verify result)
+set STN_checkdelay=5		Default: 5 seconds
+set STN_fixdelay=20			Default: 20 seconds
+set STN_flukecheckdelay=2	Default: 2 seconds
+set STN_timeoutmilsecs=2000	Default: 1000 miliseconds
 
 ::-Advanced-
 set debgn=
@@ -59,8 +59,8 @@ goto :eof
 if "%1"=="" set pn=3
 if not "%1"=="" set pn=%1
 @set curstatus=Wait %pn% seconds...
+set /a pn+=1
 %debgn%call :header
-ping -n 2 -w 1000 127.0.0.1>nul
 ping -n %pn% -w 1000 127.0.0.1>nul
 goto :eof
 
