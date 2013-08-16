@@ -1,29 +1,27 @@
 ::Quick detect&fix
-@SET version=2.3.220
+@SET version=2.4.222
 
 ::-Settings-
 set manualrouter=
 set manualAdapter=
 
-set STN_flukechecks=3		Default: 3 (test x times to verify result)
+set STN_flukechecks=5		Default: 3 (test x times to verify result)
 set STN_checkdelay=5		Default: 5 seconds
 set STN_fixdelay=20			Default: 20 seconds
-set STN_flukecheckdelay=2	Default: 2 seconds
+set STN_flukecheckdelay=3	Default: 2 seconds
 set STN_timeoutmilsecs=3000	Default: 1000 miliseconds
 
-::-Advanced-
-set debgn=
-set norm=07
-set warn=06
-set alrt=04
+::-GUI-
+set pretty=1
+set theme=subtle			none,subtle,vibrant,fullsubtle,fullvibrant,crazy
+
+
+
+:: -DO NOT EDIT BELOW THIS LINE!-
 
 
 
 
-
-
-
-%debgn%@echo off
 setlocal enabledelayedexpansion
 call :init
 
@@ -31,7 +29,7 @@ call :getrouter
 call :getadapter
 
 :loop
-MODE CON COLS=52 LINES=12
+%debgn%MODE CON COLS=52 LINES=12
 call :check
 call :sleep %STN_checkdelay%
 goto :loop
@@ -68,6 +66,21 @@ set /a pn+=1
 ping -n %pn% -w 1000 127.0.0.1>nul
 goto :eof
 
+:crazy
+@echo off
+set /a cr_num=%random:~-1%
+set /a cr_num+=%random:~-1%
+if %cr_num% gtr 15 goto :crazy
+:crazy2
+set /a cr_num2=%random:~-1%-1
+set /a cr_num2+=%random:~-1%-1
+if %cr_num2% gtr 15 goto :crazy2
+if "%cr_num%"=="%cr_num2%" goto :crazy
+COLOR !crazystr:~%cr_num%,1!!crazystr:~%cr_num2%,1!
+goto :eof
+
+
+
 
 :check
 @set curstatus=Testing connection...
@@ -77,17 +90,19 @@ set testrouter=www.google.com
 if not "%router%"=="" set testrouter=%router%
 set /a pts=STN_checkdelay
 if %dbl% geq 1 set pts=STN_flukecheckdelay
-for /f "tokens=* delims=" %%p in ('ping -w %STN_timeoutmilsecs% -n 1 %testrouter%') do set ping_test=%%p
-echo %ping_test% |findstr "request could not find" >NUL
-if %errorlevel% equ 0 set result=NotConnected %showdlb%&set /a down+=pts&set curcolor=%warn%
-echo %ping_test% |findstr "Unreachable" >NUL
-if %errorlevel% equ 0 set result=Unreachable %showdlb%&set /a down+=pts&set curcolor=%warn%
-echo %ping_test% |findstr "Minimum " >NUL
-if %errorlevel% equ 0 set result=Connected&set /a up+=pts&set curcolor=%norm%
-if "%result%"=="" set result=TimeOut %showdlb%&set /a down+=pts&set curcolor=%warn%
 
 set /a dbl+=1
 set showdbl=(fluke check %dbl%/%STN_flukechecks%)
+
+for /f "tokens=* delims=" %%p in ('ping -w %STN_timeoutmilsecs% -n 1 %testrouter%') do set ping_test=%%p
+echo %ping_test% |findstr "request could not find" >NUL
+if %errorlevel% equ 0 set result=NotConnected %showdbl%&set /a down+=pts&set curcolor=%warn%
+echo %ping_test% |findstr "Unreachable" >NUL
+if %errorlevel% equ 0 set result=Unreachable %showdbl%&set /a down+=pts&set curcolor=%warn%
+echo %ping_test% |findstr "Minimum " >NUL
+if %errorlevel% equ 0 set result=Connected&set /a up+=pts&set curcolor=%norm%
+if "%result%"=="" set result=TimeOut %showdbl%&set /a down+=pts&set curcolor=%warn%
+
 
 call :set_uptime
 
@@ -268,11 +283,14 @@ goto :eof
 
 
 :init
+if not "%pretty%"=="1" set debgn=::
+%debgn%@echo off
 %debgn%cls
 @PROMPT=^>
 %debgn%MODE CON COLS=52 LINES=20
-%debgn%COLOR %norm%
 @echo initializing...
+@call :init_colors %theme%
+%debgn%COLOR %norm%
 @SET ThisTitle=Lectrode's Quick Net Fix v%version%
 @TITLE %ThisTitle%
 @set numfixes=0
@@ -284,4 +302,46 @@ goto :eof
 
 :init_settn
 set /a %1=%2
+goto :eof
+
+:init_colors
+set theme=%1
+call :init_colors_%theme%
+goto :eof
+
+:init_colors_none
+set norm=
+set warn=
+set alrt=
+goto :eof
+
+:init_colors_subtle
+set norm=07
+set warn=06
+set alrt=04
+goto :eof
+
+:init_colors_vibrant
+set norm=0a
+set warn=0e
+set alrt=0c
+goto :eof
+
+:init_colors_fullsubtle
+set norm=20
+set warn=60
+set alrt=c0
+goto :eof
+
+:init_colors_fullvibrant
+set norm=a0
+set warn=e0
+set alrt=c0
+goto :eof
+
+:init_colors_crazy
+set norm=^&call :crazy
+set warn=^&call :crazy
+set alrt=^&call :crazy
+set crazystr=0123456789ABCDEF
 goto :eof
