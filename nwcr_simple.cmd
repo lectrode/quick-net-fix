@@ -1,5 +1,5 @@
 ::Quick detect&fix
-@SET version=2.3.219
+@SET version=2.3.220
 
 ::-Settings-
 set manualrouter=
@@ -9,10 +9,13 @@ set STN_flukechecks=3		Default: 3 (test x times to verify result)
 set STN_checkdelay=5		Default: 5 seconds
 set STN_fixdelay=20			Default: 20 seconds
 set STN_flukecheckdelay=2	Default: 2 seconds
-set STN_timeoutmilsecs=2000	Default: 1000 miliseconds
+set STN_timeoutmilsecs=3000	Default: 1000 miliseconds
 
 ::-Advanced-
 set debgn=
+set norm=07
+set warn=06
+set alrt=04
 
 
 
@@ -38,6 +41,7 @@ goto :loop
 
 :header
 cls
+COLOR %curcolor%
 echo  --------------------------------------------------
 echo  -      %ThisTitle%         -
 echo  --------------------------------------------------
@@ -75,12 +79,12 @@ set /a pts=STN_checkdelay
 if %dbl% geq 1 set pts=STN_flukecheckdelay
 for /f "tokens=* delims=" %%p in ('ping -w %STN_timeoutmilsecs% -n 1 %testrouter%') do set ping_test=%%p
 echo %ping_test% |findstr "request could not find" >NUL
-if %errorlevel% equ 0 set result=NotConnected %showdlb%&set /a down+=pts
+if %errorlevel% equ 0 set result=NotConnected %showdlb%&set /a down+=pts&set curcolor=%warn%
 echo %ping_test% |findstr "Unreachable" >NUL
-if %errorlevel% equ 0 set result=Unreachable %showdlb%&set /a down+=pts
+if %errorlevel% equ 0 set result=Unreachable %showdlb%&set /a down+=pts&set curcolor=%warn%
 echo %ping_test% |findstr "Minimum " >NUL
-if %errorlevel% equ 0 set result=Connected&set /a up+=pts
-if "%result%"=="" set result=TimeOut %showdlb%&set /a down+=pts
+if %errorlevel% equ 0 set result=Connected&set /a up+=pts&set curcolor=%norm%
+if "%result%"=="" set result=TimeOut %showdlb%&set /a down+=pts&set curcolor=%warn%
 
 set /a dbl+=1
 set showdbl=(fluke check %dbl%/%STN_flukechecks%)
@@ -108,6 +112,7 @@ goto :eof
 
 
 :resetAdapter
+set curcolor=%alrt%
 @set curstatus=Resetting connection...
 %debgn%call :header
 set resetted=1
@@ -266,6 +271,7 @@ goto :eof
 %debgn%cls
 @PROMPT=^>
 %debgn%MODE CON COLS=52 LINES=20
+%debgn%COLOR %norm%
 @echo initializing...
 @SET ThisTitle=Lectrode's Quick Net Fix v%version%
 @TITLE %ThisTitle%
