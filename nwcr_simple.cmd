@@ -1,10 +1,11 @@
 ::Quick detect&fix
-@SET version=2.4.222
+@SET version=2.5.224
 
 ::-Settings-
 set manualrouter=
 set manualAdapter=
 
+set STN_StabilityHistory=30	Default: 30 (number of last tests to determine stability)
 set STN_flukechecks=5		Default: 3 (test x times to verify result)
 set STN_checkdelay=5		Default: 5 seconds
 set STN_fixdelay=20			Default: 20 seconds
@@ -29,7 +30,7 @@ call :getrouter
 call :getadapter
 
 :loop
-%debgn%MODE CON COLS=52 LINES=12
+%debgn%MODE CON COLS=52 LINES=13
 call :check
 call :sleep %STN_checkdelay%
 goto :loop
@@ -47,6 +48,7 @@ echo.
 if not "%NETWORK%"=="" 		echo  Connection: %NETWORK%
 if not "%router%"=="" 		echo  Router:     %router%
 if not "%uptime%"=="" 		echo  Uptime:     %uptime%        U:%dispUP% D:%dispDN%
+if not "%stability%"==""	echo  Stability:  %stability%
 echo.
 if not %numfixes%==0 		echo  Fixes:      %numfixes%
 if not "%lastresult%"=="" 	echo  Last Test:  %lastresult%
@@ -95,16 +97,21 @@ set /a dbl+=1
 set showdbl=(fluke check %dbl%/%STN_flukechecks%)
 
 for /f "tokens=* delims=" %%p in ('ping -w %STN_timeoutmilsecs% -n 1 %testrouter%') do set ping_test=%%p
+
 echo %ping_test% |findstr "request could not find" >NUL
-if %errorlevel% equ 0 set result=NotConnected %showdbl%&set /a down+=pts&set curcolor=%warn%
+if %errorlevel% equ 0 set result=NotConnected %showdbl%&set /a down+=pts&set curcolor=%warn%&set stbltySTR=%stbltySTR% 1
+
 echo %ping_test% |findstr "Unreachable" >NUL
-if %errorlevel% equ 0 set result=Unreachable %showdbl%&set /a down+=pts&set curcolor=%warn%
+if %errorlevel% equ 0 set result=Unreachable %showdbl%&set /a down+=pts&set curcolor=%warn%&set stbltySTR=%stbltySTR% 1
+
 echo %ping_test% |findstr "Minimum " >NUL
-if %errorlevel% equ 0 set result=Connected&set /a up+=pts&set curcolor=%norm%
-if "%result%"=="" set result=TimeOut %showdbl%&set /a down+=pts&set curcolor=%warn%
+if %errorlevel% equ 0 set result=Connected&set /a up+=pts&set curcolor=%norm%&set stbltySTR=%stbltySTR% 0
+
+if "%result%"=="" set result=TimeOut %showdbl%&set /a down+=pts&set curcolor=%warn%&set stbltySTR=%stbltySTR% 1
 
 
 call :set_uptime
+call :set_stability %stbltySTR%
 
 if "%result%"=="Connected" if not "%lastresult%"=="Connected" if "%resetted%"=="1" set /a numfixes+=1
 set lastresult=%result%
@@ -125,12 +132,35 @@ set /a dispUP=up/STN_checkdelay
 set /a dispDN=down/STN_checkdelay
 goto :eof
 
+:set_stability
+set /a stblty_tests+=1
+set /a stblty_val+=%1
+shift
+if not "%1"=="" goto :set_stability
+set stblty_over=0
+if %stblty_tests% gtr %STN_StabilityHistory% set /a stblty_over=stblty_tests-STN_StabilityHistory
+if %stblty_over% geq 1 set stblty_over*=2
+if %stblty_over% geq 2 set stbltySTR=!stbltySTR:~%stblty_over%!
+set /a stblty_result=100-((stblty_val*100)/stblty_tests)
+set stability=Very Poor
+if %stblty_result% gtr 50 set stability=Poor
+if %stblty_result% gtr 65 set stability=Very Low
+if %stblty_result% gtr 80 set stability=Low
+if %stblty_result% gtr 88 set stability=Fair
+if %stblty_result% gtr 94 set stability=Normal
+::if %stblty_result% equ 100 set stability=Perfect
+if %stblty_tests% lss %STN_StabilityHistory% set stability=Calculating...(%stblty_tests%/%STN_StabilityHistory%)
+set stblty_tests=0
+set stblty_val=0
+goto :eof
+
 
 :resetAdapter
 set curcolor=%alrt%
 @set curstatus=Resetting connection...
 %debgn%call :header
 set resetted=1
+set stbltySTR=%stbltySTR% 2
 netsh interface set interface "%NETWORK%" admin=disable>NUL 2>&1
 netsh interface set interface "%NETWORK%" admin=enable>NUL 2>&1
 call :sleep 15
@@ -297,6 +327,7 @@ if not "%pretty%"=="1" set debgn=::
 @set up=0
 @set down=0
 @set dbl=0
+@set stbltySTR=
 @for /f "tokens=1,* DELIMS==" %%s in ('set STN_') do call :init_settn %%s %%t
 goto :eof
 
