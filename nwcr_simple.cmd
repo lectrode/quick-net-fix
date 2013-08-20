@@ -1,16 +1,16 @@
 ::Quick detect&fix
-@SET version=2.5.224
+@SET version=2.6.229
 
 ::-Settings-
 set manualrouter=
 set manualAdapter=
 
-set STN_StabilityHistory=30	Default: 30 (number of last tests to determine stability)
-set STN_flukechecks=5		Default: 3 (test x times to verify result)
+set STN_StabilityHistory=25	Default: 25 (number of last tests to determine stability)
+set STN_flukechecks=7		Default: 7 (test x times to verify result)
 set STN_checkdelay=5		Default: 5 seconds
-set STN_fixdelay=20			Default: 20 seconds
-set STN_flukecheckdelay=3	Default: 2 seconds
-set STN_timeoutmilsecs=3000	Default: 1000 miliseconds
+set STN_fixdelay=2			Default: 2 seconds
+set STN_flukecheckdelay=1	Default: 1 seconds
+set STN_timeoutmilsecs=1000	Default: 1000 miliseconds
 
 ::-GUI-
 set pretty=1
@@ -30,7 +30,7 @@ call :getrouter
 call :getadapter
 
 :loop
-%debgn%MODE CON COLS=52 LINES=13
+%debgn%MODE CON COLS=%cols% LINES=13
 call :check
 call :sleep %STN_checkdelay%
 goto :loop
@@ -39,15 +39,21 @@ goto :loop
 
 
 :header
+set show_stbtlySTR=%stbltySTR:0=-%
+set show_stbtlySTR=%show_stbtlySTR:1==%
+set show_stbtlySTR=%show_stbtlySTR:2=*%
+set show_stbtlySTR=%aft-%!show_stbtlySTR: =%-%!
+if "%stbltySTR%"=="" set show_stbtlySTR=                                                   -
 cls
 COLOR %curcolor%
 echo  --------------------------------------------------
 echo  -      %ThisTitle%         -
-echo  --------------------------------------------------
+::echo  --------------------------------------------------
+echo. !show_stbtlySTR:~-%colnum%!
 echo.
 if not "%NETWORK%"=="" 		echo  Connection: %NETWORK%
 if not "%router%"=="" 		echo  Router:     %router%
-if not "%uptime%"=="" 		echo  Uptime:     %uptime%        U:%dispUP% D:%dispDN%
+if not "%uptime%"=="" 		echo  Uptime:     %uptime%
 if not "%stability%"==""	echo  Stability:  %stability%
 echo.
 if not %numfixes%==0 		echo  Fixes:      %numfixes%
@@ -93,9 +99,6 @@ if not "%router%"=="" set testrouter=%router%
 set /a pts=STN_checkdelay
 if %dbl% geq 1 set pts=STN_flukecheckdelay
 
-set /a dbl+=1
-set showdbl=(fluke check %dbl%/%STN_flukechecks%)
-
 for /f "tokens=* delims=" %%p in ('ping -w %STN_timeoutmilsecs% -n 1 %testrouter%') do set ping_test=%%p
 
 echo %ping_test% |findstr "request could not find" >NUL
@@ -104,11 +107,16 @@ if %errorlevel% equ 0 set result=NotConnected %showdbl%&set /a down+=pts&set cur
 echo %ping_test% |findstr "Unreachable" >NUL
 if %errorlevel% equ 0 set result=Unreachable %showdbl%&set /a down+=pts&set curcolor=%warn%&set stbltySTR=%stbltySTR% 1
 
+echo %ping_test% |findstr "General Failure" >NUL
+if %errorlevel% equ 0 set result=Connecting...&set /a down+=pts&set curcolor=%pend%
+
 echo %ping_test% |findstr "Minimum " >NUL
 if %errorlevel% equ 0 set result=Connected&set /a up+=pts&set curcolor=%norm%&set stbltySTR=%stbltySTR% 0
 
 if "%result%"=="" set result=TimeOut %showdbl%&set /a down+=pts&set curcolor=%warn%&set stbltySTR=%stbltySTR% 1
 
+set /a dbl+=1
+set showdbl=(fluke check %dbl%/%STN_flukechecks%)
 
 call :set_uptime
 call :set_stability %stbltySTR%
@@ -116,8 +124,8 @@ call :set_stability %stbltySTR%
 if "%result%"=="Connected" if not "%lastresult%"=="Connected" if "%resetted%"=="1" set /a numfixes+=1
 set lastresult=%result%
 if "%result%"=="Connected" set resetted=0
-if not "%result%"=="Connected" if not "%dbl%"=="%STN_flukechecks%" call :sleep %STN_flukecheckdelay%&goto :check
-if not "%result%"=="Connected" if "%dbl%"=="%STN_flukechecks%" call :resetAdapter
+if not "%result%"=="Connected" if not %dbl% gtr %STN_flukechecks% call :sleep %STN_flukecheckdelay%&goto :check
+if not "%result%"=="Connected" if %dbl% gtr %STN_flukechecks% call :resetAdapter
 set dbl=0
 set showdbl=
 goto :eof
@@ -125,33 +133,36 @@ goto :eof
 
 :set_uptime
 if %up% geq 100000 set /a up=up/10&set /a down=down/10
-set /a uptime=((up*10000)/(up+down))
-set /a uptime+=0
-set uptime=%uptime:~0,-2%.%uptime:~-2%%%
 set /a dispUP=up/STN_checkdelay
 set /a dispDN=down/STN_checkdelay
+set /a uptime=((up*10000)/(up+down))
+set /a uptime+=0
+set uptime=%uptime:~0,-2%.%uptime:~-2%%%        U:%dispUP% D:%dispDN%
 goto :eof
 
 :set_stability
 set /a stblty_tests+=1
 set /a stblty_val+=%1
+if "%stblty_firstval%"=="" set stblty_firstval=%1
 shift
 if not "%1"=="" goto :set_stability
 set stblty_over=0
-if %stblty_tests% gtr %STN_StabilityHistory% set /a stblty_over=stblty_tests-STN_StabilityHistory
+if %stblty_tests% geq %STN_StabilityHistory% set /a stblty_over=stblty_tests-STN_StabilityHistory&set /a stblty_val-=stblty_firstval
 if %stblty_over% geq 1 set stblty_over*=2
-if %stblty_over% geq 2 set stbltySTR=!stbltySTR:~%stblty_over%!
+if %stblty_over% geq 1 set stbltySTR=!stbltySTR:~%stblty_over%!
 set /a stblty_result=100-((stblty_val*100)/stblty_tests)
 set stability=Very Poor
-if %stblty_result% gtr 50 set stability=Poor
-if %stblty_result% gtr 65 set stability=Very Low
-if %stblty_result% gtr 80 set stability=Low
-if %stblty_result% gtr 88 set stability=Fair
+if %stblty_result% gtr 40 set stability=Poor
+if %stblty_result% gtr 55 set stability=Very Low
+if %stblty_result% gtr 70 set stability=Low
+if %stblty_result% gtr 85 set stability=Fair
 if %stblty_result% gtr 94 set stability=Normal
-::if %stblty_result% equ 100 set stability=Perfect
-if %stblty_tests% lss %STN_StabilityHistory% set stability=Calculating...(%stblty_tests%/%STN_StabilityHistory%)
+if %stblty_result% equ 100 set stability=High
+if %stblty_tests% leq %STN_StabilityHistory% set stability=Calculating...(%stblty_tests%/%STN_StabilityHistory%)
+if %stblty_tests% gtr %STN_StabilityHistory% set STN_checkdelay=%orig_checkdelay%
 set stblty_tests=0
 set stblty_val=0
+set stblty_firstval=
 goto :eof
 
 
@@ -163,8 +174,8 @@ set resetted=1
 set stbltySTR=%stbltySTR% 2
 netsh interface set interface "%NETWORK%" admin=disable>NUL 2>&1
 netsh interface set interface "%NETWORK%" admin=enable>NUL 2>&1
-call :sleep 15
-set /a down+=(STN_fixdelay/STN_checkdelay)+1
+call :sleep %STN_fixdelay%
+set /a down+=STN_fixdelay
 call :getrouter
 call :getadapter
 goto :eof
@@ -317,7 +328,8 @@ if not "%pretty%"=="1" set debgn=::
 %debgn%@echo off
 %debgn%cls
 @PROMPT=^>
-%debgn%MODE CON COLS=52 LINES=20
+@set cols=52
+%debgn%MODE CON COLS=%cols% LINES=20
 @echo initializing...
 @call :init_colors %theme%
 %debgn%COLOR %norm%
@@ -329,10 +341,26 @@ if not "%pretty%"=="1" set debgn=::
 @set dbl=0
 @set stbltySTR=
 @for /f "tokens=1,* DELIMS==" %%s in ('set STN_') do call :init_settn %%s %%t
+@set orig_checkdelay=%STN_checkdelay%
+@set STN_checkdelay=1
+@call :init_bar
 goto :eof
 
 :init_settn
 set /a %1=%2
+goto :eof
+
+:init_bar
+set /a colnum=cols-2
+if %colnum% leq %STN_StabilityHistory% goto :eof
+set /a hyppertest=(colnum/STN_StabilityHistory)
+set /a hypleft=(colnum-(hyppertest*STN_StabilityHistory))-1
+set /a numhyp=hyppertest-1
+:init_bar_loop
+if not %numhyp% leq 0 set -=%-%-&set /a numhyp-=1
+if not %hypleft% leq 0 set aft-=%aft-%-&set /a hypleft-=1
+set /a bar_loop_tot=numhyp+hypleft
+if %bar_loop_tot% gtr 0 goto :init_bar_loop
 goto :eof
 
 :init_colors
@@ -350,24 +378,28 @@ goto :eof
 set norm=07
 set warn=06
 set alrt=04
+set pend=03
 goto :eof
 
 :init_colors_vibrant
 set norm=0a
 set warn=0e
 set alrt=0c
+set pend=0b
 goto :eof
 
 :init_colors_fullsubtle
 set norm=20
 set warn=60
-set alrt=c0
+set alrt=40
+set pend=30
 goto :eof
 
 :init_colors_fullvibrant
 set norm=a0
 set warn=e0
 set alrt=c0
+set pend=b0
 goto :eof
 
 :init_colors_crazy
