@@ -1,5 +1,5 @@
 ::Quick detect&fix
-@SET version=2.6.229
+@SET version=2.6.230
 
 ::-Settings-
 set manualrouter=
@@ -48,7 +48,6 @@ cls
 COLOR %curcolor%
 echo  --------------------------------------------------
 echo  -      %ThisTitle%         -
-::echo  --------------------------------------------------
 echo. !show_stbtlySTR:~-%colnum%!
 echo.
 if not "%NETWORK%"=="" 		echo  Connection: %NETWORK%
@@ -68,6 +67,7 @@ goto :eof
 :sleep
 if "%1"=="" set pn=3
 if not "%1"=="" set pn=%1
+if %pn% equ 0 goto :eof
 @set curstatus=Wait %pn% seconds...
 set /a pn+=1
 %debgn%call :header
@@ -91,7 +91,7 @@ goto :eof
 
 
 :check
-@set curstatus=Testing connection...
+@set curstatus=Testing connectivity...
 %debgn%call :header
 set result=
 set testrouter=www.google.com
@@ -148,7 +148,7 @@ shift
 if not "%1"=="" goto :set_stability
 set stblty_over=0
 if %stblty_tests% geq %STN_StabilityHistory% set /a stblty_over=stblty_tests-STN_StabilityHistory&set /a stblty_val-=stblty_firstval
-if %stblty_over% geq 1 set stblty_over*=2
+if %stblty_over% geq 1 set /a stblty_over*=2
 if %stblty_over% geq 1 set stbltySTR=!stbltySTR:~%stblty_over%!
 set /a stblty_result=100-((stblty_val*100)/stblty_tests)
 set stability=Very Poor
@@ -353,9 +353,9 @@ goto :eof
 :init_bar
 set /a colnum=cols-2
 if %colnum% leq %STN_StabilityHistory% goto :eof
-set /a hyppertest=(colnum/STN_StabilityHistory)
-set /a hypleft=(colnum-(hyppertest*STN_StabilityHistory))-1
-set /a numhyp=hyppertest-1
+set /a numhyp=(colnum/STN_StabilityHistory)
+set /a hypleft=(colnum-(numhyp*STN_StabilityHistory))
+set /a numhyp-=1
 :init_bar_loop
 if not %numhyp% leq 0 set -=%-%-&set /a numhyp-=1
 if not %hypleft% leq 0 set aft-=%aft-%-&set /a hypleft-=1
