@@ -1,16 +1,16 @@
 ::Quick detect&fix
-@SET version=2.6.233
+@SET version=2.6.235
 
 ::-Settings-
-set manualrouter=
-set manualAdapter=
+set manualRouter=			Examples: 192.168.0.1 or www.google.com
+set manualAdapter=			Examples: Local Area Connection or Wireless Network Connection
 
-set STN_StabilityHistory=25	Default: 25 (number of last tests to determine stability)
-set STN_flukechecks=7		Default: 7 (test x times to verify result)
-set STN_checkdelay=5		Default: 5 seconds
-set STN_fixdelay=2			Default: 2 seconds
-set STN_flukecheckdelay=1	Default: 1 seconds
-set STN_timeoutsecs=1		Default: 1 seconds
+set INT_StabilityHistory=25	Default: 25 (number of last tests to determine stability)
+set INT_flukechecks=7		Default: 7 (test x times to verify result)
+set INT_checkdelay=5		Default: 5 seconds
+set INT_fixdelay=2			Default: 2 seconds
+set INT_flukecheckdelay=1	Default: 1 seconds
+set INT_timeoutsecs=1		Default: 1 seconds
 
 ::-GUI-
 set pretty=1
@@ -32,7 +32,7 @@ call :getadapter
 :loop
 %debgn%MODE CON COLS=%cols% LINES=13
 call :check
-call :sleep %STN_checkdelay%
+call :sleep %INT_checkdelay%
 goto :loop
 
 
@@ -124,7 +124,7 @@ if "%resultUpDown%"=="Down" (
 if "%lastresult%"=="Connected" set /a timepassed/=2
 if %timepassed% leq 0 set timepassed=1
 set /a down+=timepassed
-if "%result%"=="TimeOut" set /a down+=STN_timeoutsecs
+if "%result%"=="TimeOut" set /a down+=INT_timeoutsecs
 set curcolor=%warn%
 set stbltySTR=%stbltySTR% 1
 set result=%result% %showdbl%
@@ -133,7 +133,7 @@ set result=%result% %showdbl%
 
 set timepassed=0
 set /a dbl+=1
-set showdbl=(fluke check %dbl%/%STN_flukechecks%)
+set showdbl=(fluke check %dbl%/%INT_flukechecks%)
 
 call :set_uptime
 call :set_stability %stbltySTR%
@@ -141,8 +141,8 @@ call :set_stability %stbltySTR%
 if "%result%"=="Connected" if not "%lastresult%"=="Connected" if "%resetted%"=="1" set /a numfixes+=1
 set lastresult=%result%
 if "%result%"=="Connected" set resetted=0
-if not "%result%"=="Connected" if not %dbl% gtr %STN_flukechecks% call :sleep %STN_flukecheckdelay%&goto :check
-if not "%result%"=="Connected" if %dbl% gtr %STN_flukechecks% call :resetAdapter
+if not "%result%"=="Connected" if not %dbl% gtr %INT_flukechecks% call :sleep %INT_flukecheckdelay%&goto :check
+if not "%result%"=="Connected" if %dbl% gtr %INT_flukechecks% call :resetAdapter
 set dbl=0
 set showdbl=
 goto :eof
@@ -150,8 +150,8 @@ goto :eof
 
 :set_uptime
 if %up% geq 100000 set /a up=up/10&set /a down=down/10
-set /a dispUP=up/STN_checkdelay
-set /a dispDN=down/STN_checkdelay
+set /a dispUP=up/INT_checkdelay
+set /a dispDN=down/INT_checkdelay
 set /a uptime=((up*10000)/(up+down))
 set /a uptime+=0
 set uptime=%uptime:~0,-2%.%uptime:~-2%%%        U:%dispUP% D:%dispDN%
@@ -164,7 +164,7 @@ if "%stblty_firstval%"=="" set stblty_firstval=%1
 shift
 if not "%1"=="" goto :set_stability
 set stblty_over=0
-if %stblty_tests% geq %STN_StabilityHistory% set /a stblty_over=stblty_tests-STN_StabilityHistory&set /a stblty_val-=stblty_firstval
+if %stblty_tests% geq %INT_StabilityHistory% set /a stblty_over=stblty_tests-INT_StabilityHistory&set /a stblty_val-=stblty_firstval
 if %stblty_over% geq 1 set /a stblty_over*=2
 if %stblty_over% geq 1 set stbltySTR=!stbltySTR:~%stblty_over%!
 set /a stblty_result=100-((stblty_val*100)/stblty_tests)
@@ -175,8 +175,8 @@ if %stblty_result% gtr 70 set stability=Low [4]
 if %stblty_result% gtr 85 set stability=Fair [3]
 if %stblty_result% gtr 94 set stability=Normal [2]
 if %stblty_result% equ 100 set stability=High [1]
-if %stblty_tests% leq %STN_StabilityHistory% set stability=Calculating...(%stblty_tests%/%STN_StabilityHistory%)
-if %stblty_tests% gtr %STN_StabilityHistory% set STN_checkdelay=%orig_checkdelay%
+if %stblty_tests% leq %INT_StabilityHistory% set stability=Calculating...(%stblty_tests%/%INT_StabilityHistory%)
+if %stblty_tests% gtr %INT_StabilityHistory% set INT_checkdelay=%orig_checkdelay%
 set stblty_tests=0
 set stblty_val=0
 set stblty_firstval=
@@ -191,8 +191,8 @@ set resetted=1
 set stbltySTR=%stbltySTR% 2
 netsh interface set interface "%NETWORK%" admin=disable>NUL 2>&1
 netsh interface set interface "%NETWORK%" admin=enable>NUL 2>&1
-call :sleep %STN_fixdelay%
-set /a down+=STN_fixdelay
+call :sleep %INT_fixdelay%
+set /a down+=INT_fixdelay
 call :getrouter
 call :getadapter
 goto :eof
@@ -200,7 +200,7 @@ goto :eof
 
 
 :getrouter
-if not "%manualrouter%"=="" set router=%manualrouter%&goto :eof
+if not "%manualRouter%"=="" set router=%manualRouter%&goto :eof
 set numrouters=0
 for /f "tokens=2 delims=:" %%r in ('ipconfig ^|findstr "Default Gateway"') do call :setrouter%%r
 set router=%router1%
@@ -265,6 +265,7 @@ SET /P usrInput=[]
 IF "%usrInput%"=="" SET usrInput=0
 FOR /L %%n IN (1,1,%numrouters%) DO IF "%usrInput%"=="%%n" SET router=!router%%n!
 IF "%router%"=="" GOTO :chooserouter
+set manualRouter=%router%
 ECHO.
 goto :eof
 
@@ -272,8 +273,8 @@ goto :eof
 
 :getAdapter
 if not "%manualAdapter%"=="" set NETWORK=%manualAdapter%&goto :eof
-if not "%manualRouter%"=="" call :Ask4Connection &goto :eof
-if not "%router%"=="" goto :autoAdapter
+if not "%router%"=="" call :autoAdapter
+if not "%NETWORK%"=="" goto :eof
 SET CON_NUM=0
 FOR /F "tokens=* DELIMS=" %%n IN ('wmic nic get NetConnectionID') DO CALL :GET_NETWORK_CONNECTIONS_PARSE %%n
 call :Ask4Connection
@@ -304,6 +305,7 @@ SET /P usrInput=[]
 IF "%usrInput%"=="" SET usrInput=1
 FOR /L %%n IN (1,1,%CON_NUM%) DO IF "%usrInput%"=="%%n" SET NETWORK=!CONNECTION%%n_NAME!
 IF "%NETWORK%"=="" GOTO :Ask4Connection
+set manualAdapter=%NETWORK%
 ECHO.
 goto :eof
 
@@ -319,13 +321,23 @@ set line=%*
 echo %line% |findstr "adapter">NUL
 if %errorlevel% equ 0 goto :autoAdapter_parseAdapter
 
+echo %line% |findstr "Media State">NUL
+if %errorlevel% equ 0 goto :autoAdapter_parseMediaState
+if "%curMediaState%"=="Media disconnected" goto :eof
+
 echo %line% |findstr "Gateway">NUL
 if %errorlevel% equ 0 goto :autoAdapter_parseGateway
 goto :eof
 
 :autoAdapter_parseAdapter
 set line=%line:adapter =:%
+set curMediaState=
 for /f "tokens=2 delims=:" %%a in ("%line%") do set curadapter=%%a
+goto :eof
+
+:autoAdapter_parseMediaState
+for /f "tokens=2 delims=:" %%a in ("%line%") do set curMediaState=%%a
+set curMediaState=%curGateway:~1%
 goto :eof
 
 :autoAdapter_parseGateway
@@ -358,10 +370,12 @@ if not "%pretty%"=="1" set debgn=::
 @set timepassed=1
 @set dbl=0
 @set stbltySTR=
-@for /f "tokens=1,* DELIMS==" %%s in ('set STN_') do call :init_settn %%s %%t
-@set orig_checkdelay=%STN_checkdelay%
-@set STN_checkdelay=1
-@set /a timeoutmilsecs=1000*STN_timeoutsecs
+@for /f "tokens=1,* DELIMS==" %%s in ('set INT_') do call :init_settn %%s %%t
+@set orig_checkdelay=%INT_checkdelay%
+@set INT_checkdelay=1
+@set /a timeoutmilsecs=1000*INT_timeoutsecs
+@call :init_manualRouter %manualRouter%
+@for /f "tokens=1 DELIMS=:" %%a in ("%manualAdapter%") do call :init_manualAdapter %%a
 @call :init_bar
 goto :eof
 
@@ -369,13 +383,28 @@ goto :eof
 set /a %1=%2
 goto :eof
 
+:init_manualRouter
+set manualRouter=%1
+set manualRouter=%manualRouter:http:=%
+set manualRouter=%manualRouter:https:=%
+set manualRouter=%manualRouter:/=%
+if "%manualRouter%"=="Examples:" set manualRouter=
+goto :eof
+
+:init_manualAdapter
+set manualAdapter=%*
+set manualAdapter=%manualAdapter:Examples=%
+if "%manualAdapter%"=="" goto :eof
+set manualAdapter=%manualAdapter:	=%
+goto :eof
+
 :init_bar
 set /a colnum=cols-2
 set -=
 set aft-=
-if %colnum% leq %STN_StabilityHistory% goto :eof
-set /a numhyp=(colnum/STN_StabilityHistory)
-set /a hypleft=(colnum-(numhyp*STN_StabilityHistory))
+if %colnum% leq %INT_StabilityHistory% goto :eof
+set /a numhyp=(colnum/INT_StabilityHistory)
+set /a hypleft=(colnum-(numhyp*INT_StabilityHistory))
 set /a numhyp-=1
 :init_bar_loop
 if not %numhyp% leq 0 set -=%-%-&set /a numhyp-=1
