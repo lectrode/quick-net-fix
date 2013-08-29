@@ -1,5 +1,5 @@
 ::Quick detect&fix
-@SET version=2.6.230
+@SET version=2.6.232
 
 ::-Settings-
 set manualrouter=
@@ -10,7 +10,7 @@ set STN_flukechecks=7		Default: 7 (test x times to verify result)
 set STN_checkdelay=5		Default: 5 seconds
 set STN_fixdelay=2			Default: 2 seconds
 set STN_flukecheckdelay=1	Default: 1 seconds
-set STN_timeoutmilsecs=1000	Default: 1000 miliseconds
+set STN_timeoutsecs=1		Default: 1 seconds
 
 ::-GUI-
 set pretty=1
@@ -69,6 +69,7 @@ if "%1"=="" set pn=3
 if not "%1"=="" set pn=%1
 if %pn% equ 0 goto :eof
 @set curstatus=Wait %pn% seconds...
+set /a timepassed+=pn
 set /a pn+=1
 %debgn%call :header
 ping -n %pn% -w 1000 127.0.0.1>nul
@@ -96,25 +97,24 @@ goto :eof
 set result=
 set testrouter=www.google.com
 if not "%router%"=="" set testrouter=%router%
-set /a pts=STN_checkdelay
-if %dbl% geq 1 set pts=STN_flukecheckdelay
 
-for /f "tokens=* delims=" %%p in ('ping -w %STN_timeoutmilsecs% -n 1 %testrouter%') do set ping_test=%%p
+for /f "tokens=* delims=" %%p in ('ping -w %timeoutmilsecs% -n 1 %testrouter%') do set ping_test=%%p
 
 echo %ping_test% |findstr "request could not find" >NUL
-if %errorlevel% equ 0 set result=NotConnected %showdbl%&set /a down+=pts&set curcolor=%warn%&set stbltySTR=%stbltySTR% 1
+if %errorlevel% equ 0 set result=NotConnected %showdbl%&set /a down+=timepassed&set curcolor=%warn%&set stbltySTR=%stbltySTR% 1
 
 echo %ping_test% |findstr "Unreachable" >NUL
-if %errorlevel% equ 0 set result=Unreachable %showdbl%&set /a down+=pts&set curcolor=%warn%&set stbltySTR=%stbltySTR% 1
+if %errorlevel% equ 0 set result=Unreachable %showdbl%&set /a down+=timepassed&set curcolor=%warn%&set stbltySTR=%stbltySTR% 1
 
 echo %ping_test% |findstr "General Failure" >NUL
-if %errorlevel% equ 0 set result=Connecting...&set /a down+=pts&set curcolor=%pend%
+if %errorlevel% equ 0 set result=Connecting...&set /a down+=timepassed&set curcolor=%pend%
 
 echo %ping_test% |findstr "Minimum " >NUL
-if %errorlevel% equ 0 set result=Connected&set /a up+=pts&set curcolor=%norm%&set stbltySTR=%stbltySTR% 0
+if %errorlevel% equ 0 set result=Connected&set /a up+=timepassed&set curcolor=%norm%&set stbltySTR=%stbltySTR% 0
 
-if "%result%"=="" set result=TimeOut %showdbl%&set /a down+=pts&set curcolor=%warn%&set stbltySTR=%stbltySTR% 1
+if "%result%"=="" set result=TimeOut %showdbl%&set /a down+=timepassed+STN_timeoutsecs&set curcolor=%warn%&set stbltySTR=%stbltySTR% 1
 
+set timepassed=0
 set /a dbl+=1
 set showdbl=(fluke check %dbl%/%STN_flukechecks%)
 
@@ -151,13 +151,13 @@ if %stblty_tests% geq %STN_StabilityHistory% set /a stblty_over=stblty_tests-STN
 if %stblty_over% geq 1 set /a stblty_over*=2
 if %stblty_over% geq 1 set stbltySTR=!stbltySTR:~%stblty_over%!
 set /a stblty_result=100-((stblty_val*100)/stblty_tests)
-set stability=Very Poor
-if %stblty_result% gtr 40 set stability=Poor
-if %stblty_result% gtr 55 set stability=Very Low
-if %stblty_result% gtr 70 set stability=Low
-if %stblty_result% gtr 85 set stability=Fair
-if %stblty_result% gtr 94 set stability=Normal
-if %stblty_result% equ 100 set stability=High
+set stability=R7 (Very Poor)
+if %stblty_result% gtr 40 set stability=R6 (Poor)
+if %stblty_result% gtr 55 set stability=R5 (Lower)
+if %stblty_result% gtr 70 set stability=R4 (Low)
+if %stblty_result% gtr 85 set stability=R3 (Fair)
+if %stblty_result% gtr 94 set stability=R2 (Normal)
+if %stblty_result% equ 100 set stability=R1 (High)
 if %stblty_tests% leq %STN_StabilityHistory% set stability=Calculating...(%stblty_tests%/%STN_StabilityHistory%)
 if %stblty_tests% gtr %STN_StabilityHistory% set STN_checkdelay=%orig_checkdelay%
 set stblty_tests=0
@@ -338,11 +338,13 @@ if not "%pretty%"=="1" set debgn=::
 @set numfixes=0
 @set up=0
 @set down=0
+@set timepassed=1
 @set dbl=0
 @set stbltySTR=
 @for /f "tokens=1,* DELIMS==" %%s in ('set STN_') do call :init_settn %%s %%t
 @set orig_checkdelay=%STN_checkdelay%
 @set STN_checkdelay=1
+@set /a timeoutmilsecs=1000*STN_timeoutsecs
 @call :init_bar
 goto :eof
 
@@ -352,6 +354,8 @@ goto :eof
 
 :init_bar
 set /a colnum=cols-2
+set -=
+set aft-=
 if %colnum% leq %STN_StabilityHistory% goto :eof
 set /a numhyp=(colnum/STN_StabilityHistory)
 set /a hypleft=(colnum-(numhyp*STN_StabilityHistory))
