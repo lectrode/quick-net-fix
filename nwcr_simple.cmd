@@ -1,5 +1,5 @@
 ::Quick detect&fix
-@SET version=2.6.232
+@SET version=2.6.233
 
 ::-Settings-
 set manualrouter=
@@ -95,24 +95,41 @@ goto :eof
 @set curstatus=Testing connectivity...
 %debgn%call :header
 set result=
+set resultUpDown=
 set testrouter=www.google.com
 if not "%router%"=="" set testrouter=%router%
 
 for /f "tokens=* delims=" %%p in ('ping -w %timeoutmilsecs% -n 1 %testrouter%') do set ping_test=%%p
-
 echo %ping_test% |findstr "request could not find" >NUL
-if %errorlevel% equ 0 set result=NotConnected %showdbl%&set /a down+=timepassed&set curcolor=%warn%&set stbltySTR=%stbltySTR% 1
-
+if %errorlevel% equ 0 set result=NotConnected&set resultUpDown=Down
 echo %ping_test% |findstr "Unreachable" >NUL
-if %errorlevel% equ 0 set result=Unreachable %showdbl%&set /a down+=timepassed&set curcolor=%warn%&set stbltySTR=%stbltySTR% 1
-
+if %errorlevel% equ 0 set result=Unreachable&set resultUpDown=Down
 echo %ping_test% |findstr "General Failure" >NUL
 if %errorlevel% equ 0 set result=Connecting...&set /a down+=timepassed&set curcolor=%pend%
-
 echo %ping_test% |findstr "Minimum " >NUL
-if %errorlevel% equ 0 set result=Connected&set /a up+=timepassed&set curcolor=%norm%&set stbltySTR=%stbltySTR% 0
+if %errorlevel% equ 0 set result=Connected&set resultUpDown=Up
+if "%result%"=="" set result=TimeOut&set resultUpDown=Down
 
-if "%result%"=="" set result=TimeOut %showdbl%&set /a down+=timepassed+STN_timeoutsecs&set curcolor=%warn%&set stbltySTR=%stbltySTR% 1
+if "%lastresult%"=="" set lastresult=%result%
+
+if "%resultUpDown%"=="Up" (
+if not "%lastresult%"=="Connected" set /a timepassed/=2
+if %timepassed% leq 0 set timepassed=1
+set /a up+=timepassed
+set curcolor=%norm%
+set stbltySTR=%stbltySTR% 0
+)
+
+if "%resultUpDown%"=="Down" (
+if "%lastresult%"=="Connected" set /a timepassed/=2
+if %timepassed% leq 0 set timepassed=1
+set /a down+=timepassed
+if "%result%"=="TimeOut" set /a down+=STN_timeoutsecs
+set curcolor=%warn%
+set stbltySTR=%stbltySTR% 1
+set result=%result% %showdbl%
+)
+
 
 set timepassed=0
 set /a dbl+=1
@@ -151,13 +168,13 @@ if %stblty_tests% geq %STN_StabilityHistory% set /a stblty_over=stblty_tests-STN
 if %stblty_over% geq 1 set /a stblty_over*=2
 if %stblty_over% geq 1 set stbltySTR=!stbltySTR:~%stblty_over%!
 set /a stblty_result=100-((stblty_val*100)/stblty_tests)
-set stability=R7 (Very Poor)
-if %stblty_result% gtr 40 set stability=R6 (Poor)
-if %stblty_result% gtr 55 set stability=R5 (Lower)
-if %stblty_result% gtr 70 set stability=R4 (Low)
-if %stblty_result% gtr 85 set stability=R3 (Fair)
-if %stblty_result% gtr 94 set stability=R2 (Normal)
-if %stblty_result% equ 100 set stability=R1 (High)
+set stability=Very Poor [7]
+if %stblty_result% gtr 40 set stability=Poor [6]
+if %stblty_result% gtr 55 set stability=Lower [5]
+if %stblty_result% gtr 70 set stability=Low [4]
+if %stblty_result% gtr 85 set stability=Fair [3]
+if %stblty_result% gtr 94 set stability=Normal [2]
+if %stblty_result% equ 100 set stability=High [1]
 if %stblty_tests% leq %STN_StabilityHistory% set stability=Calculating...(%stblty_tests%/%STN_StabilityHistory%)
 if %stblty_tests% gtr %STN_StabilityHistory% set STN_checkdelay=%orig_checkdelay%
 set stblty_tests=0
