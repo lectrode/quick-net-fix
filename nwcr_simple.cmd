@@ -1,5 +1,5 @@
 ::Quick detect&fix
-@SET version=2.6.235
+@SET version=3.0.251
 
 ::-Settings-
 set manualRouter=			Examples: 192.168.0.1 or www.google.com
@@ -11,6 +11,10 @@ set INT_checkdelay=5		Default: 5 seconds
 set INT_fixdelay=2			Default: 2 seconds
 set INT_flukecheckdelay=1	Default: 1 seconds
 set INT_timeoutsecs=1		Default: 1 seconds
+set INT_checkrouterdelay=5	Default: 5 connects (wait x number of connects before verifying router and adapter)
+
+set filterRouters=						:Separate filtered routers with Space
+set filterAdapters=Tunnel VirtualBox	:Separate filter keywords with Space
 
 ::-GUI-
 set pretty=1
@@ -22,12 +26,10 @@ set theme=subtle			none,subtle,vibrant,fullsubtle,fullvibrant,crazy
 
 
 
-
 setlocal enabledelayedexpansion
 call :init
 
-call :getrouter
-call :getadapter
+call :checkRouterAdapter
 
 :loop
 %debgn%MODE CON COLS=%cols% LINES=13
@@ -50,8 +52,8 @@ echo  --------------------------------------------------
 echo  -      %ThisTitle%         -
 echo. !show_stbtlySTR:~-%colnum%!
 echo.
-if not "%NETWORK%"=="" 		echo  Connection: %NETWORK%
-if not "%router%"=="" 		echo  Router:     %router%
+if not "%cur_ADAPTER%"=="" 		echo  Connection: %cur_ADAPTER%
+if not "%cur_ROUTER%"=="" 		echo  Router:     %cur_ROUTER%
 if not "%uptime%"=="" 		echo  Uptime:     %uptime%
 if not "%stability%"==""	echo  Stability:  %stability%
 echo.
@@ -69,9 +71,11 @@ if "%1"=="" set pn=3
 if not "%1"=="" set pn=%1
 if %pn% equ 0 goto :eof
 @set curstatus=Wait %pn% seconds...
+%debgn%call :header
+if not "%stability:~0,4%"=="Calc" if %checkconnects% geq %INT_checkrouterdelay% call :checkRouterAdapter&set /a pn-=tot
 set /a timepassed+=pn
 set /a pn+=1
-%debgn%call :header
+if %pn% leq 0 goto :eof
 ping -n %pn% -w 1000 127.0.0.1>nul
 goto :eof
 
@@ -97,7 +101,7 @@ goto :eof
 set result=
 set resultUpDown=
 set testrouter=www.google.com
-if not "%router%"=="" set testrouter=%router%
+if not "%cur_ROUTER%"=="" set testrouter=%cur_ROUTER%
 
 for /f "tokens=* delims=" %%p in ('ping -w %timeoutmilsecs% -n 1 %testrouter%') do set ping_test=%%p
 echo %ping_test% |findstr "request could not find" >NUL
@@ -118,6 +122,7 @@ if %timepassed% leq 0 set timepassed=1
 set /a up+=timepassed
 set curcolor=%norm%
 set stbltySTR=%stbltySTR% 0
+set /a checkconnects+=1
 )
 
 if "%resultUpDown%"=="Down" (
@@ -130,11 +135,9 @@ set stbltySTR=%stbltySTR% 1
 set result=%result% %showdbl%
 )
 
-
 set timepassed=0
 set /a dbl+=1
 set showdbl=(fluke check %dbl%/%INT_flukechecks%)
-
 call :set_uptime
 call :set_stability %stbltySTR%
 
@@ -189,167 +192,172 @@ set curcolor=%alrt%
 %debgn%call :header
 set resetted=1
 set stbltySTR=%stbltySTR% 2
-netsh interface set interface "%NETWORK%" admin=disable>NUL 2>&1
-netsh interface set interface "%NETWORK%" admin=enable>NUL 2>&1
+netsh interface set interface "%cur_ADAPTER%" admin=disable>NUL 2>&1
+netsh interface set interface "%cur_ADAPTER%" admin=enable>NUL 2>&1
 call :sleep %INT_fixdelay%
 set /a down+=INT_fixdelay
-call :getrouter
-call :getadapter
+call :checkRouterAdapter
+set /a timepassed+=tot
 goto :eof
 
 
 
-:getrouter
-if not "%manualRouter%"=="" set router=%manualRouter%&goto :eof
-set numrouters=0
-for /f "tokens=2 delims=:" %%r in ('ipconfig ^|findstr "Default Gateway"') do call :setrouter%%r
-set router=%router1%
-if %numrouters% geq 2 call :chooserouter
-set lastrouter=%router%
+:checkRouterAdapter
+if not "%manualRouter%"=="" if not "%manualAdapter%"=="" goto :eof
+set startsecs=%time:~6,2%
+set checkconnects=0
+if not %numAdapters% equ 0 for /l %%n in (1,1,%numAdapters%) do set conn_%%n_cn=&set conn_%%n_gw=
+call :getIPCONFIG
+set isConnected=0
+if not "%cur_ADAPTER%"=="" set checkadapternum=0&call :checkadapterstatus
+if "%isConnected%"=="1" goto :checkRouterAdapter_end
+set ROUTER_old=%cur_ROUTER%&set cur_ROUTER=
+set adapter_old=%cur_ADAPTER%&set cur_ADAPTER=
+if "%manualrouter%"=="" call :getAutoRouter
+if "%cur_ADAPTER%"=="" if not "%manualRouter%"=="" call :getAutoAdapter
+if "%cur_ADAPTER%"=="" if not "%manualRouter%"=="" call :Ask4Adapter
+if "%cur_ROUTER%"=="" set cur_ROUTER=%ROUTER_old%
+if "%cur_ADAPTER%"=="" set cur_ADAPTER=%ADAPTER_old%
+
+:checkRouterAdapter_end
+set endsecs=%time:~6,2%
+if %startsecs:~0,1% equ 0 set startsecs=%startsecs:~1,1%
+if %endsecs:~0,1% equ 0 set endsecs=%endsecs:~1,1%
+if %endsecs% lss %startsecs% set /a endsecs+=60
+set /a tot=endsecs-startsecs
 goto :eof
 
-:setrouter
-if "%1"=="" goto :eof
-call :testvalidrouter valid %1
-if "%valid%"=="invalid" goto :eof
-set testrtr=1
-:checkrtrs
-if "!router%testrtr%!"=="%1" goto :eof
-if %testrtr% leq %numrouters% set /a testrtr+=1&goto :checkrtrs
-set /a numrouters+=1
-set router%numrouters%=%1
+:getIPCONFIG
+set numAdapters=0
+for /f "tokens=* delims=" %%r in ('ipconfig') do call :getIPCONFIG_parse %%r
 goto :eof
 
-:testvalidrouter
-set isValid=%1
-set %isValid%=valid
-set line=%2
-set testrtrSTR=%line:.=$!$%
-echo %testrtrSTR% |FIND "$!$">NUL
-if %errorlevel% geq 1 set %isValid%=invalid&goto :eof
-for /f "tokens=1,2,3,4 delims=." %%r in ("%line%") do call :testvalidrouter_4numbers %%r %%s %%t %%u
-goto :eof
-
-:testvalidrouter_4numbers
-set ipplace=0
-:testvalidrouter_4numbers_shift
-set /a ipplace+=1
-set "ip%ipplace%=%1"
-if "!ip%ipplace%!"=="0" goto :testvalidrouter_4numbers_shift_next
-set /a ip%ipplace%=!ip%ipplace%!
-if "!ip%ipplace%!"=="0" set %isValid%=invalid&goto :eof
-:testvalidrouter_4numbers_shift_next
-shift
-if not "%1"=="" goto :testvalidrouter_4numbers_shift
-if %ipplace% gtr 4 set %isValid%=invalid
-goto :eof
-
-
-
-
-:chooserouter
-set hasrouter=0
-FOR /L %%n IN (1,1,%numrouters%) DO if "!router%%n!"=="%lastrouter%" set hasrouter=1
-if %hasrouter%==1 goto :eof
-set /a lines=%numrouters%+5
-%debgn%MODE CON COLS=52 LINES=%lines%
-%debgn%CALL :HEADER
-SET router=
-ECHO Which Router would you like to use?
-ECHO.
-FOR /L %%n IN (1,1,%numrouters%) DO SET SHOWROUTR%%n=!router%%n!%STATSpacer%
-FOR /L %%n IN (1,1,%numrouters%) DO ECHO -!SHOWROUTR%%n:~0,20! [%%n]
-ECHO.
-SET usrInput=
-SET /P usrInput=[] 
-IF "%usrInput%"=="" SET usrInput=0
-FOR /L %%n IN (1,1,%numrouters%) DO IF "%usrInput%"=="%%n" SET router=!router%%n!
-IF "%router%"=="" GOTO :chooserouter
-set manualRouter=%router%
-ECHO.
-goto :eof
-
-
-
-:getAdapter
-if not "%manualAdapter%"=="" set NETWORK=%manualAdapter%&goto :eof
-if not "%router%"=="" call :autoAdapter
-if not "%NETWORK%"=="" goto :eof
-SET CON_NUM=0
-FOR /F "tokens=* DELIMS=" %%n IN ('wmic nic get NetConnectionID') DO CALL :GET_NETWORK_CONNECTIONS_PARSE %%n
-call :Ask4Connection
-GOTO :EOF
-
-:GET_NETWORK_CONNECTIONS_PARSE
-SET LINE=%*
-if "%LINE%"=="" goto :eof
-if "%LINE%"=="NetConnectionID" goto :eof
-SET /A CON_NUM+=1
-set CONNECTION%CON_NUM%_NAME=%LINE%
-GOTO :EOF
-
-
-
-:Ask4Connection
-set /a lines=%CON_NUM%+5
-%debgn%MODE CON COLS=52 LINES=%lines%
-%debgn%CALL :HEADER
-SET NETWORK=
-ECHO Which Connection would you like to reset?
-ECHO.
-FOR /L %%n IN (1,1,%CON_NUM%) DO SET SHOWCONN%%n=!CONNECTION%%n_NAME!%STATSpacer%
-FOR /L %%n IN (1,1,%CON_NUM%) DO ECHO -!SHOWCONN%%n:~0,40! [%%n]
-ECHO.
-SET usrInput=
-SET /P usrInput=[] 
-IF "%usrInput%"=="" SET usrInput=1
-FOR /L %%n IN (1,1,%CON_NUM%) DO IF "%usrInput%"=="%%n" SET NETWORK=!CONNECTION%%n_NAME!
-IF "%NETWORK%"=="" GOTO :Ask4Connection
-set manualAdapter=%NETWORK%
-ECHO.
-goto :eof
-
-
-:autoAdapter
-set curadapter=
-set curgateway=
-for /f "tokens=* delims=" %%r in ('ipconfig') do call :autoAdapter_parse %%r
-goto :eof
-
-:autoAdapter_parse
+:getIPCONFIG_parse
 set line=%*
 echo %line% |findstr "adapter">NUL
-if %errorlevel% equ 0 goto :autoAdapter_parseAdapter
-
+if %errorlevel% equ 0 call :getIPCONFIG_parseAdapter %filterAdapters%&goto :eof
 echo %line% |findstr "Media State">NUL
-if %errorlevel% equ 0 goto :autoAdapter_parseMediaState
-if "%curMediaState%"=="Media disconnected" goto :eof
-
+if %errorlevel% equ 0 goto :getIPCONFIG_parseMediaState
 echo %line% |findstr "Gateway">NUL
-if %errorlevel% equ 0 goto :autoAdapter_parseGateway
+if %errorlevel% equ 0 call :getIPCONFIG_parseGateway %filterRouters%&goto :eof
 goto :eof
 
-:autoAdapter_parseAdapter
+:getIPCONFIG_parseAdapter
 set line=%line:adapter =:%
-set curMediaState=
-for /f "tokens=2 delims=:" %%a in ("%line%") do set curadapter=%%a
+set filtered=0
+:getIPCONFIG_parseAdapter_loop
+if not "%1"=="" echo %line%|FINDSTR /I "%1">NUL
+if not "%1"=="" if %errorlevel% equ 0 set filtered=1
+if not "%1"=="" shift&goto :getIPCONFIG_parseAdapter_loop
+if %filtered% equ 1 goto :eof
+set /a numAdapters+=1
+for /f "tokens=2 delims=:" %%a in ("%line%") do set conn_%numAdapters%_cn=%%a
 goto :eof
 
-:autoAdapter_parseMediaState
-for /f "tokens=2 delims=:" %%a in ("%line%") do set curMediaState=%%a
-set curMediaState=%curGateway:~1%
+:getIPCONFIG_parseMediaState
+if %filtered% equ 1 goto :eof
+set filtered=1&set conn_%numAdapters%_cn=&set conn_%numAdapters%_gw=&set /a numAdapters-=1
 goto :eof
 
-:autoAdapter_parseGateway
-for /f "tokens=2 delims=:" %%a in ("%line%") do set curGateway=%%a
-set curGateway=%curGateway:~1%
-if %curGateway%==%router% set NETWORK=%curadapter%
+:getIPCONFIG_parseGateway
+if %filtered% equ 1 goto :eof
+if not "%1"=="" echo %line%|FINDSTR /I "%1">NUL
+if not "%1"=="" if %errorlevel% equ 0 set filtered=1&set conn_%numAdapters%_cn=&conn_%numAdapters%_ms=
+if not "%1"=="" shift&goto :getIPCONFIG_parseGateway
+if %filtered% equ 1 goto :eof
+for /f "tokens=2 delims=:" %%a in ("%line%") do set conn_%numAdapters%_gw=%%a
+set conn_%numAdapters%_gw=!conn_%numAdapters%_gw:~1!
+goto :eof
+
+
+:getAutoRouter
+set numrouters=0
+set routers=0
+:getAutoRouter_loop
+set /a numrouters+=1
+if not "!conn_%numrouters%_gw!"=="" set /a routers+=1&set lastrouter=!conn_%numrouters%_gw!&set lastadapter=!conn_%numrouters%_cn!
+if %numrouters% lss %numAdapters% goto :getAutoRouter_loop
+if %routers% equ 0 goto :eof
+if %routers% equ 1 set cur_ROUTER=%lastrouter%
+if %routers% equ 1 if "%manualAdapter%"=="" set cur_ADAPTER=%lastadapter%
+if %routers% geq 2 call :Ask4Router
+goto :eof
+
+
+:checkadapterstatus
+if %checkadapternum% geq %numAdapters% goto :eof
+set /a checkadapternum+=1
+if not "!conn_%checkadapternum%_cn!"=="%cur_ADAPTER%" goto :checkadapterstatus
+if "!conn_%checkadapternum%_ms!"=="" set isConnected=1
+goto :eof
+
+
+:getAutoAdapter
+if %numAdapters% equ 0 goto :eof
+if %numAdapters% equ 1 set cur_ADAPTER=%conn_1_cn%
 goto :eof
 
 
 
+:Ask4Router
+set /a lines=%numrouters%+6
+%debgn%mode con cols=70 lines=%lines%
+%debgn%call :header
+set cur_ROUTER=
+echo which router would you like to use?
+echo.
+for /l %%n in (1,1,%numrouters%) do set showroutr%%n=!conn_%%n_gw! !conn_%%n_cn!%statspacer%
+for /l %%n in (1,1,%numrouters%) do echo -!showroutr%%n:~0,60! [%%n]
+echo Or type "x" to skip...
+echo.
+set usrinput=
+set usrinput2=
+set /p usrinput=[] 
+if "%usrinput%"=="" set usrinput=1
+if "%usrinput%"=="x" goto :eof
+for /l %%n in (1,1,%numrouters%) do if "%usrinput%"=="%%n" set cur_ROUTER=!conn_%%n_gw!
+if "%cur_ROUTER%"=="" cls&echo.&echo.&echo Use "%usrinput%" as router address?
+if "%cur_ROUTER%"=="" set /p usrinput2=[y/n] 
+if "%usrinput%"=="" set cur_ROUTER=%usrinput%
+if /i "%usrinput%"=="y" set cur_ROUTER=%usrinput%
+if "%cur_ROUTER%"=="" goto :Ask4Router
+set manualrouter=%cur_ROUTER%
+echo.
+goto :eof
 
 
+:Ask4Adapter
+set con_num=0
+for /f "tokens=* delims=" %%n in ('wmic nic get NetConnectionID') do call :get_network_connections_parse %%n
+call :ask4connection
+goto :eof
+
+:get_network_connections_parse
+set line=%*
+if "%line%"=="" goto :eof
+if "%line%"=="NetConnectionID" goto :eof
+set /a con_num+=1
+set connection%con_num%_name=%line%
+goto :eof
+
+:ask4connection
+set /a lines=%con_num%+5
+%debgn%mode con cols=52 lines=%lines%
+%debgn%call :header
+set cur_ADAPTER=
+echo Which connection would you like to monitor?
+echo.
+for /l %%n in (1,1,%con_num%) do set showconn%%n=!connection%%n_name!%statspacer%
+for /l %%n in (1,1,%con_num%) do echo -!showconn%%n:~0,40! [%%n]
+echo.
+set usrinput=
+set /p usrinput=[] 
+if "%usrinput%"=="" set usrinput=1
+for /l %%n in (1,1,%con_num%) do if "%usrinput%"=="%%n" set cur_ADAPTER=!connection%%n_name!
+if "%cur_ADAPTER%"=="" goto :ask4connection
+set manualadapter=%cur_ADAPTER%
+echo.
+goto :eof
 
 
 :init
@@ -369,6 +377,7 @@ if not "%pretty%"=="1" set debgn=::
 @set down=0
 @set timepassed=1
 @set dbl=0
+@set numAdapters=0
 @set stbltySTR=
 @for /f "tokens=1,* DELIMS==" %%s in ('set INT_') do call :init_settn %%s %%t
 @set orig_checkdelay=%INT_checkdelay%
@@ -376,6 +385,8 @@ if not "%pretty%"=="1" set debgn=::
 @set /a timeoutmilsecs=1000*INT_timeoutsecs
 @call :init_manualRouter %manualRouter%
 @for /f "tokens=1 DELIMS=:" %%a in ("%manualAdapter%") do call :init_manualAdapter %%a
+@for /f "tokens=1 DELIMS=:" %%a in ("%filterAdapters%") do call :init_filterAdapters %%a
+@for /f "tokens=1 DELIMS=:" %%a in ("%filterRouters%") do call :init_filterRouters %%a
 @call :init_bar
 goto :eof
 
@@ -389,6 +400,7 @@ set manualRouter=%manualRouter:http:=%
 set manualRouter=%manualRouter:https:=%
 set manualRouter=%manualRouter:/=%
 if "%manualRouter%"=="Examples:" set manualRouter=
+if not "%manualRouter%"=="" set cur_ROUTER=%manualRouter%
 goto :eof
 
 :init_manualAdapter
@@ -396,6 +408,19 @@ set manualAdapter=%*
 set manualAdapter=%manualAdapter:Examples=%
 if "%manualAdapter%"=="" goto :eof
 set manualAdapter=%manualAdapter:	=%
+if not "%manualAdapter%"=="" set cur_ADAPTER=%manualAdapter%
+goto :eof
+
+:init_filterAdapters
+set filterAdapters=%*
+if "%filterAdapters%"=="" goto :eof
+set filterAdapters=%filterAdapters:	=%
+goto :eof
+
+:init_filterRouters
+set filterRouters=%*
+if "%filterRouters%"=="" goto :eof
+set filterRouters=%filterRouters:	=%
 goto :eof
 
 :init_bar
