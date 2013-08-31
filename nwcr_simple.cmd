@@ -1,5 +1,5 @@
 ::Quick detect&fix
-@SET version=3.0.251
+@SET version=3.0.254
 
 ::-Settings-
 set manualRouter=			Examples: 192.168.0.1 or www.google.com
@@ -192,6 +192,10 @@ set curcolor=%alrt%
 %debgn%call :header
 set resetted=1
 set stbltySTR=%stbltySTR% 2
+if "%cur_Adapter%"=="" (
+for /l %%n in (1,1,%con_num%) do netsh interface set interface "!connection%%n_name!" admin=disable>NUL 2>&1
+for /l %%n in (1,1,%con_num%) do netsh interface set interface "!connection%%n_name!" admin=enable>NUL 2>&1
+)
 netsh interface set interface "%cur_ADAPTER%" admin=disable>NUL 2>&1
 netsh interface set interface "%cur_ADAPTER%" admin=enable>NUL 2>&1
 call :sleep %INT_fixdelay%
@@ -203,19 +207,21 @@ goto :eof
 
 
 :checkRouterAdapter
+set checkconnects=0
 if not "%manualRouter%"=="" if not "%manualAdapter%"=="" goto :eof
 set startsecs=%time:~6,2%
-set checkconnects=0
 if not %numAdapters% equ 0 for /l %%n in (1,1,%numAdapters%) do set conn_%%n_cn=&set conn_%%n_gw=
 call :getIPCONFIG
 set isConnected=0
 if not "%cur_ADAPTER%"=="" set checkadapternum=0&call :checkadapterstatus
 if "%isConnected%"=="1" goto :checkRouterAdapter_end
+if "%isConnected%"=="0" if not "%cur_ROUTER%"=="" if "%manualRouter%"=="" set checkconnects=%INT_checkrouterdelay%&set cur_ROUTER=&goto :eof
 set ROUTER_old=%cur_ROUTER%&set cur_ROUTER=
 set adapter_old=%cur_ADAPTER%&set cur_ADAPTER=
 if "%manualrouter%"=="" call :getAutoRouter
 if "%cur_ADAPTER%"=="" if not "%manualRouter%"=="" call :getAutoAdapter
-if "%cur_ADAPTER%"=="" if not "%manualRouter%"=="" call :Ask4Adapter
+if "%cur_ADAPTER%"=="" if "%lastresult%"=="Connected" call :Ask4Adapter
+if "%cur_ADAPTER%"=="" call :EnumerateAdapters %filterAdapters%
 if "%cur_ROUTER%"=="" set cur_ROUTER=%ROUTER_old%
 if "%cur_ADAPTER%"=="" set cur_ADAPTER=%ADAPTER_old%
 
@@ -326,21 +332,31 @@ echo.
 goto :eof
 
 
-:Ask4Adapter
+:EnumerateAdapters
 set con_num=0
+set EA_filters=%*
 for /f "tokens=* delims=" %%n in ('wmic nic get NetConnectionID') do call :get_network_connections_parse %%n
-call :ask4connection
 goto :eof
 
 :get_network_connections_parse
 set line=%*
 if "%line%"=="" goto :eof
 if "%line%"=="NetConnectionID" goto :eof
+set filtered=0
+call :get_network_connections_filter %EA_filters%
+goto :eof
+
+:get_network_connections_filter
+if not "%1"=="" echo %line%|FINDSTR /I "%1">NUL
+if not "%1"=="" if %errorlevel% equ 0 set filtered=1
+if not "%1"=="" shift&goto :get_network_connections_filter
+if %filtered% equ 1 goto :eof
 set /a con_num+=1
 set connection%con_num%_name=%line%
 goto :eof
 
-:ask4connection
+:Ask4Adapter
+call :EnumerateAdapters
 set /a lines=%con_num%+5
 %debgn%mode con cols=52 lines=%lines%
 %debgn%call :header
