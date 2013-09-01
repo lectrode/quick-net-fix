@@ -1,5 +1,5 @@
 ::Quick detect&fix
-@SET version=3.1.258
+@SET version=3.1.260
 
 ::-Settings-
 set manualRouter=			Examples: 192.168.0.1 or www.google.com
@@ -29,7 +29,7 @@ set theme=subtle			none,subtle,vibrant,fullsubtle,fullvibrant,crazy
 setlocal enabledelayedexpansion
 call :init
 
-call :checkRouterAdapter ::
+call :checkRouterAdapter .. ::
 
 :loop
 %debgn%MODE CON COLS=%cols% LINES=13
@@ -70,9 +70,10 @@ goto :eof
 if "%1"=="" set pn=3
 if not "%1"=="" set pn=%1
 if %pn% equ 0 goto :eof
+if "%checkconnects%"=="force" call :checkRouterAdapter ..
+if not "%stability:~0,4%"=="Calc" if %checkconnects% geq %INT_checkrouterdelay% call :checkRouterAdapter ..&set /a pn-=tot
 @set curstatus=Wait %pn% seconds...
 %debgn%call :header
-if not "%stability:~0,4%"=="Calc" if %checkconnects% geq %INT_checkrouterdelay% call :checkRouterAdapter&set /a pn-=tot
 set /a timepassed+=pn
 set /a pn+=1
 if %pn% leq 0 goto :eof
@@ -101,7 +102,7 @@ goto :eof
 set result=
 set resultUpDown=
 set testrouter=www.google.com
-if not "%cur_ROUTER%"=="" set testrouter=%cur_ROUTER%
+if not "%cur_ROUTER%"=="" if %dbl% equ 0 set testrouter=%cur_ROUTER%
 
 for /f "tokens=* delims=" %%p in ('ping -w %timeoutmilsecs% -n 1 %testrouter%') do set ping_test=%%p
 echo %ping_test% |findstr "request could not find" >NUL
@@ -117,12 +118,12 @@ if "%result%"=="" set result=TimeOut&set resultUpDown=Down
 if "%lastresult%"=="" set lastresult=%result%
 
 if "%resultUpDown%"=="Up" (
-if not "%lastresult%"=="Connected" set /a timepassed/=2
+set /a checkconnects+=1
+if not "%lastresult%"=="Connected" set /a timepassed/=2&set checkconnects=force
 if %timepassed% leq 0 set timepassed=1
 set /a up+=timepassed
 set curcolor=%norm%
 set stbltySTR=%stbltySTR% 0
-set /a checkconnects+=1
 )
 
 if "%resultUpDown%"=="Down" (
@@ -198,10 +199,8 @@ for /l %%n in (1,1,%con_num%) do netsh interface set interface "!connection%%n_n
 )
 netsh interface set interface "%cur_ADAPTER%" admin=disable>NUL 2>&1
 netsh interface set interface "%cur_ADAPTER%" admin=enable>NUL 2>&1
+set checkconnects=force
 call :sleep %INT_fixdelay%
-set /a down+=INT_fixdelay
-call :checkRouterAdapter
-set /a timepassed+=tot
 goto :eof
 
 
@@ -209,6 +208,7 @@ goto :eof
 :checkRouterAdapter
 set checkconnects=0
 set loading=%1
+%2set curstatus=Check valid Router/Adapter&call :header
 if not "%manualRouter%"=="" if not "%manualAdapter%"=="" goto :eof
 set startsecs=%time:~6,2%
 if not %numAdapters% equ 0 for /l %%n in (1,1,%numAdapters%) do set conn_%%n_cn=&set conn_%%n_gw=
@@ -217,17 +217,14 @@ call :getIPCONFIG
 set isConnected=0
 if not "%cur_ADAPTER%"=="" set checkadapternum=0&call :checkadapterstatus
 if "%isConnected%"=="1" goto :checkRouterAdapter_end
-if "%isConnected%"=="0" if not "%cur_ROUTER%"=="" if "%manualRouter%"=="" set checkconnects=%INT_checkrouterdelay%&set cur_ROUTER=&goto :eof
-set ROUTER_old=%cur_ROUTER%&set cur_ROUTER=
-set adapter_old=%cur_ADAPTER%&set cur_ADAPTER=
+if not "%cur_ROUTER%"=="" if "%manualRouter%"=="" set cur_ROUTER=
+if not "%cur_ADAPTER%"=="" if "%manualAdapter%"=="" set cur_ADAPTER=
 @echo .|set /p dummy=%loading%
 if "%manualrouter%"=="" call :getAutoRouter
 @echo .|set /p dummy=%loading%
 if "%cur_ADAPTER%"=="" if not "%manualRouter%"=="" call :getAutoAdapter
 if "%cur_ADAPTER%"=="" if "%lastresult%"=="Connected" call :Ask4Adapter
 if "%cur_ADAPTER%"=="" call :EnumerateAdapters %filterAdapters%
-if "%cur_ROUTER%"=="" set cur_ROUTER=%ROUTER_old%
-if "%cur_ADAPTER%"=="" set cur_ADAPTER=%ADAPTER_old%
 
 :checkRouterAdapter_end
 set endsecs=%time:~6,2%
@@ -308,7 +305,7 @@ goto :eof
 if %checkadapternum% geq %numAdapters% goto :eof
 set /a checkadapternum+=1
 if not "!conn_%checkadapternum%_cn!"=="%cur_ADAPTER%" goto :checkadapterstatus
-if "!conn_%checkadapternum%_ms!"=="" set isConnected=1
+if "!conn_%checkadapternum%_ms!"=="" if "!conn_%checkadapternum%_gw!"=="%cur_ROUTER%" set isConnected=1
 goto :eof
 
 
