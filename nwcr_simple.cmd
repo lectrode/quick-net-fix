@@ -1,5 +1,5 @@
 ::Quick detect&fix
-@SET version=3.0.254
+@SET version=3.1.258
 
 ::-Settings-
 set manualRouter=			Examples: 192.168.0.1 or www.google.com
@@ -29,7 +29,7 @@ set theme=subtle			none,subtle,vibrant,fullsubtle,fullvibrant,crazy
 setlocal enabledelayedexpansion
 call :init
 
-call :checkRouterAdapter
+call :checkRouterAdapter ::
 
 :loop
 %debgn%MODE CON COLS=%cols% LINES=13
@@ -208,17 +208,21 @@ goto :eof
 
 :checkRouterAdapter
 set checkconnects=0
+set loading=%1
 if not "%manualRouter%"=="" if not "%manualAdapter%"=="" goto :eof
 set startsecs=%time:~6,2%
 if not %numAdapters% equ 0 for /l %%n in (1,1,%numAdapters%) do set conn_%%n_cn=&set conn_%%n_gw=
 call :getIPCONFIG
+@echo .|set /p dummy=%loading%
 set isConnected=0
 if not "%cur_ADAPTER%"=="" set checkadapternum=0&call :checkadapterstatus
 if "%isConnected%"=="1" goto :checkRouterAdapter_end
 if "%isConnected%"=="0" if not "%cur_ROUTER%"=="" if "%manualRouter%"=="" set checkconnects=%INT_checkrouterdelay%&set cur_ROUTER=&goto :eof
 set ROUTER_old=%cur_ROUTER%&set cur_ROUTER=
 set adapter_old=%cur_ADAPTER%&set cur_ADAPTER=
+@echo .|set /p dummy=%loading%
 if "%manualrouter%"=="" call :getAutoRouter
+@echo .|set /p dummy=%loading%
 if "%cur_ADAPTER%"=="" if not "%manualRouter%"=="" call :getAutoAdapter
 if "%cur_ADAPTER%"=="" if "%lastresult%"=="Connected" call :Ask4Adapter
 if "%cur_ADAPTER%"=="" call :EnumerateAdapters %filterAdapters%
@@ -249,6 +253,7 @@ if %errorlevel% equ 0 call :getIPCONFIG_parseGateway %filterRouters%&goto :eof
 goto :eof
 
 :getIPCONFIG_parseAdapter
+@echo .|set /p dummy=%loading%
 set line=%line:adapter =:%
 set filtered=0
 :getIPCONFIG_parseAdapter_loop
@@ -271,8 +276,17 @@ if not "%1"=="" echo %line%|FINDSTR /I "%1">NUL
 if not "%1"=="" if %errorlevel% equ 0 set filtered=1&set conn_%numAdapters%_cn=&conn_%numAdapters%_ms=
 if not "%1"=="" shift&goto :getIPCONFIG_parseGateway
 if %filtered% equ 1 goto :eof
-for /f "tokens=2 delims=:" %%a in ("%line%") do set conn_%numAdapters%_gw=%%a
-set conn_%numAdapters%_gw=!conn_%numAdapters%_gw:~1!
+set ipv6=0
+for /f "tokens=2-8 delims=:" %%a in ("%line%") do call :setIPv4IPv6 %%a %%b %%c %%d %%e
+goto :eof
+
+:setIPv4IPv6
+if %ipv6% equ 1 set :=:
+set ip_val=%1
+if %ipv6% equ 0 set conn_%numAdapters%_gw=%ip_val%
+if %ipv6% equ 1 set conn_%numAdapters%_gw=!conn_%numAdapters%_gw!%:%%ip_val:~0,4%
+if not "%2"=="" if %ipv6% equ 0 set ipv6=1&set conn_%numAdapters%_gw=!conn_%numAdapters%_gw!:&shift&goto :setIPv4IPv6
+if not "%2"=="" set ipv6=1&shift&goto :setIPv4IPv6
 goto :eof
 
 
@@ -383,7 +397,8 @@ if not "%pretty%"=="1" set debgn=::
 @PROMPT=^>
 @set cols=52
 %debgn%MODE CON COLS=%cols% LINES=20
-@echo initializing...
+@echo.
+@echo .|set /p dummy=initializing...
 @call :init_colors %theme%
 %debgn%COLOR %norm%
 @SET ThisTitle=Lectrode's Quick Net Fix v%version%
@@ -404,6 +419,7 @@ if not "%pretty%"=="1" set debgn=::
 @for /f "tokens=1 DELIMS=:" %%a in ("%filterAdapters%") do call :init_filterAdapters %%a
 @for /f "tokens=1 DELIMS=:" %%a in ("%filterRouters%") do call :init_filterRouters %%a
 @call :init_bar
+@echo .|set /p dummy=..
 goto :eof
 
 :init_settn
