@@ -211,12 +211,12 @@ set loading=%1
 %2set curstatus=Check valid Router/Adapter&call :header
 if not "%manualRouter%"=="" if not "%manualAdapter%"=="" goto :eof
 set startsecs=%time:~6,2%
-if not %numAdapters% equ 0 for /l %%n in (1,1,%numAdapters%) do set conn_%%n_cn=&set conn_%%n_gw=
+if not %numAdapters% equ 0 for /l %%n in (1,1,%numAdapters%) do set conn_%%n_cn=&set conn_%%n_gw=&set conn_%%n_ms=
 call :getIPCONFIG
 @echo .|set /p dummy=%loading%
 set isConnected=0
 if not "%cur_ADAPTER%"=="" set checkadapternum=0&call :checkadapterstatus
-if "%isConnected%"=="1" goto :checkRouterAdapter_end
+if "%isConnected%"=="1" if not "%cur_ROUTER%"=="" goto :checkRouterAdapter_end
 if not "%cur_ROUTER%"=="" if "%manualRouter%"=="" set cur_ROUTER=
 if not "%cur_ADAPTER%"=="" if "%manualAdapter%"=="" set cur_ADAPTER=
 @echo .|set /p dummy=%loading%
@@ -305,7 +305,7 @@ goto :eof
 if %checkadapternum% geq %numAdapters% goto :eof
 set /a checkadapternum+=1
 if not "!conn_%checkadapternum%_cn!"=="%cur_ADAPTER%" goto :checkadapterstatus
-if "!conn_%checkadapternum%_ms!"=="" if "!conn_%checkadapternum%_gw!"=="%cur_ROUTER%" set isConnected=1
+if "!conn_%checkadapternum%_ms!"=="" if "%manualRouter%"=="" set cur_ROUTER=!conn_%checkadapternum%_gw!&set isConnected=1
 goto :eof
 
 
@@ -468,47 +468,22 @@ if %bar_loop_tot% gtr 0 goto :init_bar_loop
 goto :eof
 
 :init_colors
-set theme=%1
-call :init_colors_%theme%
-goto :eof
+set theme=%1&call :init_colors_%theme%&goto :eof
 
 :init_colors_none
-set norm=
-set warn=
-set alrt=
-goto :eof
+set norm=&set warn=&set alrt=&goto :eof
 
 :init_colors_subtle
-set norm=07
-set warn=06
-set alrt=04
-set pend=03
-goto :eof
+set norm=07&set warn=06&set alrt=04&set pend=03&goto :eof
 
 :init_colors_vibrant
-set norm=0a
-set warn=0e
-set alrt=0c
-set pend=0b
-goto :eof
+set norm=0a&set warn=0e&set alrt=0c&set pend=0b&goto :eof
 
 :init_colors_fullsubtle
-set norm=20
-set warn=60
-set alrt=40
-set pend=30
-goto :eof
+set norm=20&set warn=60&set alrt=40&set pend=30&goto :eof
 
 :init_colors_fullvibrant
-set norm=a0
-set warn=e0
-set alrt=c0
-set pend=b0
-goto :eof
+set norm=a0&set warn=e0&set alrt=c0&set pend=b0&goto :eof
 
 :init_colors_crazy
-set norm=^&call :crazy
-set warn=^&call :crazy
-set alrt=^&call :crazy
-set crazystr=0123456789ABCDEF
-goto :eof
+set norm=^&call :crazy&set warn=^&call :crazy&set alrt=^&call :crazy&set crazystr=0123456789ABCDEF&goto :eof
