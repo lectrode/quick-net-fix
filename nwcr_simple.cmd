@@ -1,5 +1,5 @@
 ::Quick detect&fix
-@SET version=3.1.260
+@SET version=3.1.261
 
 ::-Settings-
 set manualRouter=			Examples: 192.168.0.1 or www.google.com
@@ -13,8 +13,8 @@ set INT_flukecheckdelay=1	Default: 1 seconds
 set INT_timeoutsecs=1		Default: 1 seconds
 set INT_checkrouterdelay=5	Default: 5 connects (wait x number of connects before verifying router and adapter)
 
-set filterRouters=						:Separate filtered routers with Space
-set filterAdapters=Tunnel VirtualBox	:Separate filter keywords with Space
+set filterRouters=									:Separate filtered routers with Space
+set filterAdapters=Tunnel VirtualBox VMnet VMware	:Separate filter keywords with Space
 
 ::-GUI-
 set pretty=1
