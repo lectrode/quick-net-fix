@@ -1,5 +1,8 @@
 ::Quick detect&fix
-@SET version=3.1.261
+@SET version=3.2.263
+
+:: Documentation and updated versions can be found at
+:: https://code.google.com/p/quick-net-fix/
 
 ::-Settings-
 set manualRouter=			Examples: 192.168.0.1 or www.google.com
@@ -13,8 +16,8 @@ set INT_flukecheckdelay=1	Default: 1 seconds
 set INT_timeoutsecs=1		Default: 1 seconds
 set INT_checkrouterdelay=5	Default: 5 connects (wait x number of connects before verifying router and adapter)
 
-set filterRouters=									:Separate filtered routers with Space
-set filterAdapters=Tunnel VirtualBox VMnet VMware	:Separate filter keywords with Space
+set filterRouters=													:Separate filtered routers with Space
+set filterAdapters=Tunnel VirtualBox VMnet VMware Loopback Pseudo	:Separate filter keywords with Space
 
 ::-GUI-
 set pretty=1
@@ -27,6 +30,7 @@ set theme=subtle			none,subtle,vibrant,fullsubtle,fullvibrant,crazy
 
 
 setlocal enabledelayedexpansion
+set thisdir=%~dp0
 call :init
 
 call :checkRouterAdapter .. ::
@@ -211,8 +215,7 @@ set loading=%1
 %2set curstatus=Check valid Router/Adapter&call :header
 if not "%manualRouter%"=="" if not "%manualAdapter%"=="" goto :eof
 set startsecs=%time:~6,2%
-if not %numAdapters% equ 0 for /l %%n in (1,1,%numAdapters%) do set conn_%%n_cn=&set conn_%%n_gw=&set conn_%%n_ms=
-call :getIPCONFIG
+call :getNETINFO
 @echo .|set /p dummy=%loading%
 set isConnected=0
 if not "%cur_ADAPTER%"=="" set checkadapternum=0&call :checkadapterstatus
@@ -234,56 +237,61 @@ if %endsecs% lss %startsecs% set /a endsecs+=60
 set /a tot=endsecs-startsecs
 goto :eof
 
-:getIPCONFIG
+:getNETINFO
+if not %numAdapters% equ 0 for /l %%n in (1,1,%numAdapters%) do set conn_%%n_cn=&set conn_%%n_gw=&set conn_%%n_ms=
 set numAdapters=0
-for /f "tokens=* delims=" %%r in ('ipconfig') do call :getIPCONFIG_parse %%r
+set disconnectedAdapters=
+for /f "tokens=* delims=" %%r in ('netsh interface show interface') do call :getNETINFO_parseMS %%r
+for /f "tokens=1 delims=%%" %%r in ('netsh interface ip show addresses') do call :getNETINFO_parse %%r
 goto :eof
 
-:getIPCONFIG_parse
+:getNETINFO_parseMS
 set line=%*
-echo %line% |findstr "adapter">NUL
-if %errorlevel% equ 0 call :getIPCONFIG_parseAdapter %filterAdapters%&goto :eof
-echo %line% |findstr "Media State">NUL
-if %errorlevel% equ 0 goto :getIPCONFIG_parseMediaState
-echo %line% |findstr "Gateway">NUL
-if %errorlevel% equ 0 call :getIPCONFIG_parseGateway %filterRouters%&goto :eof
+if "%line%"=="" goto :eof
+if "%line:~0,4%"=="Admi" goto :eof
+if "%line:~0,4%"=="----" goto :eof
+set name=
+set space=
+:getNETINFO_parseMS_loop
+set name=%name%%space%%4
+shift
+if not "%4"=="" set space= &goto :getNETINFO_parseMS_loop
+echo %line% |findstr /I "disconnected">NUL
+if %errorlevel% equ 0 set disconnectedAdapters=%disconnectedAdapters%"%name%" 
 goto :eof
 
-:getIPCONFIG_parseAdapter
+:getNETINFO_parse
+set line=^%*
+echo %line% |findstr "Configuration">NUL
+if %errorlevel% equ 0 call :getNETINFO_parseAdapter %filterAdapters%&goto :eof
+echo %line% |findstr /C:"Default Gateway">NUL
+if %errorlevel% equ 0 call :getNETINFO_parseGateway %filterRouters%&goto :eof
+goto :eof
+
+:getNETINFO_parseAdapter
 @echo .|set /p dummy=%loading%
 set line=%line:adapter =:%
 set filtered=0
-:getIPCONFIG_parseAdapter_loop
+:getNETINFO_parseAdapter_loop
 if not "%1"=="" echo %line%|FINDSTR /I "%1">NUL
 if not "%1"=="" if %errorlevel% equ 0 set filtered=1
-if not "%1"=="" shift&goto :getIPCONFIG_parseAdapter_loop
+if not "%1"=="" shift&goto :getNETINFO_parseAdapter_loop
 if %filtered% equ 1 goto :eof
 set /a numAdapters+=1
-for /f "tokens=2 delims=:" %%a in ("%line%") do set conn_%numAdapters%_cn=%%a
+set line=%line:Configuration for Interface =%
+set conn_%numAdapters%_cn=%line:"=%
+echo %disconnectedAdapters% |findstr /I '"!conn_%numAdapters%_cn!"'%>NUL
+if %errorlevel% equ 0 set conn_%numAdapters%_ms=disconnected&goto :eof
 goto :eof
 
-:getIPCONFIG_parseMediaState
-if %filtered% equ 1 goto :eof
-set filtered=1&set conn_%numAdapters%_cn=&set conn_%numAdapters%_gw=&set /a numAdapters-=1
-goto :eof
-
-:getIPCONFIG_parseGateway
+:getNETINFO_parseGateway
 if %filtered% equ 1 goto :eof
 if not "%1"=="" echo %line%|FINDSTR /I "%1">NUL
 if not "%1"=="" if %errorlevel% equ 0 set filtered=1&set conn_%numAdapters%_cn=&conn_%numAdapters%_ms=
-if not "%1"=="" shift&goto :getIPCONFIG_parseGateway
+if not "%1"=="" shift&goto :getNETINFO_parseGateway
 if %filtered% equ 1 goto :eof
-set ipv6=0
-for /f "tokens=2-8 delims=:" %%a in ("%line%") do call :setIPv4IPv6 %%a %%b %%c %%d %%e
-goto :eof
-
-:setIPv4IPv6
-if %ipv6% equ 1 set :=:
-set ip_val=%1
-if %ipv6% equ 0 set conn_%numAdapters%_gw=%ip_val%
-if %ipv6% equ 1 set conn_%numAdapters%_gw=!conn_%numAdapters%_gw!%:%%ip_val:~0,4%
-if not "%2"=="" if %ipv6% equ 0 set ipv6=1&set conn_%numAdapters%_gw=!conn_%numAdapters%_gw!:&shift&goto :setIPv4IPv6
-if not "%2"=="" set ipv6=1&shift&goto :setIPv4IPv6
+set line=%line:Default Gateway:=%
+set conn_%numAdapters%_gw=%line: =%
 goto :eof
 
 
