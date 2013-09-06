@@ -1,5 +1,5 @@
 ::Quick detect&fix
-@SET version=3.2.263
+@SET version=3.3.265
 
 :: Documentation and updated versions can be found at
 :: https://code.google.com/p/quick-net-fix/
@@ -193,16 +193,28 @@ goto :eof
 
 :resetAdapter
 set curcolor=%alrt%
-@set curstatus=Resetting connection...
+@set curstatus=Attempting to fix connection...
+set stbltySTR=%stbltySTR% 2
 %debgn%call :header
 set resetted=1
-set stbltySTR=%stbltySTR% 2
 if "%cur_Adapter%"=="" (
-for /l %%n in (1,1,%con_num%) do netsh interface set interface "!connection%%n_name!" admin=disable>NUL 2>&1
-for /l %%n in (1,1,%con_num%) do netsh interface set interface "!connection%%n_name!" admin=enable>NUL 2>&1
+ipconfig /release>NUL 2>&1
+ipconfig /flushdns>NUL 2>&1
+	if "%isAdmin%"=="1" (
+	for /l %%n in (1,1,%con_num%) do netsh interface set interface "!connection%%n_name!" admin=disable>NUL 2>&1
+	for /l %%n in (1,1,%con_num%) do netsh interface set interface "!connection%%n_name!" admin=enable>NUL 2>&1
+	)
+ipconfig /renew>NUL 2>&1
 )
-netsh interface set interface "%cur_ADAPTER%" admin=disable>NUL 2>&1
-netsh interface set interface "%cur_ADAPTER%" admin=enable>NUL 2>&1
+if not "%cur_ADAPTER%"=="" (
+ipconfig /release "%cur_ADAPTER%">NUL 2>&1
+ipconfig /flushdns "%cur_ADAPTER%">NUL 2>&1
+	if "%isAdmin%"=="1" (
+	netsh interface set interface "%cur_ADAPTER%" admin=disable>NUL 2>&1
+	netsh interface set interface "%cur_ADAPTER%" admin=enable>NUL 2>&1
+	)
+ipconfig /renew "%cur_ADAPTER%">NUL 2>&1
+)
 set checkconnects=force
 call :sleep %INT_fixdelay%
 goto :eof
@@ -424,7 +436,14 @@ if not "%pretty%"=="1" set debgn=::
 @for /f "tokens=1 DELIMS=:" %%a in ("%filterAdapters%") do call :init_filterAdapters %%a
 @for /f "tokens=1 DELIMS=:" %%a in ("%filterRouters%") do call :init_filterRouters %%a
 @call :init_bar
+@call :detectIsAdmin
 @echo .|set /p dummy=..
+goto :eof
+
+:detectIsAdmin
+set isAdmin=0
+net session >nul 2>&1
+if %errorLevel% == 0 set isAdmin=1
 goto :eof
 
 :init_settn
