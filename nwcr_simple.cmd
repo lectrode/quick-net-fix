@@ -1,5 +1,5 @@
 ::Quick detect&fix
-@SET version=3.3.284
+@SET version=3.3.285
 
 :: Documentation and updated versions can be found at
 :: https://code.google.com/p/quick-net-fix/
@@ -344,23 +344,29 @@ goto :eof
 
 :Ask4Router
 if "%fullAuto%"=="1" set manualRouter=%secondaryRouter%&set cur_ROUTER=%secondaryRouter%&goto :eof
-%debgn%set /a lines=%numrouters%+7
+%debgn%set /a lines=%numrouters%+11
 %debgn%mode con cols=70 lines=%lines%
 set cur_ROUTER=
 echo.
-echo Which Network Connection would you like to use?
+echo Which Router would you like to monitor?
 echo.
-for /l %%n in (1,1,%numrouters%) do set showroutr%%n=!conn_%%n_gw!%statspacer%
-for /l %%n in (1,1,%numrouters%) do set showroutr%%n=!showroutr%%n:~0,30! !conn_%%n_cn!%statspacer%
-for /l %%n in (1,1,%numrouters%) do echo -!showroutr%%n:~0,61! [%%n]
-echo Or type "x" to skip...
+echo Choose a router by the selection number below.
+echo You may also type in a router address to use, or x to cancel.
+echo.
+echo  #     Router Adress                  Associated Connection
+echo  ----- ------------------------------ -----------------------------
+for /l %%n in (1,1,%numrouters%) do set showroutr%%n=[%%n]%statspacer%
+for /l %%n in (1,1,%numrouters%) do set showroutr%%n=!showroutr%%n:~0,5! !conn_%%n_gw!%statspacer%
+for /l %%n in (1,1,%numrouters%) do set showroutr%%n=!showroutr%%n:~0,36! !conn_%%n_cn!%statspacer%
+for /l %%n in (1,1,%numrouters%) do echo -!showroutr%%n:~0,68!
 echo.
 set usrinput=
 set usrinput2=
 set /p usrinput=[] 
 if "%usrinput%"=="" set usrinput=1
-if "%usrinput%"=="x" set manualRouter=%secondaryRouter%&set cur_ROUTER=%secondaryRouter%&goto :eof
 for /l %%n in (1,1,%numrouters%) do if "%usrinput%"=="%%n" set cur_ROUTER=!conn_%%n_gw!
+if not "%cur_ROUTER%"=="" if "%manualAdapter%"=="" set cur_ADAPTER=!conn_%usrinput%_cn!
+if "%usrinput%"=="x" set manualRouter=%secondaryRouter%&set cur_ROUTER=%secondaryRouter%&goto :eof
 if "%cur_ROUTER%"=="" cls&echo.&echo.&echo Use "%usrinput%" as router address?
 if "%cur_ROUTER%"=="" set /p usrinput2=[y/n] 
 if "%usrinput%"=="" set cur_ROUTER=%usrinput%
@@ -403,9 +409,14 @@ echo.
 set cur_ADAPTER=
 echo Which connection would you like to monitor?
 echo.
-for /l %%n in (1,1,%con_num%) do set showconn%%n=!connection%%n_name!%statspacer%
-for /l %%n in (1,1,%con_num%) do echo -!showconn%%n:~0,40! [%%n]
-echo Or type "x" to use all...
+echo Choose a connection by the selection number below.
+echo You may also type x to cancel.
+echo.
+echo  #     Connection
+echo  ----- -------------------------------------------
+for /l %%n in (1,1,%con_num%) do set showconn%%n=[%%n]%statspacer%
+for /l %%n in (1,1,%con_num%) do set showconn%%n=!showroutr%%n:~0,5! !connection%%n_name!%statspacer%
+for /l %%n in (1,1,%numrouters%) do echo -!showconn%%n:~0,50!
 echo.
 set usrinput=
 set /p usrinput=[] 
