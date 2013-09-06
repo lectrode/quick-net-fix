@@ -1,5 +1,5 @@
 ::Quick detect&fix
-@SET version=3.3.279
+@SET version=3.3.284
 
 :: Documentation and updated versions can be found at
 :: https://code.google.com/p/quick-net-fix/
@@ -22,6 +22,7 @@ set filterAdapters=Tunnel VirtualBox VMnet VMware Loopback Pseudo	:Separate filt
 ::-GUI-
 set pretty=1
 set theme=subtle			none,subtle,vibrant,fullsubtle,fullvibrant,crazy
+set fullAuto=0
 
 
 
@@ -103,8 +104,9 @@ goto :eof
 %debgn%call :header
 set result=
 set resultUpDown=
-set testrouter=www.google.com
+set testrouter=%secondaryRouter%
 if not "%cur_ROUTER%"=="" if %dbl% equ 0 set testrouter=%cur_ROUTER%
+if not "%manualRouter%"=="" set testrouter=%cur_ROUTER%
 
 for /f "tokens=* delims=" %%p in ('ping -w %timeoutmilsecs% -n 1 %testrouter%') do set ping_test=%%p
 echo %ping_test% |findstr "request could not find" >NUL
@@ -341,6 +343,7 @@ goto :eof
 
 
 :Ask4Router
+if "%fullAuto%"=="1" set manualRouter=%secondaryRouter%&set cur_ROUTER=%secondaryRouter%&goto :eof
 %debgn%set /a lines=%numrouters%+7
 %debgn%mode con cols=70 lines=%lines%
 set cur_ROUTER=
@@ -356,7 +359,7 @@ set usrinput=
 set usrinput2=
 set /p usrinput=[] 
 if "%usrinput%"=="" set usrinput=1
-if "%usrinput%"=="x" set manualRouter=www.google.com&set cur_ROUTER=www.google.com&goto :eof
+if "%usrinput%"=="x" set manualRouter=%secondaryRouter%&set cur_ROUTER=%secondaryRouter%&goto :eof
 for /l %%n in (1,1,%numrouters%) do if "%usrinput%"=="%%n" set cur_ROUTER=!conn_%%n_gw!
 if "%cur_ROUTER%"=="" cls&echo.&echo.&echo Use "%usrinput%" as router address?
 if "%cur_ROUTER%"=="" set /p usrinput2=[y/n] 
@@ -392,6 +395,7 @@ set connection%con_num%_name=%line%
 goto :eof
 
 :Ask4Adapter
+if "%fullAuto%"=="1" set manualAdapter=All&goto :eof
 call :EnumerateAdapters
 set /a lines=%con_num%+6
 %debgn%mode con cols=52 lines=%lines%
@@ -435,6 +439,7 @@ goto :eof
 @set dbl=0
 @set numAdapters=0
 @set stbltySTR=
+@set secondaryRouter=www.google.com
 @set statspacer=                                                               .
 @for /f "tokens=1,* DELIMS==" %%s in ('set INT_') do call :init_settn %%s %%t
 @set orig_checkdelay=%INT_checkdelay%
@@ -466,7 +471,7 @@ set manualRouter=%manualRouter:https:=%
 set manualRouter=%manualRouter:/=%
 if "%manualRouter%"=="Examples:" set manualRouter=
 if not "%manualRouter%"=="" set cur_ROUTER=%manualRouter%
-if /I "%manualRouter%"=="none" set cur_ROUTER=www.google.com
+if /I "%manualRouter%"=="none" set cur_ROUTER=%secondaryRouter%
 goto :eof
 
 :init_manualAdapter
