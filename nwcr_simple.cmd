@@ -1,5 +1,5 @@
 ::Quick detect&fix
-@SET version=3.3.267
+@SET version=3.3.275
 
 :: Documentation and updated versions can be found at
 :: https://code.google.com/p/quick-net-fix/
@@ -56,14 +56,14 @@ echo  --------------------------------------------------
 echo  -      %ThisTitle%         -
 echo. !show_stbtlySTR:~-%colnum%!
 echo.
-if not "%cur_ADAPTER%"=="" 		echo  Connection: %cur_ADAPTER%
+if not "%show_cur_ADAPTER%"=="" echo  %show_cur_ADAPTER%
 if not "%cur_ROUTER%"=="" 		echo  Router:     %cur_ROUTER%
-if not "%uptime%"=="" 		echo  Uptime:     %uptime%
-if not "%stability%"==""	echo  Stability:  %stability%
+if not "%uptime%"=="" 			echo  Uptime:     %uptime%
+if not "%stability%"==""		echo  Stability:  %stability%
 echo.
-if not %numfixes%==0 		echo  Fixes:      %numfixes%
-if not "%lastresult%"=="" 	echo  Last Test:  %lastresult%
-if not "%curstatus%"=="" 	echo  Status:     %curstatus%
+if not %numfixes%==0 			echo  Fixes:      %numfixes%
+if not "%lastresult%"=="" 		echo  Last Test:  %lastresult%
+if not "%curstatus%"=="" 		echo  Status:     %curstatus%
 goto :eof
 
 
@@ -242,6 +242,10 @@ if "%cur_ADAPTER%"=="" if "%lastresult%"=="Connected" call :Ask4Adapter
 if "%cur_ADAPTER%"=="" call :EnumerateAdapters %filterAdapters%
 
 :checkRouterAdapter_end
+%debgn%MODE CON COLS=%cols% LINES=13
+set show_cur_ADAPTER=
+if not "%cur_ADAPTER%"=="" set show_cur_ADAPTER=Connection: %cur_ADAPTER%
+if /I "%manualAdapter%"=="all" set show_cur_ADAPTER=Connection: [Reset All Connections on Error]
 set endsecs=%time:~6,2%
 if %startsecs:~0,1% equ 0 set startsecs=%startsecs:~1,1%
 if %endsecs:~0,1% equ 0 set endsecs=%endsecs:~1,1%
@@ -338,21 +342,22 @@ goto :eof
 
 
 :Ask4Router
-set /a lines=%numrouters%+6
+%debgn%set /a lines=%numrouters%+7
 %debgn%mode con cols=70 lines=%lines%
-%debgn%call :header
 set cur_ROUTER=
-echo which router would you like to use?
 echo.
-for /l %%n in (1,1,%numrouters%) do set showroutr%%n=!conn_%%n_gw! !conn_%%n_cn!%statspacer%
-for /l %%n in (1,1,%numrouters%) do echo -!showroutr%%n:~0,60! [%%n]
+echo Which Network Connection would you like to use?
+echo.
+for /l %%n in (1,1,%numrouters%) do set showroutr%%n=!conn_%%n_gw!%statspacer%
+for /l %%n in (1,1,%numrouters%) do set showroutr%%n=!showroutr%%n:~0,30! !conn_%%n_cn!%statspacer%
+for /l %%n in (1,1,%numrouters%) do echo -!showroutr%%n:~0,61! [%%n]
 echo Or type "x" to skip...
 echo.
 set usrinput=
 set usrinput2=
 set /p usrinput=[] 
 if "%usrinput%"=="" set usrinput=1
-if "%usrinput%"=="x" goto :eof
+if "%usrinput%"=="x" set manualRouter=www.google.com&set cur_ROUTER=www.google.com&goto :eof
 for /l %%n in (1,1,%numrouters%) do if "%usrinput%"=="%%n" set cur_ROUTER=!conn_%%n_gw!
 if "%cur_ROUTER%"=="" cls&echo.&echo.&echo Use "%usrinput%" as router address?
 if "%cur_ROUTER%"=="" set /p usrinput2=[y/n] 
@@ -389,18 +394,20 @@ goto :eof
 
 :Ask4Adapter
 call :EnumerateAdapters
-set /a lines=%con_num%+5
+set /a lines=%con_num%+6
 %debgn%mode con cols=52 lines=%lines%
-%debgn%call :header
+echo.
 set cur_ADAPTER=
 echo Which connection would you like to monitor?
 echo.
 for /l %%n in (1,1,%con_num%) do set showconn%%n=!connection%%n_name!%statspacer%
 for /l %%n in (1,1,%con_num%) do echo -!showconn%%n:~0,40! [%%n]
+echo Or type "x" to use all...
 echo.
 set usrinput=
 set /p usrinput=[] 
 if "%usrinput%"=="" set usrinput=1
+if "%usrinput%"=="x" set manualAdapter=All&goto :eof
 for /l %%n in (1,1,%con_num%) do if "%usrinput%"=="%%n" set cur_ADAPTER=!connection%%n_name!
 if "%cur_ADAPTER%"=="" goto :ask4connection
 set manualadapter=%cur_ADAPTER%
@@ -409,7 +416,8 @@ goto :eof
 
 
 :init
-if not "%pretty%"=="1" set debgn=::
+@if not "%pretty%"=="1" set debgn=::
+@if not "%pretty%"=="1" MODE CON COLS=80 LINES=900
 %debgn%@echo off
 %debgn%cls
 @PROMPT=^>
@@ -428,6 +436,7 @@ if not "%pretty%"=="1" set debgn=::
 @set dbl=0
 @set numAdapters=0
 @set stbltySTR=
+@set statspacer=                                                               .
 @for /f "tokens=1,* DELIMS==" %%s in ('set INT_') do call :init_settn %%s %%t
 @set orig_checkdelay=%INT_checkdelay%
 @set INT_checkdelay=1
@@ -458,6 +467,7 @@ set manualRouter=%manualRouter:https:=%
 set manualRouter=%manualRouter:/=%
 if "%manualRouter%"=="Examples:" set manualRouter=
 if not "%manualRouter%"=="" set cur_ROUTER=%manualRouter%
+if /I "%manualRouter%"=="none" set cur_ROUTER=www.google.com
 goto :eof
 
 :init_manualAdapter
@@ -466,6 +476,7 @@ set manualAdapter=%manualAdapter:Examples=%
 if "%manualAdapter%"=="" goto :eof
 set manualAdapter=%manualAdapter:	=%
 if not "%manualAdapter%"=="" set cur_ADAPTER=%manualAdapter%
+if /I "%manualAdapter%"=="all" set cur_ADAPTER=
 goto :eof
 
 :init_filterAdapters
