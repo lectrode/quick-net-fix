@@ -1,5 +1,5 @@
 ::Quick detect&fix
-@SET version=3.3.265
+@SET version=3.3.267
 
 :: Documentation and updated versions can be found at
 :: https://code.google.com/p/quick-net-fix/
@@ -289,17 +289,18 @@ if not "%1"=="" echo %line%|FINDSTR /I "%1">NUL
 if not "%1"=="" if %errorlevel% equ 0 set filtered=1
 if not "%1"=="" shift&goto :getNETINFO_parseAdapter_loop
 if %filtered% equ 1 goto :eof
+if %numAdapters% geq 1 if "!conn_%numAdapters%_gw!"=="" set conn_%numAdapters%_cn=&set conn_%numAdapters%_ms=&set conn_%numAdapters%_gw=&set /a numAdapters-=1
 set /a numAdapters+=1
 set line=%line:Configuration for Interface =%
 set conn_%numAdapters%_cn=%line:"=%
-echo %disconnectedAdapters% |findstr /I '"!conn_%numAdapters%_cn!"'%>NUL
+echo %disconnectedAdapters% |findstr /I /C:'"!conn_%numAdapters%_cn!"'>NUL
 if %errorlevel% equ 0 set conn_%numAdapters%_ms=disconnected&goto :eof
 goto :eof
 
 :getNETINFO_parseGateway
 if %filtered% equ 1 goto :eof
 if not "%1"=="" echo %line%|FINDSTR /I "%1">NUL
-if not "%1"=="" if %errorlevel% equ 0 set filtered=1&set conn_%numAdapters%_cn=&conn_%numAdapters%_ms=
+if not "%1"=="" if %errorlevel% equ 0 set filtered=1&set conn_%numAdapters%_cn=&conn_%numAdapters%_ms=&set /a numAdapters-=1
 if not "%1"=="" shift&goto :getNETINFO_parseGateway
 if %filtered% equ 1 goto :eof
 set line=%line:Default Gateway:=%
