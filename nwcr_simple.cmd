@@ -1,5 +1,5 @@
 ::Quick detect&fix
-@SET version=3.3.285
+@SET version=3.3.286
 
 :: Documentation and updated versions can be found at
 :: https://code.google.com/p/quick-net-fix/
@@ -74,7 +74,7 @@ if "%1"=="" set pn=3
 if not "%1"=="" set pn=%1
 if %pn% equ 0 goto :eof
 if "%checkconnects%"=="force" call :checkRouterAdapter ..
-if not "%stability:~0,4%"=="Calc" if %checkconnects% geq %INT_checkrouterdelay% call :checkRouterAdapter ..&set /a pn-=tot
+if not "%stability:~0,4%"=="Calc" if "%lastResult%"=="Connected" if %checkconnects% geq %INT_checkrouterdelay% call :checkRouterAdapter ..&set /a pn-=tot
 @set curstatus=Wait %pn% seconds...
 %debgn%call :header
 set /a timepassed+=pn
