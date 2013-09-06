@@ -1,5 +1,5 @@
 ::Quick detect&fix
-@SET version=3.3.275
+@SET version=3.3.279
 
 :: Documentation and updated versions can be found at
 :: https://code.google.com/p/quick-net-fix/
@@ -33,8 +33,6 @@ setlocal enabledelayedexpansion
 set thisdir=%~dp0
 call :init
 
-call :checkRouterAdapter .. ::
-
 :loop
 %debgn%MODE CON COLS=%cols% LINES=13
 call :check
@@ -62,7 +60,7 @@ if not "%uptime%"=="" 			echo  Uptime:     %uptime%
 if not "%stability%"==""		echo  Stability:  %stability%
 echo.
 if not %numfixes%==0 			echo  Fixes:      %numfixes%
-if not "%lastresult%"=="" 		echo  Last Test:  %lastresult%
+if not "%lastresult%"=="" 		echo  Last Test:  %lastresult% %showdbl%
 if not "%curstatus%"=="" 		echo  Status:     %curstatus%
 goto :eof
 
@@ -137,12 +135,12 @@ set /a down+=timepassed
 if "%result%"=="TimeOut" set /a down+=INT_timeoutsecs
 set curcolor=%warn%
 set stbltySTR=%stbltySTR% 1
-set result=%result% %showdbl%
+set result=%result%
 )
 
 set timepassed=0
+if %dbl% gtr 0 set showdbl=(fluke check %dbl%/%INT_flukechecks%)
 set /a dbl+=1
-set showdbl=(fluke check %dbl%/%INT_flukechecks%)
 call :set_uptime
 call :set_stability %stbltySTR%
 
@@ -172,6 +170,7 @@ if "%stblty_firstval%"=="" set stblty_firstval=%1
 shift
 if not "%1"=="" goto :set_stability
 set stblty_over=0
+if %stblty_tests% equ 1  if "%lastresult%"=="Connected" set checkconnects=force
 if %stblty_tests% geq %INT_StabilityHistory% set /a stblty_over=stblty_tests-INT_StabilityHistory&set /a stblty_val-=stblty_firstval
 if %stblty_over% geq 1 set /a stblty_over*=2
 if %stblty_over% geq 1 set stbltySTR=!stbltySTR:~%stblty_over%!
