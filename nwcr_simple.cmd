@@ -1,5 +1,5 @@
 ::Quick detect&fix
-@SET version=3.3.286
+@SET version=3.3.288
 
 :: Documentation and updated versions can be found at
 :: https://code.google.com/p/quick-net-fix/
@@ -257,29 +257,15 @@ goto :eof
 :getNETINFO
 if not %numAdapters% equ 0 for /l %%n in (1,1,%numAdapters%) do set conn_%%n_cn=&set conn_%%n_gw=&set conn_%%n_ms=
 set numAdapters=0
-set disconnectedAdapters=
-for /f "tokens=* delims=" %%r in ('netsh interface show interface') do call :getNETINFO_parseMS %%r
-for /f "tokens=1 delims=%%" %%r in ('netsh interface ip show addresses') do call :getNETINFO_parse %%r
+for /f "tokens=1 delims=%%" %%r in ('ipconfig') do call :getNETINFO_parse %%r
 goto :eof
 
-:getNETINFO_parseMS
-set line=%*
-if "%line%"=="" goto :eof
-if "%line:~0,4%"=="Admi" goto :eof
-if "%line:~0,4%"=="----" goto :eof
-set name=
-set space=
-:getNETINFO_parseMS_loop
-set name=%name%%space%%4
-shift
-if not "%4"=="" set space= &goto :getNETINFO_parseMS_loop
-echo %line% |findstr /I "disconnected">NUL
-if %errorlevel% equ 0 set disconnectedAdapters=%disconnectedAdapters%"%name%" 
-goto :eof
 
 :getNETINFO_parse
 set line=^%*
-echo %line% |findstr "Configuration">NUL
+echo %line% |findstr "adapter">NUL
+if %errorlevel% equ 0 call :getNETINFO_parseAdapter %filterAdapters%&goto :eof
+echo %line% |findstr "Media State">NUL
 if %errorlevel% equ 0 call :getNETINFO_parseAdapter %filterAdapters%&goto :eof
 echo %line% |findstr /C:"Default Gateway">NUL
 if %errorlevel% equ 0 call :getNETINFO_parseGateway %filterRouters%&goto :eof
@@ -296,10 +282,11 @@ if not "%1"=="" shift&goto :getNETINFO_parseAdapter_loop
 if %filtered% equ 1 goto :eof
 if %numAdapters% geq 1 if "!conn_%numAdapters%_gw!"=="" set conn_%numAdapters%_cn=&set conn_%numAdapters%_ms=&set conn_%numAdapters%_gw=&set /a numAdapters-=1
 set /a numAdapters+=1
-set line=%line:Configuration for Interface =%
-set conn_%numAdapters%_cn=%line:"=%
-echo %disconnectedAdapters% |findstr /I /C:'"!conn_%numAdapters%_cn!"'>NUL
-if %errorlevel% equ 0 set conn_%numAdapters%_ms=disconnected&goto :eof
+for /f "tokens=2 delims=:" %%a in ("%line%") do set conn_%numAdapters%_cn=%%a
+goto :eof
+
+:getNETINFO_parseMediaState
+set conn_%numAdapters%_ms=disconnected&goto :eof
 goto :eof
 
 :getNETINFO_parseGateway
@@ -308,7 +295,8 @@ if not "%1"=="" echo %line%|FINDSTR /I "%1">NUL
 if not "%1"=="" if %errorlevel% equ 0 set filtered=1&set conn_%numAdapters%_cn=&conn_%numAdapters%_ms=&set /a numAdapters-=1
 if not "%1"=="" shift&goto :getNETINFO_parseGateway
 if %filtered% equ 1 goto :eof
-set line=%line:Default Gateway:=%
+set line=%line: .=%
+set line=%line:Default Gateway : =%
 set conn_%numAdapters%_gw=%line: =%
 goto :eof
 
