@@ -1,5 +1,5 @@
 ::Quick detect&fix
-@SET version=3.3.289
+@SET version=3.3.290
 
 :: Documentation and updated versions can be found at
 :: https://code.google.com/p/quick-net-fix/
@@ -73,8 +73,8 @@ goto :eof
 if "%1"=="" set pn=3
 if not "%1"=="" set pn=%1
 if %pn% equ 0 goto :eof
-if "%checkconnects%"=="force" call :checkRouterAdapter ..
-if not "%stability:~0,4%"=="Calc" if "%lastResult%"=="Connected" if %checkconnects% geq %INT_checkrouterdelay% call :checkRouterAdapter ..&set /a pn-=tot
+if "%checkconnects%"=="force" call :checkRouterAdapter
+if not "%stability:~0,4%"=="Calc" if "%lastResult%"=="Connected" if %checkconnects% geq %INT_checkrouterdelay% call :checkRouterAdapter&set /a pn-=tot
 @set curstatus=Wait %pn% seconds...
 %debgn%call :header
 set /a timepassed+=pn
@@ -119,8 +119,6 @@ echo %ping_test% |findstr "Minimum " >NUL
 if %errorlevel% equ 0 set result=Connected&set resultUpDown=Up
 if "%result%"=="" set result=TimeOut&set resultUpDown=Down
 
-if "%lastresult%"=="" set lastresult=%result%
-
 if "%resultUpDown%"=="Up" (
 set /a checkconnects+=1
 if not "%lastresult%"=="Connected" set /a timepassed/=2&set checkconnects=force
@@ -132,7 +130,7 @@ set stbltySTR=%stbltySTR% 0
 
 if "%resultUpDown%"=="Down" (
 if "%lastresult%"=="Connected" set /a timepassed/=2
-if %timepassed% leq 0 set timepassed=1
+if not "%lastresult%"=="" if %timepassed% leq 0 set timepassed=1
 set /a down+=timepassed
 if "%result%"=="TimeOut" set /a down+=INT_timeoutsecs
 set curcolor=%warn%
@@ -224,18 +222,15 @@ goto :eof
 
 :checkRouterAdapter
 set checkconnects=0
-set loading=%1
-%2set curstatus=Check valid Router/Adapter&call :header
+set curstatus=Check valid Router/Adapter&call :header
 if not "%manualRouter%"=="" if not "%manualAdapter%"=="" goto :eof
 set startsecs=%time:~6,2%
 call :getNETINFO
-@echo .|set /p dummy=%loading%
 set isConnected=0
 if not "%cur_ADAPTER%"=="" set checkadapternum=0&call :checkadapterstatus
 if "%isConnected%"=="1" if not "%cur_ROUTER%"=="" goto :checkRouterAdapter_end
 if not "%cur_ROUTER%"=="" if "%manualRouter%"=="" set cur_ROUTER=
 if not "%cur_ADAPTER%"=="" if "%manualAdapter%"=="" set cur_ADAPTER=
-@echo .|set /p dummy=%loading%
 if "%manualrouter%"=="" call :getAutoRouter
 @echo .|set /p dummy=%loading%
 if "%cur_ADAPTER%"=="" if not "%manualRouter%"=="" call :getAutoAdapter
@@ -431,10 +426,11 @@ goto :eof
 %debgn%COLOR %norm%
 @SET ThisTitle=Lectrode's Quick Net Fix v%version%
 @TITLE %ThisTitle%
+@set loading=.
 @set numfixes=0
 @set up=0
 @set down=0
-@set timepassed=1
+@set timepassed=0
 @set dbl=0
 @set numAdapters=0
 @set checkconnects=0
