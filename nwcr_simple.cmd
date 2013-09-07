@@ -1,5 +1,5 @@
 ::Quick detect&fix
-@SET version=3.3.288
+@SET version=3.3.289
 
 :: Documentation and updated versions can be found at
 :: https://code.google.com/p/quick-net-fix/
@@ -437,6 +437,7 @@ goto :eof
 @set timepassed=1
 @set dbl=0
 @set numAdapters=0
+@set checkconnects=0
 @set stbltySTR=
 @set secondaryRouter=www.google.com
 @set statspacer=                                                               .
