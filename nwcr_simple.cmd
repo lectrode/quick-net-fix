@@ -1,5 +1,5 @@
 ::Quick detect&fix
-@SET version=3.3.291
+@SET version=3.3.292
 
 :: Documentation and updated versions can be found at
 :: https://code.google.com/p/quick-net-fix/
@@ -261,7 +261,7 @@ set line=^%*
 echo %line% |findstr "adapter">NUL
 if %errorlevel% equ 0 call :getNETINFO_parseAdapter %filterAdapters%&goto :eof
 echo %line% |findstr "Media State">NUL
-if %errorlevel% equ 0 call :getNETINFO_parseAdapter %filterAdapters%&goto :eof
+if %errorlevel% equ 0 call :getNETINFO_parseMediaState %filterAdapters%&goto :eof
 echo %line% |findstr /C:"Default Gateway">NUL
 if %errorlevel% equ 0 call :getNETINFO_parseGateway %filterRouters%&goto :eof
 goto :eof
@@ -348,7 +348,7 @@ set usrinput2=
 set /p usrinput=[] 
 if "%usrinput%"=="" set usrinput=1
 for /l %%n in (1,1,%numrouters%) do if "%usrinput%"=="%%n" set cur_ROUTER=!conn_%%n_gw!
-if not "%cur_ROUTER%"=="" if "%manualAdapter%"=="" set cur_ADAPTER=!conn_%usrinput%_cn!
+if not "%cur_ROUTER%"=="" if "%manualAdapter%"=="" set cur_ADAPTER=!conn_%usrinput%_cn!&set manualAdapter=!conn_%usrinput%_cn!
 if "%usrinput%"=="x" set manualRouter=%secondaryRouter%&set cur_ROUTER=%secondaryRouter%&goto :eof
 if "%cur_ROUTER%"=="" cls&echo.&echo.&echo Use "%usrinput%" as router address?
 if "%cur_ROUTER%"=="" set /p usrinput2=[y/n] 
@@ -386,7 +386,7 @@ goto :eof
 :Ask4Adapter
 if "%fullAuto%"=="1" set manualAdapter=All&goto :eof
 call :EnumerateAdapters
-set /a lines=%con_num%+6
+set /a lines=%con_num%+10
 %debgn%mode con cols=52 lines=%lines%
 echo.
 set cur_ADAPTER=
