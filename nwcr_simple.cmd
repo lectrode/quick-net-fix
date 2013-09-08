@@ -1,5 +1,5 @@
 ::Quick detect&fix
-@SET version=3.3.290
+@SET version=3.3.291
 
 :: Documentation and updated versions can be found at
 :: https://code.google.com/p/quick-net-fix/
@@ -57,7 +57,7 @@ echo. !show_stbtlySTR:~-%colnum%!
 echo.
 if not "%show_cur_ADAPTER%"=="" echo  %show_cur_ADAPTER%
 if not "%cur_ROUTER%"=="" 		echo  Router:     %cur_ROUTER%
-if not "%uptime%"=="" 			echo  Uptime:     %uptime%
+if not "%uptime%"=="" 			echo  Uptime:     %uptime% (time %GRT_TimeRan%)
 if not "%stability%"==""		echo  Stability:  %stability%
 echo.
 if not %numfixes%==0 			echo  Fixes:      %numfixes%
@@ -73,13 +73,13 @@ goto :eof
 if "%1"=="" set pn=3
 if not "%1"=="" set pn=%1
 if %pn% equ 0 goto :eof
-if "%checkconnects%"=="force" call :checkRouterAdapter
+if "%checkconnects%"=="force" call :checkRouterAdapter&set /a pn-=tot
 if not "%stability:~0,4%"=="Calc" if "%lastResult%"=="Connected" if %checkconnects% geq %INT_checkrouterdelay% call :checkRouterAdapter&set /a pn-=tot
+if %pn% leq 0 goto :eof
 @set curstatus=Wait %pn% seconds...
 %debgn%call :header
 set /a timepassed+=pn
 set /a pn+=1
-if %pn% leq 0 goto :eof
 ping -n %pn% -w 1000 127.0.0.1>nul
 goto :eof
 
@@ -156,11 +156,10 @@ goto :eof
 
 :set_uptime
 if %up% geq 100000 set /a up=up/10&set /a down=down/10
-set /a dispUP=up/INT_checkdelay
-set /a dispDN=down/INT_checkdelay
 set /a uptime=((up*10000)/(up+down))
 set /a uptime+=0
-set uptime=%uptime:~0,-2%.%uptime:~-2%%%        U:%dispUP% D:%dispDN%
+set uptime=%uptime:~0,-2%.%uptime:~-2%%%
+call :getruntime
 goto :eof
 
 :set_stability
@@ -247,6 +246,7 @@ if %startsecs:~0,1% equ 0 set startsecs=%startsecs:~1,1%
 if %endsecs:~0,1% equ 0 set endsecs=%endsecs:~1,1%
 if %endsecs% lss %startsecs% set /a endsecs+=60
 set /a tot=endsecs-startsecs
+set /a timepassed+=tot
 goto :eof
 
 :getNETINFO
@@ -412,6 +412,76 @@ echo.
 goto :eof
 
 
+:getruntime
+%toolong%
+if "%GRT_TIME_start_year%"=="" goto :getruntime_init
+
+set GRT_TIME_curr_year=%DATE:~10,4%
+set GRT_TIME_curr_month=%DATE:~4,2%
+set GRT_TIME_curr_day=%DATE:~7,2%
+set GRT_TIME_curr_hour=%TIME:~0,2%
+set GRT_TIME_curr_min=%TIME:~3,2%
+set GRT_TIME_curr_sec=%TIME:~6,2%
+::set GRT_TIME_curr_mili=%TIME:~9,2%
+
+for /f "tokens=1 delims==" %%a in ('set GRT_TIME_curr_') do if "!%%a:~0,1!"=="0" set /a %%a=!%%a:~1,1!+0
+for /f "tokens=1 delims==" %%a in ('set GRT_TIME_curr_') do if "!%%a:~0,1!"=="0" set /a %%a=!%%a:~1,1!+0
+
+set GRT_MO_3=28&set /a GRT_leapyear=GRT_TIME_curr_year*10/4
+if %GRT_leapyear:~-1% equ 0 set GRT_MO_3=29
+
+set /a GRT_lastmonth=GRT_TIME_curr_month-1
+
+if %GRT_TIME_curr_month% lss %GRT_TIME_start_month% set /a GRT_TIME_curr_month+=12&set GRT_TIME_curr_year-=1
+if %GRT_TIME_curr_day% lss %GRT_TIME_start_day% set /a GRT_TIME_curr_day+=GRT_MO_%GRT_lastmonth%&set GRT_TIME_curr_month-=1
+if %GRT_TIME_curr_hour% lss %GRT_TIME_start_hour% set /a GRT_TIME_curr_hour+=24&set /a GRT_TIME_curr_day-=1
+if %GRT_TIME_curr_min% lss %GRT_TIME_start_min% set /a GRT_TIME_curr_min+=60&set /a GRT_TIME_curr_hour-=1
+if %GRT_TIME_curr_sec% lss %GRT_TIME_start_sec% set /a GRT_TIME_curr_sec+=60&set /a GRT_TIME_curr_min-=1
+::if %GRT_TIME_curr_mili% lss %GRT_TIME_start_mili% set /a GRT_TIME_curr_mili+=100&set GRT_TIME_curr_sec-=1
+
+set /a GRT_TIME_curr_year=GRT_TIME_curr_year-GRT_TIME_start_year
+set /a GRT_TIME_curr_month=GRT_TIME_curr_month-GRT_TIME_start_month
+set /a GRT_TIME_curr_day=GRT_TIME_curr_day-GRT_TIME_start_day
+set /a GRT_TIME_curr_hour=GRT_TIME_curr_hour-GRT_TIME_start_hour
+set /a GRT_TIME_curr_min=GRT_TIME_curr_min-GRT_TIME_start_min
+set /a GRT_TIME_curr_sec=GRT_TIME_curr_sec-GRT_TIME_start_sec
+::set /a GRT_TIME_curr_mili=GRT_TIME_curr_mili-GRT_TIME_start_mili
+
+if %GRT_TIME_curr_year% geq 10000 set GRT_TimeRan=Over 10,000 years... 0.o&set toolong=goto :eof&goto :eof
+set GRT_TimeRan=%GRT_TIME_curr_hour%:%GRT_TIME_curr_min%:%GRT_TIME_curr_sec%
+if %GRT_TIME_curr_year% neq 0 set GRT_TimeRan=y:%GRT_TIME_curr_year% m:%GRT_TIME_curr_month% d:%GRT_TIME_curr_day% %GRT_TimeRan%&goto :eof
+if %GRT_TIME_curr_month% neq 0 set GRT_TimeRan=m:%GRT_TIME_curr_month% d:%GRT_TIME_curr_day% %GRT_TimeRan%&goto :eof
+if %GRT_TIME_curr_day% neq 0 set GRT_TimeRan=%GRT_TIME_curr_day% %GRT_TimeRan%
+goto :eof
+
+
+:getruntime_init
+set GRT_TIME_start_year=%DATE:~10,4%
+set GRT_TIME_start_month=%DATE:~4,2%
+set GRT_TIME_start_day=%DATE:~7,2%
+set GRT_TIME_start_hour=%TIME:~0,2%
+set GRT_TIME_start_min=%TIME:~3,2%
+set GRT_TIME_start_sec=%TIME:~6,2%
+set GRT_TIME_start_mili=%TIME:~9,2%
+
+for /f "tokens=1 delims==" %%a in ('set GRT_TIME_start_') do if "!%%a:~0,1!"=="0" set /a %%a=!%%a:~1,1!+0
+for /f "tokens=1 delims==" %%a in ('set GRT_TIME_start_') do if "!%%a:~0,1!"=="0" set /a %%a=!%%a:~1,1!+0
+
+set GRT_MO_1=31
+REM February set seperately
+set GRT_MO_3=31
+set GRT_MO_4=30
+set GRT_MO_5=31
+set GRT_MO_6=30
+set GRT_MO_7=31
+set GRT_MO_8=31
+set GRT_MO_9=30
+set GRT_MO_10=31
+set GRT_MO_11=30
+set GRT_MO_12=31
+goto :eof
+
+
 :init
 @if not "%pretty%"=="1" set debgn=::
 @if not "%pretty%"=="1" MODE CON COLS=80 LINES=900
@@ -426,6 +496,7 @@ goto :eof
 %debgn%COLOR %norm%
 @SET ThisTitle=Lectrode's Quick Net Fix v%version%
 @TITLE %ThisTitle%
+@call :getruntime
 @set loading=.
 @set numfixes=0
 @set up=0
