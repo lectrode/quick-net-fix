@@ -1,5 +1,5 @@
 ::Quick detect&fix
-@SET version=3.3.293
+@SET version=3.3.294
 
 :: Documentation and updated versions can be found at
 :: https://code.google.com/p/quick-net-fix/
@@ -449,7 +449,7 @@ if %GRT_TIME_curr_year% geq 10000 set GRT_TimeRan=Over 10,000 years... 0.o&set t
 set GRT_TimeRan=%GRT_TIME_curr_hour%:%GRT_TIME_curr_min%:%GRT_TIME_curr_sec%
 if %GRT_TIME_curr_year% neq 0 set GRT_TimeRan=y:%GRT_TIME_curr_year% m:%GRT_TIME_curr_month% d:%GRT_TIME_curr_day% %GRT_TimeRan%&goto :eof
 if %GRT_TIME_curr_month% neq 0 set GRT_TimeRan=m:%GRT_TIME_curr_month% d:%GRT_TIME_curr_day% %GRT_TimeRan%&goto :eof
-if %GRT_TIME_curr_day% neq 0 set GRT_TimeRan=%GRT_TIME_curr_day% %GRT_TimeRan%
+if %GRT_TIME_curr_day% neq 0 set GRT_TimeRan=d:%GRT_TIME_curr_day% %GRT_TimeRan%
 goto :eof
 
 
