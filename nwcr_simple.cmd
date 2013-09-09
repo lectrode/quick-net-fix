@@ -1,5 +1,5 @@
 ::Quick detect&fix
-@SET version=3.3.292
+@SET version=3.3.293
 
 :: Documentation and updated versions can be found at
 :: https://code.google.com/p/quick-net-fix/
@@ -31,7 +31,6 @@ set fullAuto=0
 
 
 setlocal enabledelayedexpansion
-set thisdir=%~dp0
 call :init
 
 :loop
@@ -57,7 +56,7 @@ echo. !show_stbtlySTR:~-%colnum%!
 echo.
 if not "%show_cur_ADAPTER%"=="" echo  %show_cur_ADAPTER%
 if not "%cur_ROUTER%"=="" 		echo  Router:     %cur_ROUTER%
-if not "%uptime%"=="" 			echo  Uptime:     %uptime% (time %GRT_TimeRan%)
+if not "%uptime%"=="" 			echo  Uptime:     %uptime% (run time %GRT_TimeRan%)
 if not "%stability%"==""		echo  Stability:  %stability%
 echo.
 if not %numfixes%==0 			echo  Fixes:      %numfixes%
@@ -425,7 +424,6 @@ set GRT_TIME_curr_sec=%TIME:~6,2%
 ::set GRT_TIME_curr_mili=%TIME:~9,2%
 
 for /f "tokens=1 delims==" %%a in ('set GRT_TIME_curr_') do if "!%%a:~0,1!"=="0" set /a %%a=!%%a:~1,1!+0
-for /f "tokens=1 delims==" %%a in ('set GRT_TIME_curr_') do if "!%%a:~0,1!"=="0" set /a %%a=!%%a:~1,1!+0
 
 set GRT_MO_3=28&set /a GRT_leapyear=GRT_TIME_curr_year*10/4
 if %GRT_leapyear:~-1% equ 0 set GRT_MO_3=29
@@ -464,7 +462,6 @@ set GRT_TIME_start_min=%TIME:~3,2%
 set GRT_TIME_start_sec=%TIME:~6,2%
 set GRT_TIME_start_mili=%TIME:~9,2%
 
-for /f "tokens=1 delims==" %%a in ('set GRT_TIME_start_') do if "!%%a:~0,1!"=="0" set /a %%a=!%%a:~1,1!+0
 for /f "tokens=1 delims==" %%a in ('set GRT_TIME_start_') do if "!%%a:~0,1!"=="0" set /a %%a=!%%a:~1,1!+0
 
 set GRT_MO_1=31
