@@ -1,5 +1,5 @@
 ::Quick detect&fix
-@SET version=3.3.294
+@SET version=3.3.295
 
 :: Documentation and updated versions can be found at
 :: https://code.google.com/p/quick-net-fix/
@@ -56,7 +56,7 @@ echo. !show_stbtlySTR:~-%colnum%!
 echo.
 if not "%show_cur_ADAPTER%"=="" echo  %show_cur_ADAPTER%
 if not "%cur_ROUTER%"=="" 		echo  Router:     %cur_ROUTER%
-if not "%uptime%"=="" 			echo  Uptime:     %uptime% (run time %GRT_TimeRan%)
+if not "%uptime%"=="" 			echo  Uptime:     %uptime% (started %GRT_TimeRan% ago)
 if not "%stability%"==""		echo  Stability:  %stability%
 echo.
 if not %numfixes%==0 			echo  Fixes:      %numfixes%
@@ -445,11 +445,14 @@ set /a GRT_TIME_curr_min=GRT_TIME_curr_min-GRT_TIME_start_min
 set /a GRT_TIME_curr_sec=GRT_TIME_curr_sec-GRT_TIME_start_sec
 ::set /a GRT_TIME_curr_mili=GRT_TIME_curr_mili-GRT_TIME_start_mili
 
-if %GRT_TIME_curr_year% geq 10000 set GRT_TimeRan=Over 10,000 years... 0.o&set toolong=goto :eof&goto :eof
+if %GRT_TIME_curr_min% leq 9 set GRT_TIME_curr_min=0%GRT_TIME_curr_min%
+if %GRT_TIME_curr_sec% leq 9 set GRT_TIME_curr_sec=0%GRT_TIME_curr_sec%
+
+if %GRT_TIME_curr_year% geq 10000 set GRT_TimeRan=Over 10,000 years&set toolong=goto :eof&goto :eof
 set GRT_TimeRan=%GRT_TIME_curr_hour%:%GRT_TIME_curr_min%:%GRT_TIME_curr_sec%
-if %GRT_TIME_curr_year% neq 0 set GRT_TimeRan=y:%GRT_TIME_curr_year% m:%GRT_TIME_curr_month% d:%GRT_TIME_curr_day% %GRT_TimeRan%&goto :eof
-if %GRT_TIME_curr_month% neq 0 set GRT_TimeRan=m:%GRT_TIME_curr_month% d:%GRT_TIME_curr_day% %GRT_TimeRan%&goto :eof
-if %GRT_TIME_curr_day% neq 0 set GRT_TimeRan=d:%GRT_TIME_curr_day% %GRT_TimeRan%
+if %GRT_TIME_curr_year% neq 0 set GRT_TimeRan=%GRT_TIME_curr_year%y %GRT_TIME_curr_month%m %GRT_TIME_curr_day%d %GRT_TimeRan%&goto :eof
+if %GRT_TIME_curr_month% neq 0 set GRT_TimeRan=m:%GRT_TIME_curr_month%m %GRT_TIME_curr_day%d %GRT_TimeRan%&goto :eof
+if %GRT_TIME_curr_day% neq 0 set GRT_TimeRan=%GRT_TIME_curr_day%d %GRT_TimeRan%
 goto :eof
 
 
