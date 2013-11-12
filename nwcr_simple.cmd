@@ -1,5 +1,5 @@
 ::Quick detect&fix
-@SET version=3.3.295
+@SET version=3.4.296
 
 :: Documentation and updated versions can be found at
 :: https://code.google.com/p/quick-net-fix/
@@ -32,6 +32,7 @@ set fullAuto=0
 
 setlocal enabledelayedexpansion
 call :init
+call :checkRouterAdapter
 
 :loop
 %debgn%MODE CON COLS=%cols% LINES=13
@@ -168,7 +169,6 @@ if "%stblty_firstval%"=="" set stblty_firstval=%1
 shift
 if not "%1"=="" goto :set_stability
 set stblty_over=0
-if %stblty_tests% equ 1  if "%lastresult%"=="Connected" set checkconnects=force
 if %stblty_tests% geq %INT_StabilityHistory% set /a stblty_over=stblty_tests-INT_StabilityHistory&set /a stblty_val-=stblty_firstval
 if %stblty_over% geq 1 set /a stblty_over*=2
 if %stblty_over% geq 1 set stbltySTR=!stbltySTR:~%stblty_over%!
@@ -220,8 +220,8 @@ goto :eof
 
 :checkRouterAdapter
 set checkconnects=0
-set curstatus=Check valid Router/Adapter&call :header
 if not "%manualRouter%"=="" if not "%manualAdapter%"=="" goto :eof
+set curstatus=Check valid Router/Adapter&call :header
 set startsecs=%time:~6,2%
 call :getNETINFO
 set isConnected=0
@@ -246,6 +246,7 @@ if %endsecs:~0,1% equ 0 set endsecs=%endsecs:~1,1%
 if %endsecs% lss %startsecs% set /a endsecs+=60
 set /a tot=endsecs-startsecs
 set /a timepassed+=tot
+if "%lastresult%"=="" set lastresult=Connected
 goto :eof
 
 :getNETINFO
@@ -444,6 +445,8 @@ set /a GRT_TIME_curr_hour=GRT_TIME_curr_hour-GRT_TIME_start_hour
 set /a GRT_TIME_curr_min=GRT_TIME_curr_min-GRT_TIME_start_min
 set /a GRT_TIME_curr_sec=GRT_TIME_curr_sec-GRT_TIME_start_sec
 ::set /a GRT_TIME_curr_mili=GRT_TIME_curr_mili-GRT_TIME_start_mili
+
+for /f "tokens=1 delims==" %%a in ('set GRT_TIME_curr_') do if !%%a! leq 0 set /a %%a=0
 
 if %GRT_TIME_curr_min% leq 9 set GRT_TIME_curr_min=0%GRT_TIME_curr_min%
 if %GRT_TIME_curr_sec% leq 9 set GRT_TIME_curr_sec=0%GRT_TIME_curr_sec%
