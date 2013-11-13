@@ -1,5 +1,5 @@
 ::Quick detect&fix
-@SET version=3.4.299
+@SET version=3.4.300
 
 :: Documentation and updated versions can be found at
 :: https://code.google.com/p/quick-net-fix/
@@ -16,8 +16,8 @@ set INT_flukecheckdelay=1	Default: 1 seconds
 set INT_timeoutsecs=1		Default: 1 seconds
 set INT_checkrouterdelay=0	Default: 0 (auto) (wait x number of connects before verifying router and adapter)
 
-set filterRouters=													:Separate filtered routers with Space
-set filterAdapters=Tunnel VirtualBox VMnet VMware Loopback Pseudo	:Separate filter keywords with Space
+set filterRouters=															:Separate filtered routers with Space
+set filterAdapters=Tunnel VirtualBox VMnet VMware Loopback Pseudo Bluetooth	:Separate filter keywords with Space
 
 ::-GUI-
 set pretty=1
@@ -211,35 +211,6 @@ set /a %var%=endsecs%id%-startsecs%id%+((endmins%id%-startmins%id%)*60)
 goto :eof
 
 
-:resetAdapter
-set curcolor=%alrt%
-@set curstatus=Attempting to fix connection...
-set stbltySTR=%stbltySTR% 2
-%debgn%call :header
-set resetted=1
-if "%cur_Adapter%"=="" (
-ipconfig /release>NUL 2>&1
-ipconfig /flushdns>NUL 2>&1
-	if "%isAdmin%"=="1" (
-	for /l %%n in (1,1,%con_num%) do netsh interface set interface "!connection%%n_name!" admin=disable>NUL 2>&1
-	for /l %%n in (1,1,%con_num%) do netsh interface set interface "!connection%%n_name!" admin=enable>NUL 2>&1
-	)
-ipconfig /renew>NUL 2>&1
-)
-if not "%cur_ADAPTER%"=="" (
-ipconfig /release "%cur_ADAPTER%">NUL 2>&1
-ipconfig /flushdns "%cur_ADAPTER%">NUL 2>&1
-	if "%isAdmin%"=="1" (
-	netsh interface set interface "%cur_ADAPTER%" admin=disable>NUL 2>&1
-	netsh interface set interface "%cur_ADAPTER%" admin=enable>NUL 2>&1
-	)
-ipconfig /renew "%cur_ADAPTER%">NUL 2>&1
-)
-call :sleep %INT_fixdelay%
-set checkconnects=force
-goto :eof
-
-
 
 :checkRouterAdapter
 set checkconnects=0
@@ -272,6 +243,7 @@ goto :eof
 :getNETINFO
 if not %numAdapters% equ 0 for /l %%n in (1,1,%numAdapters%) do set conn_%%n_cn=&set conn_%%n_gw=&set conn_%%n_ms=
 set numAdapters=0
+set filtered=1
 for /f "tokens=1 delims=%%" %%r in ('ipconfig') do call :getNETINFO_parse %%r
 goto :eof
 
@@ -280,6 +252,7 @@ goto :eof
 set line=^%*
 echo %line% |findstr "adapter">NUL
 if %errorlevel% equ 0 call :getNETINFO_parseAdapter %filterAdapters%&goto :eof
+if "%filtered%"=="1" goto :eof
 echo %line% |findstr "Media State">NUL
 if %errorlevel% equ 0 call :getNETINFO_parseMediaState %filterAdapters%&goto :eof
 echo %line% |findstr /C:"Default Gateway">NUL
@@ -306,13 +279,12 @@ set conn_%numAdapters%_ms=disconnected&goto :eof
 goto :eof
 
 :getNETINFO_parseGateway
-if %filtered% equ 1 goto :eof
 if not "%1"=="" echo %line%|FINDSTR /I "%1">NUL
-if not "%1"=="" if %errorlevel% equ 0 set filtered=1&set conn_%numAdapters%_cn=&conn_%numAdapters%_ms=&set /a numAdapters-=1
+if not "%1"=="" if %errorlevel% equ 0 set filtered=1&set conn_%numAdapters%_cn=&set conn_%numAdapters%_ms=&set /a numAdapters-=1&goto :eof
 if not "%1"=="" shift&goto :getNETINFO_parseGateway
-if %filtered% equ 1 goto :eof
 set line=%line: .=%
-set line=%line:Default Gateway : =%
+set line=%line:Default Gateway :=%
+if "%line%"=="" set filtered=1&set conn_%numAdapters%_cn=&set conn_%numAdapters%_ms=&set /a numAdapters-=1&goto :eof
 set conn_%numAdapters%_gw=%line: =%
 goto :eof
 
@@ -508,6 +480,35 @@ set GRT_MO_12=31
 goto :eof
 
 
+:resetAdapter
+set curcolor=%alrt%
+@set curstatus=Attempting to fix connection...
+set stbltySTR=%stbltySTR% 2
+%debgn%call :header
+set resetted=1
+if "%cur_Adapter%"=="" (
+ipconfig /release>NUL 2>&1
+ipconfig /flushdns>NUL 2>&1
+	if "%isAdmin%"=="1" (
+	for /l %%n in (1,1,%con_num%) do netsh interface set interface "!connection%%n_name!" admin=disable>NUL 2>&1
+	for /l %%n in (1,1,%con_num%) do netsh interface set interface "!connection%%n_name!" admin=enable>NUL 2>&1
+	)
+ipconfig /renew>NUL 2>&1
+)
+if not "%cur_ADAPTER%"=="" (
+ipconfig /release "%cur_ADAPTER%">NUL 2>&1
+ipconfig /flushdns "%cur_ADAPTER%">NUL 2>&1
+	if "%isAdmin%"=="1" (
+	netsh interface set interface "%cur_ADAPTER%" admin=disable>NUL 2>&1
+	netsh interface set interface "%cur_ADAPTER%" admin=enable>NUL 2>&1
+	)
+ipconfig /renew "%cur_ADAPTER%">NUL 2>&1
+)
+call :sleep %INT_fixdelay%
+set checkconnects=force
+goto :eof
+
+
 :init
 @if not "%pretty%"=="1" set debgn=::
 @if not "%pretty%"=="1" MODE CON COLS=80 LINES=900
@@ -557,7 +558,7 @@ goto :eof
 
 :countAdapters
 if "%manualVerifyDelay%"=="" if %INT_checkrouterdelay%==0 set manualVerifyDelay=AUTO
-if "%ca_percent%"=="" set ca_percent=67
+if "%ca_percent%"=="" set ca_percent=40
 set totalAdapters=0
 for /f %%n in ('netsh interface show interface') do set /a totalAdapters+=1
 set /a totalAdapters-=2
