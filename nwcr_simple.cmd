@@ -1,12 +1,12 @@
 ::Quick detect&fix
-@SET version=3.4.296
+@SET version=3.4.297
 
 :: Documentation and updated versions can be found at
 :: https://code.google.com/p/quick-net-fix/
 
 ::-Settings-
 set manualRouter=			Examples: 192.168.0.1 or www.google.com
-set manualAdapter=			Examples: Local Area Connection or Wireless Network Connection
+set manualAdapter=			Examples: Local Area Connection or Wireless Network Connection or ALL
 
 set INT_StabilityHistory=25	Default: 25 (number of last tests to determine stability)
 set INT_flukechecks=7		Default: 7 (test x times to verify result)
@@ -14,7 +14,7 @@ set INT_checkdelay=5		Default: 5 seconds
 set INT_fixdelay=2			Default: 2 seconds
 set INT_flukecheckdelay=1	Default: 1 seconds
 set INT_timeoutsecs=1		Default: 1 seconds
-set INT_checkrouterdelay=5	Default: 5 connects (wait x number of connects before verifying router and adapter)
+set INT_checkrouterdelay=0	Default: 0 (auto) (wait x number of connects before verifying router and adapter)
 
 set filterRouters=													:Separate filtered routers with Space
 set filterAdapters=Tunnel VirtualBox VMnet VMware Loopback Pseudo	:Separate filter keywords with Space
@@ -22,6 +22,9 @@ set filterAdapters=Tunnel VirtualBox VMnet VMware Loopback Pseudo	:Separate filt
 ::-GUI-
 set pretty=1
 set theme=subtle			none,subtle,vibrant,fullsubtle,fullvibrant,crazy
+
+::-Advanced-
+::setting fullAuto to 1 will omit all user input and best guess is made for each decision.
 set fullAuto=0
 
 
@@ -221,8 +224,9 @@ goto :eof
 :checkRouterAdapter
 set checkconnects=0
 if not "%manualRouter%"=="" if not "%manualAdapter%"=="" goto :eof
-set curstatus=Check valid Router/Adapter&call :header
 set startsecs=%time:~6,2%
+call :countAdapters
+set curstatus=Verify Router/Adapter [%est_secs%s]&call :header
 call :getNETINFO
 set isConnected=0
 if not "%cur_ADAPTER%"=="" set checkadapternum=0&call :checkadapterstatus
@@ -246,6 +250,7 @@ if %endsecs:~0,1% equ 0 set endsecs=%endsecs:~1,1%
 if %endsecs% lss %startsecs% set /a endsecs+=60
 set /a tot=endsecs-startsecs
 set /a timepassed+=tot
+if not "%startsecs%"=="NA" set /a ca_percent=(tot*100)/totalAdapters
 if "%lastresult%"=="" set lastresult=Connected
 goto :eof
 
@@ -327,6 +332,7 @@ goto :eof
 
 :Ask4Router
 if "%fullAuto%"=="1" set manualRouter=%secondaryRouter%&set cur_ROUTER=%secondaryRouter%&goto :eof
+set startsecs=NA
 %debgn%set /a lines=%numrouters%+11
 %debgn%mode con cols=70 lines=%lines%
 set cur_ROUTER=
@@ -385,6 +391,7 @@ goto :eof
 
 :Ask4Adapter
 if "%fullAuto%"=="1" set manualAdapter=All&goto :eof
+set startsecs=NA
 call :EnumerateAdapters
 set /a lines=%con_num%+10
 %debgn%mode con cols=52 lines=%lines%
@@ -521,6 +528,8 @@ goto :eof
 @for /f "tokens=1 DELIMS=:" %%a in ("%filterRouters%") do call :init_filterRouters %%a
 @call :init_bar
 @call :detectIsAdmin
+@call :countAdapters
+@if %totalAdapters% gtr 20 call :alert_2manyconnections
 @echo .|set /p dummy=..
 goto :eof
 
@@ -528,6 +537,17 @@ goto :eof
 set isAdmin=0
 net session >nul 2>&1
 if %errorLevel% == 0 set isAdmin=1
+goto :eof
+
+:countAdapters
+if "%manualVerifyDelay%"=="" if %INT_checkrouterdelay%==0 set manualVerifyDelay=AUTO
+if "%ca_percent%"=="" set ca_percent=67
+set totalAdapters=0
+for /f %%n in ('netsh interface show interface') do set /a totalAdapters+=1
+set /a totalAdapters-=2
+if "%manualVerifyDelay%"=="AUTO" if %totalAdapters% leq 6 set INT_checkrouterdelay=5
+set /a est_secs=(totalAdapters*ca_percent)/100
+if "%manualVerifyDelay%"=="AUTO" if %totalAdapters% gtr 6 set /a INT_checkrouterdelay=est_secs+1
 goto :eof
 
 :init_settn
@@ -600,3 +620,17 @@ set norm=a0&set warn=e0&set alrt=c0&set pend=b0&goto :eof
 
 :init_colors_crazy
 set norm=^&call :crazy&set warn=^&call :crazy&set alrt=^&call :crazy&set crazystr=0123456789ABCDEF&goto :eof
+
+:alert_2manyconnections
+call :header
+set /a est_min=est_secs/60
+set /a est_sec=est_secs-(est_min*60)
+echo Alert: Excessive number of Network Connections
+echo.
+echo Network Connections: %totalAdapters%
+echo Est. configure time: %est_min% min, %est_sec% sec
+echo.
+if "%manualVerifyDelay%"=="AUTO" echo Changed Check Router Delay to %est_secs%
+ping 127.0.0.1>NUL
+ping 127.0.0.1>NUL
+goto :eof
