@@ -1,5 +1,5 @@
 ::Quick detect&fix
-@SET version=3.4.298
+@SET version=3.4.299
 
 :: Documentation and updated versions can be found at
 :: https://code.google.com/p/quick-net-fix/
@@ -110,6 +110,7 @@ set resultUpDown=
 set testrouter=%secondaryRouter%
 if not "%cur_ROUTER%"=="" if %dbl% equ 0 set testrouter=%cur_ROUTER%
 if not "%manualRouter%"=="" set testrouter=%cur_ROUTER%
+if "%lastResult%"=="" set lastResult=Connected
 
 for /f "tokens=* delims=" %%p in ('ping -w %timeoutmilsecs% -n 1 %testrouter%') do set ping_test=%%p
 echo %ping_test% |findstr "request could not find" >NUL
@@ -234,8 +235,8 @@ ipconfig /flushdns "%cur_ADAPTER%">NUL 2>&1
 	)
 ipconfig /renew "%cur_ADAPTER%">NUL 2>&1
 )
-set checkconnects=force
 call :sleep %INT_fixdelay%
+set checkconnects=force
 goto :eof
 
 
@@ -266,7 +267,6 @@ if /I "%manualAdapter%"=="all" set show_cur_ADAPTER=Connection: [Reset All Conne
 call :precisiontimer cRA tot
 set /a timepassed+=tot
 if not %tot%==0 set /a ca_percent=(tot*100)/totalAdapters
-if "%lastresult%"=="" set lastresult=Connected
 goto :eof
 
 :getNETINFO
@@ -287,7 +287,8 @@ if %errorlevel% equ 0 call :getNETINFO_parseGateway %filterRouters%&goto :eof
 goto :eof
 
 :getNETINFO_parseAdapter
-@echo .|set /p dummy=%loading%
+set /a delayed+=1
+if %delayed% geq %progressDelay% @echo .|set /p dummy=%loading%&set delayed=0
 set line=%line:adapter =:%
 set filtered=0
 :getNETINFO_parseAdapter_loop
@@ -560,9 +561,12 @@ if "%ca_percent%"=="" set ca_percent=67
 set totalAdapters=0
 for /f %%n in ('netsh interface show interface') do set /a totalAdapters+=1
 set /a totalAdapters-=2
-if "%manualVerifyDelay%"=="AUTO" if %totalAdapters% leq 6 set INT_checkrouterdelay=5
 set /a est_secs=(totalAdapters*ca_percent)/100
-if "%manualVerifyDelay%"=="AUTO" if %totalAdapters% gtr 6 set /a INT_checkrouterdelay=est_secs+1
+if "%manualVerifyDelay%"=="AUTO" set /a INT_checkrouterdelay=est_secs+1
+if "%manualVerifyDelay%"=="AUTO" if %INT_checkrouterdelay% lss 5 set INT_checkrouterdelay=5
+if "%manualVerifyDelay%"=="AUTO" if %INT_checkrouterdelay% gtr 180 set INT_checkrouterdelay=180
+set progressDelay=1
+if %totalAdapters% gtr %cols% set /a progressDelay=(totalAdapters/cols)+1
 goto :eof
 
 :init_settn
@@ -645,7 +649,7 @@ echo.
 echo Network Connections: %totalAdapters%
 echo Est. configure time: %est_min% min, %est_sec% sec
 echo.
-if "%manualVerifyDelay%"=="AUTO" echo Changed Check Router Delay to %est_secs%
+if "%manualVerifyDelay%"=="AUTO" echo Changed Check Router Delay to %INT_checkrouterdelay%
 ping 127.0.0.1>NUL
 ping 127.0.0.1>NUL
 goto :eof
