@@ -1,5 +1,5 @@
 ::Quick detect&fix
-@SET version=3.4.297
+@SET version=3.4.298
 
 :: Documentation and updated versions can be found at
 :: https://code.google.com/p/quick-net-fix/
@@ -32,7 +32,7 @@ set fullAuto=0
 :: -DO NOT EDIT BELOW THIS LINE!-
 
 
-
+%prettydone%if "%pretty%"=="0" set prettydone=::&start "" "cmd" /k "%~dpnx0"&exit
 setlocal enabledelayedexpansion
 call :init
 call :checkRouterAdapter
@@ -191,6 +191,25 @@ set stblty_firstval=
 goto :eof
 
 
+:precisiontimer
+set id=%1
+set var=%2
+if /i "%var%"=="start" set startsecs%id%=%time:~6,2%&set startmins%id%=%time:~3,2%&goto :eof
+if /i "%var%"=="halt" set startsecs%id%=invalid&goto :eof
+if "!startsecs%id%!"=="invalid" set %var%=0&goto :eof
+set endsecs%id%=%time:~6,2%
+set endmins%id%=%time:~3,2%
+echo startsecs%id%: "!startsecs%id%!"
+if "!startsecs%id%:~0,1!"=="0" set startsecs%id%=!startsecs%id%:~1,1!
+if "!startmins%id%:~0,1!"=="0" set startmins%id%=!startmins%id%:~1,1!
+if "!endsecs%id%:~0,1!"=="0" set endsecs%id%=!endsecs%id%:~1,1!
+if "!endmins%id%:~0,1!"=="0" set endmins%id%=!endmins%id%:~1,1!
+if !endsecs%id%! lss !startsecs%id%! set /a endsecs%id%+=60&set /a endmins%id%-=1
+if !endmins%id%! lss !startmins%id%! set /a endmins%id%+=60
+set /a %var%=endsecs%id%-startsecs%id%+((endmins%id%-startmins%id%)*60)
+goto :eof
+
+
 :resetAdapter
 set curcolor=%alrt%
 @set curstatus=Attempting to fix connection...
@@ -224,7 +243,7 @@ goto :eof
 :checkRouterAdapter
 set checkconnects=0
 if not "%manualRouter%"=="" if not "%manualAdapter%"=="" goto :eof
-set startsecs=%time:~6,2%
+call :precisiontimer cRA start
 call :countAdapters
 set curstatus=Verify Router/Adapter [%est_secs%s]&call :header
 call :getNETINFO
@@ -244,13 +263,9 @@ if "%cur_ADAPTER%"=="" call :EnumerateAdapters %filterAdapters%
 set show_cur_ADAPTER=
 if not "%cur_ADAPTER%"=="" set show_cur_ADAPTER=Connection: %cur_ADAPTER%
 if /I "%manualAdapter%"=="all" set show_cur_ADAPTER=Connection: [Reset All Connections on Error]
-set endsecs=%time:~6,2%
-if %startsecs:~0,1% equ 0 set startsecs=%startsecs:~1,1%
-if %endsecs:~0,1% equ 0 set endsecs=%endsecs:~1,1%
-if %endsecs% lss %startsecs% set /a endsecs+=60
-set /a tot=endsecs-startsecs
+call :precisiontimer cRA tot
 set /a timepassed+=tot
-if not "%startsecs%"=="NA" set /a ca_percent=(tot*100)/totalAdapters
+if not %tot%==0 set /a ca_percent=(tot*100)/totalAdapters
 if "%lastresult%"=="" set lastresult=Connected
 goto :eof
 
@@ -332,7 +347,7 @@ goto :eof
 
 :Ask4Router
 if "%fullAuto%"=="1" set manualRouter=%secondaryRouter%&set cur_ROUTER=%secondaryRouter%&goto :eof
-set startsecs=NA
+call :precisiontimer cRA halt
 %debgn%set /a lines=%numrouters%+11
 %debgn%mode con cols=70 lines=%lines%
 set cur_ROUTER=
@@ -391,7 +406,7 @@ goto :eof
 
 :Ask4Adapter
 if "%fullAuto%"=="1" set manualAdapter=All&goto :eof
-set startsecs=NA
+call :precisiontimer cRA halt
 call :EnumerateAdapters
 set /a lines=%con_num%+10
 %debgn%mode con cols=52 lines=%lines%
