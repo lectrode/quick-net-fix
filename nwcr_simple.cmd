@@ -1,5 +1,5 @@
 ::Quick detect&fix
-@SET version=3.4.301
+@set version=3.4.302
 
 :: Documentation and updated versions can be found at
 :: https://code.google.com/p/quick-net-fix/
@@ -11,7 +11,7 @@ set manualAdapter=			Examples: Wireless Network Connection or ALL (optional)
 set INT_StabilityHistory=25	Default: 25 (number of last tests to determine stability)
 set INT_flukechecks=7		Default: 7 (test x times to verify result)
 set INT_checkdelay=5		Default: 5 seconds
-set INT_fixdelay=2			Default: 2 seconds
+set INT_fixdelay=10			Default: 10 seconds
 set INT_flukecheckdelay=1	Default: 1 seconds
 set INT_timeoutsecs=1		Default: 1 seconds
 set INT_checkrouterdelay=0	Default: 0 (auto) (wait x number of connects before verifying router and adapter)
@@ -242,7 +242,9 @@ if "%result%"=="" set result=TimeOut&set resultUpDown=Down
 
 if "%resultUpDown%"=="Up" (
 set /a checkconnects+=1
-if not "%lastresult%"=="Connected" set /a timepassed/=2&set checkconnects=force
+if not "%lastresult%"=="Connected" set /a timepassed/=2
+if not "%lastresult%"=="Connected" if not "%resetted%"=="1" set checkconnects=force
+if not "%lastresult%"=="Connected" if "%resetted%"=="1" if "%cur_Adapter%"==""  set checkconnects=force
 if %timepassed% leq 0 set timepassed=1
 set /a up+=timepassed
 set curcolor=%norm%
