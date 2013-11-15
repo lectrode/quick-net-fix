@@ -1,5 +1,5 @@
 ::Quick detect&fix
-@set version=3.4.303
+@set version=3.4.304
 
 :: Documentation and updated versions can be found at
 :: https://code.google.com/p/quick-net-fix/
@@ -27,6 +27,10 @@ set theme=subtle			none,subtle,vibrant,fullsubtle,fullvibrant,crazy
 ::-Advanced-
 ::Setting fullAuto to 1 will omit all user input and best guess is made for each decision.
 set fullAuto=0
+
+::Setting requestAdmin to 1 will request admin rights if it doesn't already have them.
+::Admin rights are needed to enable/disable the Network Connection
+set requestAdmin=1
 
 
 
@@ -295,10 +299,23 @@ call :set_stability %stbltySTR%
 if "%result%"=="Connected" if not "%lastresult%"=="Connected" if "%resetted%"=="1" set /a numfixes+=1
 set lastresult=%result%
 if "%result%"=="Connected" set resetted=0
+if "%result%"=="NotConnected" call :check_adapterenabled
 if not "%result%"=="Connected" if not %dbl% gtr %INT_flukechecks% call :sleep %INT_flukecheckdelay%&goto :check
 if not "%result%"=="Connected" if %dbl% gtr %INT_flukechecks% call :resetAdapter
 set dbl=0
 set showdbl=
+goto :eof
+
+:check_adapterenabled
+if "%isAdmin%"=="0" goto :eof
+if "%cur_ADAPTER%"=="" goto :eof
+netsh interface show interface "%cur_ADAPTER%" |FINDSTR "Disabled">NUL
+if %errorlevel% neq 0 goto :eof
+@set curstatus=Enabling adapter...
+%debgn%call :header
+netsh interface set interface "%cur_ADAPTER%" admin=enable>NUL 2>&1
+ping -n 3 127.0.0.1>NUL
+set resetted=1
 goto :eof
 
 :sleep
@@ -578,7 +595,15 @@ goto :eof
 :detectIsAdmin
 set isAdmin=0
 net session >nul 2>&1
-if %errorLevel% == 0 set isAdmin=1
+if %errorLevel% == 0 set isAdmin=1&
+if %isAdmin%==1 taskkill /FI "USERNAME eq %USERNAME%" /FI "WINDOWTITLE eq User:  %ThisTitle%">NUL 2>&1
+if %isAdmin%==1 goto :eof
+if not "%requestAdmin%"=="1" goto :eof
+title User:  %ThisTitle%
+echo Set UAC = CreateObject^("Shell.Application"^) > "%temp%\getadminNWCR.vbs"
+set params = %*:"=""
+echo UAC.ShellExecute "%~s0", "%params%", "", "runas", 1 >> "%temp%\getadminNWCR.vbs"
+"%temp%\getadminNWCR.vbs"
 goto :eof
 
 :init_settn
