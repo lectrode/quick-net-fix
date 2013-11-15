@@ -1,11 +1,11 @@
 ::Quick detect&fix
-@set version=3.4.302
+@set version=3.4.303
 
 :: Documentation and updated versions can be found at
 :: https://code.google.com/p/quick-net-fix/
 
 ::-Settings-
-set manualRouter=			Examples: 192.168.0.1 or www.google.com (optional)
+set manualRouter=			Examples: 192.168.0.1 or www.google.com or NONE (optional)
 set manualAdapter=			Examples: Wireless Network Connection or ALL (optional)
 
 set INT_StabilityHistory=25	Default: 25 (number of last tests to determine stability)
@@ -25,13 +25,12 @@ set pretty=1
 set theme=subtle			none,subtle,vibrant,fullsubtle,fullvibrant,crazy
 
 ::-Advanced-
-::setting fullAuto to 1 will omit all user input and best guess is made for each decision.
+::Setting fullAuto to 1 will omit all user input and best guess is made for each decision.
 set fullAuto=0
 
 
 
 :: -DO NOT EDIT BELOW THIS LINE!-
-
 
 %startpretty%if "%pretty%"=="0" set startpretty=::&start "" "cmd" /k "%~dpnx0"&exit
 setlocal enabledelayedexpansion
@@ -57,7 +56,8 @@ cls
 COLOR %curcolor%
 echo  --------------------------------------------------
 echo  -      %ThisTitle%         -
-echo. !show_stbtlySTR:~-%colnum%!
+if "!show_stbtlySTR:~-%colnum%!"=="" echo  --------------------------------------------------
+if not "!show_stbtlySTR:~-%colnum%!"=="" echo. !show_stbtlySTR:~-%colnum%!
 echo.
 if not "%show_cur_ADAPTER%"=="" echo  %show_cur_ADAPTER%
 if not "%cur_ROUTER%"=="" 		echo  Router:     %cur_ROUTER%
@@ -95,6 +95,32 @@ set stblty_val=0
 set stblty_firstval=
 goto :eof
 
+:countAdapters
+set totalAdapters=0
+for /f %%n in ('netsh interface show interface') do set /a totalAdapters+=1
+set /a totalAdapters-=2
+set /a est_secs=(totalAdapters*ca_percent)/100
+set progressDelay=1
+if %totalAdapters% gtr %cols% set /a progressDelay=(totalAdapters/cols)+1
+goto :eof
+
+:Update_avgca
+set /a checkca=(%1*100)/ca_percent
+if %checkca% geq 300 goto :eof
+set num=0
+set avg_ca_percent=0
+set STR_ca_percent=
+:Update_avgca_loop
+if not "%1"=="" if %num% lss %MX_avgca% set /a avg_ca_percent+=%1&set STR_ca_percent=%STR_ca_percent% %1
+if not "%1"=="" if %num% lss %MX_avgca% set /a num+=1&shift&goto :Update_avgca_loop
+set /a ca_percent=(avg_ca_percent/num)
+if "%manualVerifyDelay%"=="" goto :eof
+set /a est_secs=(totalAdapters*ca_percent)/100
+set /a INT_checkrouterdelay=est_secs+1
+if %INT_checkrouterdelay% lss %MN_crd% set INT_checkrouterdelay=%MX_crd%
+if %INT_checkrouterdelay% gtr %MX_crd% set INT_checkrouterdelay=%MX_crd%
+goto :eof
+
 
 :precisiontimer
 set id=%1
@@ -104,7 +130,6 @@ if /i "%var%"=="halt" set startsecs%id%=invalid&goto :eof
 if "!startsecs%id%!"=="invalid" set %var%=0&goto :eof
 set endsecs%id%=%time:~6,2%
 set endmins%id%=%time:~3,2%
-echo startsecs%id%: "!startsecs%id%!"
 if "!startsecs%id%:~0,1!"=="0" set startsecs%id%=!startsecs%id%:~1,1!
 if "!startmins%id%:~0,1!"=="0" set startmins%id%=!startmins%id%:~1,1!
 if "!endsecs%id%:~0,1!"=="0" set endsecs%id%=!endsecs%id%:~1,1!
@@ -128,7 +153,7 @@ if "%isConnected%"=="1" if not "%cur_ROUTER%"=="" goto :checkRouterAdapter_end
 if not "%cur_ROUTER%"=="" if "%manualRouter%"=="" set cur_ROUTER=
 if not "%cur_ADAPTER%"=="" if "%manualAdapter%"=="" set cur_ADAPTER=
 if "%manualrouter%"=="" call :getAutoRouter
-@echo .|set /p dummy=%loading%
+@echo .|set /p dummy=%L$%
 if "%cur_ADAPTER%"=="" if not "%manualRouter%"=="" call :getAutoAdapter
 if "%cur_ADAPTER%"=="" if "%lastresult%"=="Connected" call :Ask4Adapter
 if "%cur_ADAPTER%"=="" call :EnumerateAdapters %filterAdapters%
@@ -140,7 +165,8 @@ if not "%cur_ADAPTER%"=="" set show_cur_ADAPTER=Connection: %cur_ADAPTER%
 if /I "%manualAdapter%"=="all" set show_cur_ADAPTER=Connection: [Reset All Connections on Error]
 call :precisiontimer cRA tot
 set /a timepassed+=tot
-if not %tot%==0 set /a ca_percent=(tot*100)/totalAdapters
+if not %tot%==0 set /a new_ca_percent=(tot*100)/totalAdapters
+if not %tot%==0 call :Update_avgca %new_ca_percent% %STR_ca_percent%
 goto :eof
 
 :getNETINFO
@@ -163,14 +189,13 @@ goto :eof
 
 :getNETINFO_parseAdapter
 set /a delayed+=1
-if %delayed% geq %progressDelay% @echo .|set /p dummy=%loading%&set delayed=0
+if %delayed% geq %progressDelay% @echo .|set /p dummy=%L$%&set delayed=0
 set line=%line:adapter =:%
 set filtered=0
 :getNETINFO_parseAdapter_loop
 if not "%1"=="" echo %line%|FINDSTR /I "%1">NUL
-if not "%1"=="" if %errorlevel% equ 0 set filtered=1
+if not "%1"=="" if %errorlevel% equ 0 set filtered=1&goto :eof
 if not "%1"=="" shift&goto :getNETINFO_parseAdapter_loop
-if %filtered% equ 1 goto :eof
 if %numAdapters% geq 1 if "!conn_%numAdapters%_gw!"=="" set conn_%numAdapters%_cn=&set conn_%numAdapters%_ms=&set conn_%numAdapters%_gw=&set /a numAdapters-=1
 set /a numAdapters+=1
 for /f "tokens=2 delims=:" %%a in ("%line%") do set conn_%numAdapters%_cn=%%a
@@ -520,7 +545,8 @@ goto :eof
 @set ThisTitle=Lectrode's Quick Net Fix v%version%
 @TITLE %ThisTitle%
 @call :getruntime
-@set loading=.
+@call :detectIsAdmin
+@set L$=.
 @set numfixes=0
 @set up=0
 @set down=0
@@ -530,16 +556,21 @@ goto :eof
 @set checkconnects=0
 @set stbltySTR=
 @set secondaryRouter=www.google.com
+@set ca_percent=40
+@set MN_crd=5
+@set MX_crd=120
+@set MX_avgca=5
 @set statspacer=                                                               .
 @for /f "tokens=1,* DELIMS==" %%s in ('set INT_') do call :init_settn %%s %%t
 @set orig_checkdelay=%INT_checkdelay%
 @set INT_checkdelay=1
+@if %INT_checkrouterdelay%==0 set manualVerifyDelay=AUTO
 @set /a timeoutmilsecs=1000*INT_timeoutsecs
 @call :init_manualRouter %manualRouter%
 @for /f "tokens=1 DELIMS=:" %%a in ("%manualAdapter%") do call :init_manualAdapter %%a
 @call :init_bar
-@call :detectIsAdmin
 @call :countAdapters
+@call :update_avgca %ca_percent%
 @if %totalAdapters% gtr 20 call :alert_2manyconnections
 @echo .|set /p dummy=..
 goto :eof
@@ -548,20 +579,6 @@ goto :eof
 set isAdmin=0
 net session >nul 2>&1
 if %errorLevel% == 0 set isAdmin=1
-goto :eof
-
-:countAdapters
-if "%manualVerifyDelay%"=="" if %INT_checkrouterdelay%==0 set manualVerifyDelay=AUTO
-if "%ca_percent%"=="" set ca_percent=40
-set totalAdapters=0
-for /f %%n in ('netsh interface show interface') do set /a totalAdapters+=1
-set /a totalAdapters-=2
-set /a est_secs=(totalAdapters*ca_percent)/100
-if "%manualVerifyDelay%"=="AUTO" set /a INT_checkrouterdelay=est_secs+1
-if "%manualVerifyDelay%"=="AUTO" if %INT_checkrouterdelay% lss 5 set INT_checkrouterdelay=5
-if "%manualVerifyDelay%"=="AUTO" if %INT_checkrouterdelay% gtr 180 set INT_checkrouterdelay=180
-set progressDelay=1
-if %totalAdapters% gtr %cols% set /a progressDelay=(totalAdapters/cols)+1
 goto :eof
 
 :init_settn
