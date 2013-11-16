@@ -1,5 +1,5 @@
 ::Quick detect&fix
-@set version=3.4.304
+@set version=3.4.305
 
 :: Documentation and updated versions can be found at
 :: https://code.google.com/p/quick-net-fix/
@@ -23,6 +23,7 @@ set filterAdapters=Tunnel VirtualBox VMnet VMware Loopback Pseudo Bluetooth
 ::-GUI-
 set pretty=1
 set theme=subtle			none,subtle,vibrant,fullsubtle,fullvibrant,crazy
+set detailed=0
 
 ::-Advanced-
 ::Setting fullAuto to 1 will omit all user input and best guess is made for each decision.
@@ -36,17 +37,16 @@ set requestAdmin=1
 
 :: -DO NOT EDIT BELOW THIS LINE!-
 
-%startpretty%if "%pretty%"=="0" set startpretty=::&start "" "cmd" /k "%~dpnx0"&exit
+%startpretty%if "%pretty%"=="0" set startpretty=::&start "" "cmd" /k "%~dpnx0" "%params%"&exit
 setlocal enabledelayedexpansion
 call :init
 call :checkRouterAdapter
 
 :loop
-%debgn%MODE CON COLS=%cols% LINES=13
+%debgn%call :SETMODECON
 call :check
 call :sleep %INT_checkdelay%
 goto :loop
-
 
 
 
@@ -67,6 +67,9 @@ if not "%show_cur_ADAPTER%"=="" echo  %show_cur_ADAPTER%
 if not "%cur_ROUTER%"=="" 		echo  Router:     %cur_ROUTER%
 if not "%uptime%"=="" 			echo  Uptime:     %uptime% (started %GRT_TimeRan% ago)
 if not "%stability%"==""		echo  Stability:  %stability%
+if "%detailed%"=="1" echo.
+if "%detailed%"=="1" echo  Is Admin: %isAdmin%
+if "%detailed%"=="1" echo  INT_checkrouterdelay:%STR_ca_percent% [%INT_checkrouterdelay%]
 echo.
 if not %numfixes%==0 			echo  Fixes:      %numfixes%
 if not "%lastresult%"=="" 		echo  Last Test:  %lastresult% %showdbl%
@@ -121,7 +124,7 @@ set /a ca_percent=(avg_ca_percent/num)
 if "%manualVerifyDelay%"=="" goto :eof
 set /a est_secs=(totalAdapters*ca_percent)/100
 set /a INT_checkrouterdelay=est_secs+1
-if %INT_checkrouterdelay% lss %MN_crd% set INT_checkrouterdelay=%MX_crd%
+if %INT_checkrouterdelay% lss %MN_crd% set INT_checkrouterdelay=%MN_crd%
 if %INT_checkrouterdelay% gtr %MX_crd% set INT_checkrouterdelay=%MX_crd%
 goto :eof
 
@@ -163,7 +166,7 @@ if "%cur_ADAPTER%"=="" if "%lastresult%"=="Connected" call :Ask4Adapter
 if "%cur_ADAPTER%"=="" call :EnumerateAdapters %filterAdapters%
 
 :checkRouterAdapter_end
-%debgn%MODE CON COLS=%cols% LINES=13
+%debgn%call :SETMODECON
 set show_cur_ADAPTER=
 if not "%cur_ADAPTER%"=="" set show_cur_ADAPTER=Connection: %cur_ADAPTER%
 if /I "%manualAdapter%"=="all" set show_cur_ADAPTER=Connection: [Reset All Connections on Error]
@@ -360,7 +363,7 @@ goto :eof
 if "%fullAuto%"=="1" set manualRouter=%secondaryRouter%&set cur_ROUTER=%secondaryRouter%&goto :eof
 call :precisiontimer cRA halt
 %debgn%set /a lines=%numrouters%+11
-%debgn%mode con cols=70 lines=%lines%
+%debgn%call :SETMODECON 70 %lines%
 set cur_ROUTER=
 echo.
 echo Which Router would you like to monitor?
@@ -420,7 +423,7 @@ if "%fullAuto%"=="1" set manualAdapter=All&goto :eof
 call :precisiontimer cRA halt
 call :EnumerateAdapters
 set /a lines=%con_num%+10
-%debgn%mode con cols=52 lines=%lines%
+%debgn%call :SETMODECON 52 %lines%
 echo.
 set cur_ADAPTER=
 echo Which connection would you like to monitor?
@@ -549,20 +552,18 @@ goto :eof
 
 :init
 @if not "%pretty%"=="1" set debgn=::
-@if not "%pretty%"=="1" MODE CON COLS=80 LINES=900
+@call :SETMODECON
 %debgn%@echo off
 %debgn%cls
 @PROMPT=^>
-@set cols=52
-%debgn%MODE CON COLS=%cols% LINES=20
 @echo.
 @echo .|set /p dummy=initializing...
-@call :init_colors %theme%
-%debgn%COLOR %norm%
 @set ThisTitle=Lectrode's Quick Net Fix v%version%
 @TITLE %ThisTitle%
-@call :getruntime
 @call :detectIsAdmin
+@call :init_colors %theme%
+%debgn%COLOR %norm%
+@call :getruntime
 @set L$=.
 @set numfixes=0
 @set up=0
@@ -592,18 +593,36 @@ goto :eof
 @echo .|set /p dummy=..
 goto :eof
 
+:SETMODECON
+set cols=52&set lines=13
+if "%detailed%"=="1" set cols=80&set lines=40
+if not "%1"=="" set cols=%1&set lines=%2
+if not "%pretty%"=="1" set cols=80&set lines=900
+MODE CON COLS=%cols% LINES=%lines%
+goto :eof
+
 :detectIsAdmin
+DEL /F /Q "%temp%\getadminNWCR.vbs">NUL 2>&1
 set isAdmin=0
+sc query lanmanserver |FINDSTR /I /C:running>NUL 2>&1
+if %errorlevel%==0 goto :detectIsAdmin_netsession
+REG ADD HKLM /F>nul 2>&1
+if %errorLevel%==0 set isAdmin=1
+goto :detectIsAdmin_detected
+
+:detectIsAdmin_netsession
 net session >nul 2>&1
-if %errorLevel% == 0 set isAdmin=1&
-if %isAdmin%==1 taskkill /FI "USERNAME eq %USERNAME%" /FI "WINDOWTITLE eq User:  %ThisTitle%">NUL 2>&1
+if %errorLevel%==0 set isAdmin=1
+
+:detectIsAdmin_detected
+for /f "usebackq tokens=*" %%a in (`taskkill /F /FI "USERNAME eq %USERNAME%" /FI "WINDOWTITLE eq User:  %ThisTitle%" ^| find /i "success"`) do set killresult=%%a
+if not "%killresult%"=="" goto :eof
 if %isAdmin%==1 goto :eof
 if not "%requestAdmin%"=="1" goto :eof
 title User:  %ThisTitle%
 echo Set UAC = CreateObject^("Shell.Application"^) > "%temp%\getadminNWCR.vbs"
-set params = %*:"=""
-echo UAC.ShellExecute "%~s0", "%params%", "", "runas", 1 >> "%temp%\getadminNWCR.vbs"
-"%temp%\getadminNWCR.vbs"
+echo UAC.ShellExecute "%~s0", "", "", "runas", 1 >> "%temp%\getadminNWCR.vbs"
+start /b "" cscript "%temp%\getadminNWCR.vbs" /nologo>NUL 2>&1
 goto :eof
 
 :init_settn
