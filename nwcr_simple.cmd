@@ -1,5 +1,5 @@
 ::Quick detect&fix
-@set version=3.4.305
+@set version=3.4.306
 
 :: Documentation and updated versions can be found at
 :: https://code.google.com/p/quick-net-fix/
@@ -23,7 +23,7 @@ set filterAdapters=Tunnel VirtualBox VMnet VMware Loopback Pseudo Bluetooth
 ::-GUI-
 set pretty=1
 set theme=subtle			none,subtle,vibrant,fullsubtle,fullvibrant,crazy
-set detailed=0
+set viewmode=detailed		normal,detailed
 
 ::-Advanced-
 ::Setting fullAuto to 1 will omit all user input and best guess is made for each decision.
@@ -56,6 +56,8 @@ set show_stbtlySTR=%show_stbtlySTR:1==%
 set show_stbtlySTR=%show_stbtlySTR:2=*%
 set show_stbtlySTR=%aft-%!show_stbtlySTR: =%-%!
 if "%stbltySTR%"=="" set show_stbtlySTR=                                                   -
+if "%viewmode%"=="detailed" goto :header_detailed
+:header_normal
 cls
 COLOR %curcolor%
 echo  --------------------------------------------------
@@ -63,18 +65,67 @@ echo  -      %ThisTitle%         -
 if "!show_stbtlySTR:~-%colnum%!"=="" echo  --------------------------------------------------
 if not "!show_stbtlySTR:~-%colnum%!"=="" echo. !show_stbtlySTR:~-%colnum%!
 echo.
-if not "%show_cur_ADAPTER%"=="" echo  %show_cur_ADAPTER%
+if not "%show_cur_ADAPTER%"=="" echo  Connection: %show_cur_ADAPTER%
 if not "%cur_ROUTER%"=="" 		echo  Router:     %cur_ROUTER%
 if not "%uptime%"=="" 			echo  Uptime:     %uptime% (started %GRT_TimeRan% ago)
 if not "%stability%"==""		echo  Stability:  %stability%
-if "%detailed%"=="1" echo.
-if "%detailed%"=="1" echo  Is Admin: %isAdmin%
-if "%detailed%"=="1" echo  INT_checkrouterdelay:%STR_ca_percent% [%INT_checkrouterdelay%]
 echo.
 if not %numfixes%==0 			echo  Fixes:      %numfixes%
 if not "%lastresult%"=="" 		echo  Last Test:  %lastresult% %showdbl%
 if not "%curstatus%"=="" 		echo  Status:     %curstatus%
 goto :eof
+
+:header_detailed                                                 -
+set ismanualA=&if "%manualAdapter%"=="" set ismanualA= (AUTO)
+set ismanualR=&if "%manualRouter%"=="" set ismanualR= (AUTO)
+set dsp_cur_ROUTER=%cur_Router%%ismanualR%%statspacer%
+if "%cur_ROUTER%"=="" set dsp_cur_ROUTER=%secondaryRouter%%ismanualR%%statspacer%
+set dsp_uptime=%uptime%%statspacer%
+set dsp_GRT_TimeRan=%GRT_TimeRan%%statspacer%
+set dsp_adapters=%con_num%
+if "%con_num%"=="" set dsp_adapters=%numAdapters%
+set dsp_stability=%stability% (%stblty_result%%%)%statspacer%
+set dspAdmin=True&if %isAdmin%==0 set dspAdmin=False
+set dspUsrInput=True&if %fullAuto%==0 set dspUsrInput=False
+set dspReqAdmin=True&if %requestAdmin%==0 set dspReqAdmin=False
+set dspCRD=[%INT_checkrouterdelay%]%STR_ca_percent%%statspacer%
+set dsp_fixes=%numfixes%%statspacer%
+set H_filterRouters=%filterRouters%%statspacer%
+set H_filterAdapters=%filterAdapters%%statspacer%
+set dsp_rfilt1=%H_filterRouters:~0,30%%statspacer%
+set dsp_rfilt2=%H_filterRouters:~30,60%%statspacer%
+set dsp_afilt1=%H_filterAdapters:~0,30%%statspacer%
+set dsp_afilt2=%H_filterAdapters:~30,60%%statspacer%
+cls
+COLOR %curcolor%
+echo  ------------------------------------------------------------------------------
+echo  ^|                                                                            ^|
+echo  ^|                    %ThisTitle%                       ^|
+echo  ^|                                                                            ^|
+if not "!show_stbtlySTR:~-%colnum%!"=="" echo. !show_stbtlySTR:~-%colnum%!
+echo.
+echo  Connection: %show_cur_ADAPTER%%ismanualA%
+echo  Router:     %dsp_cur_ROUTER:~0,40%NIC Adapters:      %totalAdapters%
+echo  Uptime:     %dsp_uptime:~0,40%No User Input:     %dspUsrInput%
+echo  Runtime:    %dsp_GRT_TimeRan:~0,40%Stability Hist:    %INT_StabilityHistory%
+echo  Stability:  %dsp_stability:~0,40%Request Admin:     %dspReqAdmin%
+echo  Fixes:      %dsp_fixes:~0,40%Is Admin:          %dspAdmin%
+echo                                                      Theme:             %theme%
+echo                                                      Check Delay:       %INT_checkdelay%
+echo  Verify Router Delay: %dspCRD:~0,31%Fluke Checks:      %INT_flukechecks%
+echo                                                      Fix Delay:         %INT_fixdelay%
+echo                                                      Test Timeout:      %INT_timeoutsecs%
+echo                                                      Fluke Check Delay: %INT_checkdelay%
+echo. Router Filters:  %dsp_rfilt1:~0,30%
+echo.                  %dsp_rfilt2:~0,30%
+echo. Adapter Filters: %dsp_afilt1:~0,30%
+echo.                  %dsp_afilt2:~0,30%
+echo.
+echo  Last Test:  %lastresult% %showdbl%
+echo  Status:     %curstatus%
+goto :eof
+
+
 
 
 :set_stability
@@ -168,8 +219,8 @@ if "%cur_ADAPTER%"=="" call :EnumerateAdapters %filterAdapters%
 :checkRouterAdapter_end
 %debgn%call :SETMODECON
 set show_cur_ADAPTER=
-if not "%cur_ADAPTER%"=="" set show_cur_ADAPTER=Connection: %cur_ADAPTER%
-if /I "%manualAdapter%"=="all" set show_cur_ADAPTER=Connection: [Reset All Connections on Error]
+if not "%cur_ADAPTER%"=="" set show_cur_ADAPTER=%cur_ADAPTER%
+if /I "%manualAdapter%"=="all" set show_cur_ADAPTER=[Reset All Connections on Error]
 call :precisiontimer cRA tot
 set /a timepassed+=tot
 if not %tot%==0 set /a new_ca_percent=(tot*100)/totalAdapters
@@ -552,6 +603,7 @@ goto :eof
 
 :init
 @if not "%pretty%"=="1" set debgn=::
+@call :init_settnSTR viewmode %viewmode%
 @call :SETMODECON
 %debgn%@echo off
 %debgn%cls
@@ -594,8 +646,8 @@ goto :eof
 goto :eof
 
 :SETMODECON
-set cols=52&set lines=13
-if "%detailed%"=="1" set cols=80&set lines=40
+if "%viewmode%"=="normal" set cols=52&set lines=13
+if "%viewmode%"=="detailed" set cols=80&set lines=27
 if not "%1"=="" set cols=%1&set lines=%2
 if not "%pretty%"=="1" set cols=80&set lines=900
 MODE CON COLS=%cols% LINES=%lines%
@@ -604,17 +656,13 @@ goto :eof
 :detectIsAdmin
 DEL /F /Q "%temp%\getadminNWCR.vbs">NUL 2>&1
 set isAdmin=0
+set usenetsession=&set useregadd=::
 sc query lanmanserver |FINDSTR /I /C:running>NUL 2>&1
-if %errorlevel%==0 goto :detectIsAdmin_netsession
-REG ADD HKLM /F>nul 2>&1
-if %errorLevel%==0 set isAdmin=1
-goto :detectIsAdmin_detected
-
-:detectIsAdmin_netsession
-net session >nul 2>&1
+if not %errorlevel%==0 set useregadd=&set usenetsession=::
+%useregadd%REG ADD HKLM /F>nul 2>&1
+%usenetsession%net session >nul 2>&1
 if %errorLevel%==0 set isAdmin=1
 
-:detectIsAdmin_detected
 for /f "usebackq tokens=*" %%a in (`taskkill /F /FI "USERNAME eq %USERNAME%" /FI "WINDOWTITLE eq User:  %ThisTitle%" ^| find /i "success"`) do set killresult=%%a
 if not "%killresult%"=="" goto :eof
 if %isAdmin%==1 goto :eof
@@ -623,10 +671,16 @@ title User:  %ThisTitle%
 echo Set UAC = CreateObject^("Shell.Application"^) > "%temp%\getadminNWCR.vbs"
 echo UAC.ShellExecute "%~s0", "", "", "runas", 1 >> "%temp%\getadminNWCR.vbs"
 start /b "" cscript "%temp%\getadminNWCR.vbs" /nologo>NUL 2>&1
+ping 127.0.0.1>NUL
+ping 127.0.0.1>NUL
 goto :eof
 
 :init_settn
 set /a %1=%2
+goto :eof
+
+:init_settnSTR
+set %1=%2
 goto :eof
 
 :init_manualRouter
