@@ -1,5 +1,5 @@
 ::Quick detect&fix
-@set version=3.4.307
+@set version=3.4.308
 
 :: Documentation and updated versions can be found at
 :: https://code.google.com/p/quick-net-fix/
@@ -59,6 +59,8 @@ if "%stbltySTR%"=="" set show_stbtlySTR=                                        
 goto :header_%viewmode%
 
 :header_mini
+set /a h_dbl=dbl-1
+set dsp_dbl=&if not %h_dbl% leq 0 set dsp_dbl=%h_dbl%/%INT_flukechecks%
 cls
 COLOR %curcolor%
 echo  -----------------------------------
@@ -67,7 +69,7 @@ echo. !show_stbtlySTR:~-%colnum%!
 echo. %show_cur_ADAPTER%
 echo. %cur_ROUTER%
 echo. Up: %uptime% ^| Fixes: %numfixes%
-echo. Last result: %lastresult% %showdbl%
+echo. Last result: %lastresult% %dsp_dbl%
 echo. %curstatus%
 goto :eof
 
