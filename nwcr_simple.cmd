@@ -1,5 +1,5 @@
 ::Quick detect&fix
-@set version=3.4.306
+@set version=3.4.307
 
 :: Documentation and updated versions can be found at
 :: https://code.google.com/p/quick-net-fix/
@@ -23,7 +23,7 @@ set filterAdapters=Tunnel VirtualBox VMnet VMware Loopback Pseudo Bluetooth
 ::-GUI-
 set pretty=1
 set theme=subtle			none,subtle,vibrant,fullsubtle,fullvibrant,crazy
-set viewmode=detailed		normal,detailed
+set viewmode=normal			mini,normal,details
 
 ::-Advanced-
 ::Setting fullAuto to 1 will omit all user input and best guess is made for each decision.
@@ -56,7 +56,21 @@ set show_stbtlySTR=%show_stbtlySTR:1==%
 set show_stbtlySTR=%show_stbtlySTR:2=*%
 set show_stbtlySTR=%aft-%!show_stbtlySTR: =%-%!
 if "%stbltySTR%"=="" set show_stbtlySTR=                                                   -
-if "%viewmode%"=="detailed" goto :header_detailed
+goto :header_%viewmode%
+
+:header_mini
+cls
+COLOR %curcolor%
+echo  -----------------------------------
+echo  -%ThisTitle%-
+echo. !show_stbtlySTR:~-%colnum%!
+echo. %show_cur_ADAPTER%
+echo. %cur_ROUTER%
+echo. Up: %uptime% ^| Fixes: %numfixes%
+echo. Last result: %lastresult% %showdbl%
+echo. %curstatus%
+goto :eof
+
 :header_normal
 cls
 COLOR %curcolor%
@@ -75,7 +89,7 @@ if not "%lastresult%"=="" 		echo  Last Test:  %lastresult% %showdbl%
 if not "%curstatus%"=="" 		echo  Status:     %curstatus%
 goto :eof
 
-:header_detailed                                                 -
+:header_details
 set ismanualA=&if "%manualAdapter%"=="" set ismanualA= (AUTO)
 set ismanualR=&if "%manualRouter%"=="" set ismanualR= (AUTO)
 set dsp_cur_ROUTER=%cur_Router%%ismanualR%%statspacer%
@@ -124,8 +138,6 @@ echo.
 echo  Last Test:  %lastresult% %showdbl%
 echo  Status:     %curstatus%
 goto :eof
-
-
 
 
 :set_stability
@@ -646,8 +658,9 @@ goto :eof
 goto :eof
 
 :SETMODECON
-if "%viewmode%"=="normal" set cols=52&set lines=13
-if "%viewmode%"=="detailed" set cols=80&set lines=27
+if /i "%viewmode%"=="mini" set cols=37&set lines=9
+if /i "%viewmode%"=="normal" set cols=52&set lines=13
+if /i "%viewmode%"=="details" set cols=80&set lines=27
 if not "%1"=="" set cols=%1&set lines=%2
 if not "%pretty%"=="1" set cols=80&set lines=900
 MODE CON COLS=%cols% LINES=%lines%
