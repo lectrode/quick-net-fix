@@ -1,5 +1,5 @@
 ::Quick detect&fix
-@set version=3.4.309
+@set version=3.4.310
 
 :: Documentation and updated versions can be found at
 :: https://code.google.com/p/quick-net-fix/
@@ -27,11 +27,16 @@ set viewmode=normal			mini,normal,details
 
 ::-Advanced-
 ::Setting fullAuto to 1 will omit all user input and best guess is made for each decision.
+::Overrides 'requestDisableIPv6' setting
 set fullAuto=0
 
 ::Setting requestAdmin to 1 will request admin rights if it doesn't already have them.
 ::Admin rights are needed to enable/disable the Network Connection
 set requestAdmin=1
+
+::This script can offer the option of disabling IPv6 if the computer has an excessive
+::number of tunnel adapters. 0 disables the offer, 1 enables the offer, 2 forces the offer
+set requestDisableIPv6=1
 
 
 
@@ -77,7 +82,7 @@ goto :eof
 cls
 COLOR %curcolor%
 echo  --------------------------------------------------
-echo  -      %ThisTitle%         -
+echo  ^|     -%ThisTitle%-        ^|
 if "!show_stbtlySTR:~-%colnum%!"=="" echo  --------------------------------------------------
 if not "!show_stbtlySTR:~-%colnum%!"=="" echo. !show_stbtlySTR:~-%colnum%!
 echo.
@@ -116,7 +121,7 @@ cls
 COLOR %curcolor%
 echo  ------------------------------------------------------------------------------
 echo  ^|                                                                            ^|
-echo  ^|                    %ThisTitle%                       ^|
+echo  ^|                   -%ThisTitle%-                      ^|
 echo  ^|                                                                            ^|
 if not "!show_stbtlySTR:~-%colnum%!"=="" echo. !show_stbtlySTR:~-%colnum%!
 echo.
@@ -658,8 +663,8 @@ goto :eof
 @for /f "tokens=1 DELIMS=:" %%a in ("%manualAdapter%") do call :init_manualAdapter %%a
 @call :init_bar
 @call :countAdapters
-@call :update_avgca %ca_percent%
 @if %totalAdapters% gtr 20 call :alert_2manyconnections
+@call :update_avgca %ca_percent%
 @echo .|set /p dummy=..
 goto :eof
 
@@ -682,7 +687,7 @@ if not %errorlevel%==0 set useregadd=&set usenetsession=::
 %usenetsession%net session >nul 2>&1
 if %errorLevel%==0 set isAdmin=1
 
-for /f "usebackq tokens=*" %%a in (`taskkill /F /FI "USERNAME eq %USERNAME%" /FI "WINDOWTITLE eq Limited:  %ThisTitle%" ^| find /i "success"`) do set killresult=%%a
+for /f "usebackq tokens=*" %%a in (`taskkill /F /FI "USERNAME eq %USERNAME%" /FI "WINDOWTITLE eq Limited:  %ThisTitle%" ^| findstr /i /c:"success"`) do set killresult=%%a
 if not "%killresult%"=="" goto :eof
 if %isAdmin%==1 goto :eof
 title Limited:  %ThisTitle%
@@ -757,16 +762,56 @@ set norm=a0&set warn=e0&set alrt=c0&set pend=b0&goto :eof
 :init_colors_crazy
 set norm=^&call :crazy&set warn=^&call :crazy&set alrt=^&call :crazy&set crazystr=0123456789ABCDEF&goto :eof
 
+:countTunnelAdapters
+set totalTunnelAdapters=0
+for /f %%n in ('ipconfig ^|FINDSTR /I "isatap 6to4 teredo"') do set /a totalTunnelAdapters+=1
+goto :eof
+
 :alert_2manyconnections
-call :header
+cls
 set /a est_min=est_secs/60
 set /a est_sec=est_secs-(est_min*60)
-echo Alert: Excessive number of Network Connections
+echo.
+echo Warning: Excessive number of Network Connections
 echo.
 echo Network Connections: %totalAdapters%
 echo Est. configure time: %est_min% min, %est_sec% sec
 echo.
-if "%manualVerifyDelay%"=="AUTO" echo Changed Check Router Delay to %INT_checkrouterdelay%
 ping 127.0.0.1>NUL
 ping 127.0.0.1>NUL
+if "%fullAuto%"=="1" goto :eof
+if "%isAdmin%"=="0" goto :eof
+if "%requestDisableIPv6%"=="0" goto :eof
+call :countTunnelAdapters
+if %totalTunnelAdapters% lss 10 goto :eof
+if "%requestDisableIPv6%"=="2" goto :disable_IPv6
+:alert_2manyconnections_ask
+cls
+set usrInput=
+echo.
+echo Warning:  Excessive number of Tunnel Adapters
+echo Tunnel Adapters: %totalTunnelAdapters%
+echo.
+set /p usrInput=Do you wish to disable IPv6 to remove some of these?[y/n] 
+if /i "%usrInput%"=="y" goto :disable_IPv6
+if /i "%usrInput%"=="n" goto :eof
+goto :alert_2manyconnections_ask
+
+:disable_IPv6
+call :header
+echo Disabling IPv6...
+set disableipv6_err=0
+:: the number '4294967295' is not random; it creates the hex value '0xffffffff'
+echo y|reg add hklm\system\currentcontrolset\services\tcpip6\parameters /v DisabledComponents /t REG_DWORD /d 4294967295>NUL
+if not %errorlevel% equ 0 echo Registry edit failed %errorlevel%&set disableipv6_err=1
+netsh interface teredo set state disable
+if not %errorlevel% equ 0 echo Registry edit failed %errorlevel%&set /a disableipv6_err+=1
+netsh interface 6to4 set state disabled
+if not %errorlevel% equ 0 echo Registry edit failed %errorlevel%&set /a disableipv6_err+=1
+netsh interface isatap set state disabled
+if not %errorlevel% equ 0 echo Registry edit failed %errorlevel%&set /a disableipv6_err+=1
+if %disableipv6_err% geq 1 echo.&echo %disableipv6_err% commands did not complete successfully.
+if %disableipv6_err% leq 0 echo.&echo Commands completed successfully.
+ping 127.0.0.1>NUL
+call :countAdapters
 goto :eof
