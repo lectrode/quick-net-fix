@@ -1,5 +1,5 @@
 ::Quick detect&fix
-@set version=3.4.310
+@set version=3.4.311
 
 :: Documentation and updated versions can be found at
 :: https://code.google.com/p/quick-net-fix/
@@ -663,7 +663,9 @@ goto :eof
 @for /f "tokens=1 DELIMS=:" %%a in ("%manualAdapter%") do call :init_manualAdapter %%a
 @call :init_bar
 @call :countAdapters
-@if %totalAdapters% gtr 20 call :alert_2manyconnections
+@call :countTunnelAdapters
+@if %totalAdapters% geq 13 call :alert_2manyconnections
+@call :SETMODECON
 @call :update_avgca %ca_percent%
 @echo .|set /p dummy=..
 goto :eof
@@ -687,14 +689,14 @@ if not %errorlevel%==0 set useregadd=&set usenetsession=::
 %usenetsession%net session >nul 2>&1
 if %errorLevel%==0 set isAdmin=1
 
-for /f "usebackq tokens=*" %%a in (`taskkill /F /FI "USERNAME eq %USERNAME%" /FI "WINDOWTITLE eq Limited:  %ThisTitle%" ^| findstr /i /c:"success"`) do set killresult=%%a
+for /f "usebackq tokens=*" %%a in (`taskkill /F /FI "WINDOWTITLE eq Limited: %ThisTitle%" ^|findstr /i "success"`) do set killresult=%%a
 if not "%killresult%"=="" goto :eof
 if %isAdmin%==1 goto :eof
-title Limited:  %ThisTitle%
+title Limited: %ThisTitle%
 if not "%requestAdmin%"=="1" goto :eof
 echo Set StartAdmin = CreateObject^("Shell.Application"^) > "%temp%\getadminNWCR.vbs"
 echo StartAdmin.ShellExecute "%~s0", "", "", "runas", 1 >> "%temp%\getadminNWCR.vbs"
-start /b "" cscript "%temp%\getadminNWCR.vbs" /nologo>NUL 2>&1
+cscript "%temp%\getadminNWCR.vbs" /nologo>NUL 2>&1
 ping 127.0.0.1>NUL
 ping 127.0.0.1>NUL
 goto :eof
@@ -764,54 +766,84 @@ set norm=^&call :crazy&set warn=^&call :crazy&set alrt=^&call :crazy&set crazyst
 
 :countTunnelAdapters
 set totalTunnelAdapters=0
-for /f %%n in ('ipconfig ^|FINDSTR /I "isatap 6to4 teredo"') do set /a totalTunnelAdapters+=1
+for /f %%n in ('ipconfig ^|FINDSTR /I "tunnel"') do set /a totalTunnelAdapters+=1
 goto :eof
 
 :alert_2manyconnections
-cls
+call :SETMODECON 60 20
 set /a est_min=est_secs/60
 set /a est_sec=est_secs-(est_min*60)
-echo.
-echo Warning: Excessive number of Network Connections
-echo.
-echo Network Connections: %totalAdapters%
-echo Est. configure time: %est_min% min, %est_sec% sec
-echo.
-ping 127.0.0.1>NUL
-ping 127.0.0.1>NUL
-if "%fullAuto%"=="1" goto :eof
-if "%isAdmin%"=="0" goto :eof
-if "%requestDisableIPv6%"=="0" goto :eof
-call :countTunnelAdapters
-if %totalTunnelAdapters% lss 10 goto :eof
-if "%requestDisableIPv6%"=="2" goto :disable_IPv6
+set rkey=hklm\system\currentcontrolset\services\tcpip6\parameters
+set rval=DisabledComponents
+for /f "tokens=3*" %%i in ('reg query "%rkey%" /v "%rval%" ^| findstr /i "%rval%"') DO set ipv6_dsbld=%%i
 :alert_2manyconnections_ask
 cls
 set usrInput=
 echo.
-echo Warning:  Excessive number of Tunnel Adapters
-echo Tunnel Adapters: %totalTunnelAdapters%
+echo    -- Warning: Excessive number of Network Connections --
 echo.
-set /p usrInput=Do you wish to disable IPv6 to remove some of these?[y/n] 
+echo  Network Connections: %totalAdapters%
+echo  Tunnel Adapters: %totalTunnelAdapters%
+echo  Est. configure time: %est_min% min, %est_sec% sec
+echo.
+echo  Excessive network connections can cause performance and 
+echo  stability issues, including long delays in connecting to 
+echo  a network and/or the internet.
+echo.
+echo.
+if "%fullAuto%"=="1" ping 127.0.0.1>NUL&ping 127.0.0.1>NUL&goto :eof
+if "%isAdmin%"=="0" ping 127.0.0.1>NUL&ping 127.0.0.1>NUL&goto :eof
+if "%requestDisableIPv6%"=="0" ping 127.0.0.1>NUL&ping 127.0.0.1>NUL&goto :eof
+if "%ipv6_dsbld%"=="0xffffffff" ping 127.0.0.1>NUL&ping 127.0.0.1>NUL&goto :eof
+if "%requestDisableIPv6%"=="2" goto :disable_IPv6
+echo Do you wish to disable IPv6 to remove some of these
+set /p usrInput=network connections?[y/n] 
 if /i "%usrInput%"=="y" goto :disable_IPv6
-if /i "%usrInput%"=="n" goto :eof
+if /i "%usrInput%"=="n" goto :alert_2manyconnections_ask_no
 goto :alert_2manyconnections_ask
 
+:alert_2manyconnections_ask_no
+cls
+echo.
+echo.
+echo  This option can be disabled by editing this script's 
+echo  settings. Settings can be accessed by opening this
+echo  script with notepad.
+echo.
+pause
+goto :eof
+
 :disable_IPv6
-call :header
-echo Disabling IPv6...
+set oldnumtotal=%totalAdapters%
+cls
+echo.
+echo Disable IPv6:
 set disableipv6_err=0
+echo. |set /p dummy=-add 'DisableComponents' to registry...
 :: the number '4294967295' is not random; it creates the hex value '0xffffffff'
-echo y|reg add hklm\system\currentcontrolset\services\tcpip6\parameters /v DisabledComponents /t REG_DWORD /d 4294967295>NUL
-if not %errorlevel% equ 0 echo Registry edit failed %errorlevel%&set disableipv6_err=1
-netsh interface teredo set state disable
-if not %errorlevel% equ 0 echo Registry edit failed %errorlevel%&set /a disableipv6_err+=1
-netsh interface 6to4 set state disabled
-if not %errorlevel% equ 0 echo Registry edit failed %errorlevel%&set /a disableipv6_err+=1
-netsh interface isatap set state disabled
-if not %errorlevel% equ 0 echo Registry edit failed %errorlevel%&set /a disableipv6_err+=1
+echo y|reg add "%rkey%" /v "%rval%" /t REG_DWORD /d 4294967295>NUL
+if not %errorlevel% equ 0 echo Fail %errorlevel%&set disableipv6_err=1
+echo.
+echo. |set /p dummy=-set netsh interface teredo state disable...
+netsh interface teredo set state disable>NUL 2>&1
+if not %errorlevel% equ 0 echo. |set /p dummy=Fail %errorlevel%&set /a disableipv6_err+=1
+echo.
+echo. |set /p dummy=-set netsh interface 6to4 state disable...
+netsh interface 6to4 set state disabled>NUL 2>&1
+if not %errorlevel% equ 0 echo. |set /p dummy=Fail %errorlevel%&set /a disableipv6_err+=1
+echo.
+echo. |set /p dummy=-set netsh interface isatap state disable...
+netsh interface isatap set state disabled>NUL 2>&1
+if not %errorlevel% equ 0 echo. |set /p dummy=Fail %errorlevel%&set /a disableipv6_err+=1
+echo.
 if %disableipv6_err% geq 1 echo.&echo %disableipv6_err% commands did not complete successfully.
 if %disableipv6_err% leq 0 echo.&echo Commands completed successfully.
-ping 127.0.0.1>NUL
 call :countAdapters
+set /a removedadapters=oldnumtotal-totaladapters
+echo Removed %removedadapters% adapters
+echo.
+echo You may have to reboot your computer for some changes to 
+echo take effect.
+ping 127.0.0.1>NUL
+ping 127.0.0.1>NUL
 goto :eof
