@@ -1,5 +1,5 @@
 ::Quick detect&fix
-@set version=3.4.308
+@set version=3.4.309
 
 :: Documentation and updated versions can be found at
 :: https://code.google.com/p/quick-net-fix/
@@ -169,19 +169,22 @@ goto :eof
 
 :countAdapters
 set totalAdapters=0
-for /f %%n in ('netsh interface show interface') do set /a totalAdapters+=1
-set /a totalAdapters-=2
+for /f %%n in ('ipconfig ^|FINDSTR /I /C:"adapter"') do set /a totalAdapters+=1
 set /a est_secs=(totalAdapters*ca_percent)/100
 set progressDelay=1
 if %totalAdapters% gtr %cols% set /a progressDelay=(totalAdapters/cols)+1
 goto :eof
 
 :Update_avgca
+set /a last_ca_percent+=0
+set /a last_checkca+=0
 set /a checkca=(%1*100)/ca_percent
-if %checkca% geq 300 goto :eof
+if %checkca% geq 300 if not %last_checkca% geq 300 goto :eof
 set num=0
 set avg_ca_percent=0
 set STR_ca_percent=
+if %checkca% geq 300 set STR_ca_percent=%last_ca_percent%&set num=1
+set last_checkca=%checkca%&set last_ca_percent=%1
 :Update_avgca_loop
 if not "%1"=="" if %num% lss %MX_avgca% set /a avg_ca_percent+=%1&set STR_ca_percent=%STR_ca_percent% %1
 if not "%1"=="" if %num% lss %MX_avgca% set /a num+=1&shift&goto :Update_avgca_loop
@@ -289,15 +292,15 @@ goto :eof
 
 :getAutoRouter
 set numrouters=0
-set routers=0
+set actvrouters=0
 :getAutoRouter_loop
 set /a numrouters+=1
-if not "!conn_%numrouters%_gw!"=="" set /a routers+=1&set lastrouter=!conn_%numrouters%_gw!&set lastadapter=!conn_%numrouters%_cn!
+if not "!conn_%numrouters%_gw!"=="" set /a actvrouters+=1&set lastrouter=!conn_%numrouters%_gw!&set lastadapter=!conn_%numrouters%_cn!
 if %numrouters% lss %numAdapters% goto :getAutoRouter_loop
-if %routers% equ 0 goto :eof
-if %routers% equ 1 set cur_ROUTER=%lastrouter%
-if %routers% equ 1 if "%manualAdapter%"=="" set cur_ADAPTER=%lastadapter%
-if %routers% geq 2 call :Ask4Router
+if %actvrouters% equ 0 goto :eof
+if %actvrouters% equ 1 set cur_ROUTER=%lastrouter%
+if %actvrouters% equ 1 if "%manualAdapter%"=="" set cur_ADAPTER=%lastadapter%
+if %actvrouters% geq 2 call :Ask4Router
 goto :eof
 
 
@@ -305,7 +308,8 @@ goto :eof
 if %checkadapternum% geq %numAdapters% goto :eof
 set /a checkadapternum+=1
 if not "!conn_%checkadapternum%_cn!"=="%cur_ADAPTER%" goto :checkadapterstatus
-if "!conn_%checkadapternum%_ms!"=="" if "%manualRouter%"=="" set cur_ROUTER=!conn_%checkadapternum%_gw!&set isConnected=1
+if not "!conn_%checkadapternum%_ms!"=="" goto :eof
+if "%manualRouter%"=="" set cur_ROUTER=!conn_%checkadapternum%_gw!&set isConnected=1
 goto :eof
 
 
@@ -678,13 +682,13 @@ if not %errorlevel%==0 set useregadd=&set usenetsession=::
 %usenetsession%net session >nul 2>&1
 if %errorLevel%==0 set isAdmin=1
 
-for /f "usebackq tokens=*" %%a in (`taskkill /F /FI "USERNAME eq %USERNAME%" /FI "WINDOWTITLE eq User:  %ThisTitle%" ^| find /i "success"`) do set killresult=%%a
+for /f "usebackq tokens=*" %%a in (`taskkill /F /FI "USERNAME eq %USERNAME%" /FI "WINDOWTITLE eq Limited:  %ThisTitle%" ^| find /i "success"`) do set killresult=%%a
 if not "%killresult%"=="" goto :eof
 if %isAdmin%==1 goto :eof
+title Limited:  %ThisTitle%
 if not "%requestAdmin%"=="1" goto :eof
-title User:  %ThisTitle%
-echo Set UAC = CreateObject^("Shell.Application"^) > "%temp%\getadminNWCR.vbs"
-echo UAC.ShellExecute "%~s0", "", "", "runas", 1 >> "%temp%\getadminNWCR.vbs"
+echo Set StartAdmin = CreateObject^("Shell.Application"^) > "%temp%\getadminNWCR.vbs"
+echo StartAdmin.ShellExecute "%~s0", "", "", "runas", 1 >> "%temp%\getadminNWCR.vbs"
 start /b "" cscript "%temp%\getadminNWCR.vbs" /nologo>NUL 2>&1
 ping 127.0.0.1>NUL
 ping 127.0.0.1>NUL
