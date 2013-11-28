@@ -1,5 +1,5 @@
 ::Quick detect&fix
-@set version=3.4.312
+@set version=3.4.313
 
 :: Documentation and updated versions can be found at
 :: https://code.google.com/p/quick-net-fix/
@@ -42,7 +42,7 @@ set requestDisableIPv6=1
 
 :: -DO NOT EDIT BELOW THIS LINE!-
 
-%startpretty%if "%pretty%"=="0" set startpretty=::&start "" "cmd" /k "%~dpnx0" "%params%"&exit
+%startpretty%if "%pretty%"=="0" set startpretty=::&start "" "cmd" /k "%~dpnx0"&exit
 setlocal enabledelayedexpansion
 call :init
 call :checkRouterAdapter
@@ -168,7 +168,7 @@ echo                                                      Check Delay:       %IN
 echo  Verify Router Delay: %dspCRD:~0,31%Fluke Checks:      %INT_flukechecks%
 echo                                                      Fix Delay:         %INT_fixdelay%
 echo                                                      Test Timeout:      %INT_timeoutsecs%
-echo                                                      Fluke Check Delay: %INT_checkdelay%
+echo                                                      Fluke Check Delay: %INT_flukecheckdelay%
 echo. Router Filters:  %dsp_rfilt1:~0,30%
 echo.                  %dsp_rfilt2:~0,30%
 echo. Adapter Filters: %dsp_afilt1:~0,30%
@@ -477,7 +477,7 @@ goto :eof
 
 :Ask4NET
 if "%fullAuto%"=="1" set manualRouter=%secondaryRouter%&set cur_ROUTER=%secondaryRouter%
-if "%fullAuto%"=="1" set manualAdapter=all&set cur_ADAPTER=&goto :eof
+if "%fullAuto%"=="1" set manualAdapter=all&set cur_ADAPTER=&set show_cur_ADAPTER=[Reset All Connections on Error]&goto :eof
 call :precisiontimer cRA halt
 %debgn%set /a lines=%gNI_arrLen%+11
 %debgn%call :SETMODECON 70 %lines%
@@ -499,7 +499,7 @@ set /p usrinput=[]
 if "%usrinput%"=="" set usrinput=1
 for /l %%n in (1,1,%gNI_arrLen%) do if "%usrinput%"=="%%n" set cur_ROUTER=!net_%%n_gw!&set cur_ADAPTER=!net_%%n_cn!
 if "%usrinput%"=="x" set manualRouter=%secondaryRouter%&set cur_ROUTER=%secondaryRouter%
-if "%usrinput%"=="x" set manualAdapter=all&set cur_Adapter=&goto :eof
+if "%usrinput%"=="x" set manualAdapter=all&set cur_Adapter=&set show_cur_ADAPTER=[Reset All Connections on Error]&goto :eof
 if "%cur_ROUTER%"=="" goto :Ask4Router
 set manualRouter=%cur_ROUTER%
 set manualAdapter=%cur_ADAPTER%
@@ -542,7 +542,7 @@ cls&call :SETMODECON
 goto :eof
 
 :Ask4Adapter
-if "%fullAuto%"=="1" set manualAdapter=All&goto :eof
+if "%fullAuto%"=="1" set manualAdapter=All&set show_cur_ADAPTER=[Reset All Connections on Error]&goto :eof
 call :precisiontimer cRA halt
 call :EnumerateAdapters
 set /a lines=%adapters_arrLen%+10
@@ -572,17 +572,22 @@ goto :eof
 
 :EnumerateAdapters
 set adapters_arrLen=0
-for /f "tokens=* delims=" %%n in ('wmic nic get NetConnectionID') do call :get_network_connections_parse %%n
+%no_wmic%for /f "tokens=* delims=" %%n in ('wmic nic get NetConnectionID') do call :EnumerateAdapters_parse %%n
+%no_wmic%goto :eof
+for /f "tokens=* delims=" %%n in ('netsh int show int') do call :EnumerateAdapters_parse %%n
 goto :eof
 
-:get_network_connections_parse
+:EnumerateAdapters_parse
 if "%*"=="" goto :eof
 if "%*"=="NetConnectionID" goto :eof
+if "%1 %2"=="Admin State" goto :eof
 set line=%*
+if "%line:~0,4%"=="----" goto :eof
 if not "%filterAdapters%"=="" echo %line%|FINDSTR /I /L "%filterAdapters%">NUL
 if not "%filterAdapters%"=="" if %errorlevel% equ 0 goto :eof
 set /a adapters_arrLen+=1
-set adapters_%adapters_arrLen%_name=%line%
+%no_wmic%set adapters_%adapters_arrLen%_name=%line%&goto :eof
+for /f "tokens=2* delims= " %%c in ("%line%") do set adapters_%adapters_arrLen%_name=%%d
 goto :eof
 
 
@@ -596,8 +601,8 @@ if "%cur_Adapter%"=="" (
 ipconfig /release>NUL 2>&1
 ipconfig /flushdns>NUL 2>&1
 	if "%isAdmin%"=="1" (
-	for /l %%n in (1,1,%con_num%) do netsh interface set interface "!connection%%n_name!" admin=disable>NUL 2>&1
-	for /l %%n in (1,1,%con_num%) do netsh interface set interface "!connection%%n_name!" admin=enable>NUL 2>&1
+	for /l %%n in (1,1,%adapters_arrLen%) do netsh interface set interface "!adapters_%%n_name!" admin=disable>NUL 2>&1
+	for /l %%n in (1,1,%adapters_arrLen%) do netsh interface set interface "!adapters_%%n_name!" admin=enable>NUL 2>&1
 	)
 ipconfig /renew>NUL 2>&1
 )
@@ -626,6 +631,7 @@ goto :eof
 @echo .|set /p dummy=initializing...
 @set ThisTitle=Lectrode's Quick Net Fix v%version%
 @TITLE %ThisTitle%
+@call :testCompatibility
 @call :detectIsAdmin
 @call :init_colors %theme%
 %debgn%COLOR %norm%
@@ -669,6 +675,13 @@ if not "%pretty%"=="1" set cols=80&set lines=900
 MODE CON COLS=%cols% LINES=%lines%
 goto :eof
 
+:testCompatibility
+taskkill /?>NUL 2>&1
+if %errorlevel%==9009 set no_taskkill=::
+wmic /?>NUL 2>&1
+if %errorlevel%==9009 set no_wmic=::
+goto :eof
+
 :detectIsAdmin
 DEL /F /Q "%temp%\getadminNWCR.vbs">NUL 2>&1
 set isAdmin=0
@@ -679,16 +692,16 @@ if not %errorlevel%==0 set useregadd=&set usenetsession=::
 %usenetsession%net session >nul 2>&1
 if %errorLevel%==0 set isAdmin=1
 
-for /f "usebackq tokens=*" %%a in (`taskkill /F /FI "WINDOWTITLE eq Limited: %ThisTitle%" ^|findstr /i "success"`) do set killresult=%%a
-if not "%killresult%"=="" goto :eof
+%no_taskkill%for /f "usebackq tokens=*" %%a in (`taskkill /F /FI "WINDOWTITLE eq Limited: %ThisTitle%" ^|findstr /i "success"`) do set killresult=%%a
+%no_taskkill%if not "%killresult%"=="" goto :eof
 if %isAdmin%==1 goto :eof
 title Limited: %ThisTitle%
 if not "%requestAdmin%"=="1" goto :eof
-echo Set StartAdmin = CreateObject^("Shell.Application"^) > "%temp%\getadminNWCR.vbs"
-echo StartAdmin.ShellExecute "%~s0", "", "", "runas", 1 >> "%temp%\getadminNWCR.vbs"
-cscript "%temp%\getadminNWCR.vbs" /nologo>NUL 2>&1
-ping 127.0.0.1>NUL
-ping 127.0.0.1>NUL
+%no_taskkill%echo Set StartAdmin = CreateObject^("Shell.Application"^) > "%temp%\getadminNWCR.vbs"
+%no_taskkill%echo StartAdmin.ShellExecute "%~s0", "", "", "runas", 1 >> "%temp%\getadminNWCR.vbs"
+%no_taskkill%cscript "%temp%\getadminNWCR.vbs" /nologo>NUL 2>&1
+%no_taskkill%ping 127.0.0.1>NUL
+%no_taskkill%ping 127.0.0.1>NUL
 goto :eof
 
 :init_settn
