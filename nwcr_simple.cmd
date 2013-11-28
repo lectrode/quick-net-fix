@@ -1,5 +1,5 @@
 ::Quick detect&fix
-@set version=3.4.313
+@set version=3.4.314
 
 :: Documentation and updated versions can be found at
 :: https://code.google.com/p/quick-net-fix/
@@ -502,7 +502,7 @@ if "%usrinput%"=="x" set manualRouter=%secondaryRouter%&set cur_ROUTER=%secondar
 if "%usrinput%"=="x" set manualAdapter=all&set cur_Adapter=&set show_cur_ADAPTER=[Reset All Connections on Error]&goto :eof
 if "%cur_ROUTER%"=="" goto :Ask4Router
 set manualRouter=%cur_ROUTER%
-set manualAdapter=%cur_ADAPTER%
+set manualAdapter=%cur_ADAPTER%&set show_cur_ADAPTER=%cur_ADAPTER%
 cls&call :SETMODECON
 goto :eof
 
@@ -563,10 +563,10 @@ echo.
 set usrinput=
 set /p usrinput=[] 
 if "%usrinput%"=="" set usrinput=1
-if "%usrinput%"=="x" set manualAdapter=All&goto :eof
+if "%usrinput%"=="x" set manualAdapter=All&set show_cur_ADAPTER=[Reset All Connections on Error]&goto :eof
 for /l %%n in (1,1,%adapters_arrLen%) do if "%usrinput%"=="%%n" set cur_ADAPTER=!adapters_%%n_name!
 if "%cur_ADAPTER%"=="" goto :ask4connection
-set manualadapter=%cur_ADAPTER%
+set manualadapter=%cur_ADAPTER%&set show_cur_ADAPTER=%cur_ADAPTER%
 echo.
 goto :eof
 
@@ -699,7 +699,9 @@ title Limited: %ThisTitle%
 if not "%requestAdmin%"=="1" goto :eof
 %no_taskkill%echo Set StartAdmin = CreateObject^("Shell.Application"^) > "%temp%\getadminNWCR.vbs"
 %no_taskkill%echo StartAdmin.ShellExecute "%~s0", "", "", "runas", 1 >> "%temp%\getadminNWCR.vbs"
-%no_taskkill%cscript "%temp%\getadminNWCR.vbs" /nologo>NUL 2>&1
+%no_taskkill%echo Requesting admin rights...
+%no_taskkill%echo (This will close upon successful request)
+%no_taskkill%cscript //H:cscript //B "%temp%\getadminNWCR.vbs" /nologo>NUL 2>&1
 %no_taskkill%ping 127.0.0.1>NUL
 %no_taskkill%ping 127.0.0.1>NUL
 goto :eof
