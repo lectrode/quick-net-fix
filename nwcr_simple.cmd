@@ -1,5 +1,5 @@
 ::Quick detect&fix
-@set version=3.4.314
+@set version=3.4.315
 
 :: Documentation and updated versions can be found at
 :: https://code.google.com/p/quick-net-fix/
@@ -62,10 +62,10 @@ for /f "tokens=1 delims=%%" %%r in ('ipconfig') do call :getNETINFO_parse %%r
 goto :eof
 
 :getNETINFO_parse
-echo %* |FINDSTR "adapter">NUL
+echo %* |FINDSTR /C:"adapter">NUL
 if %errorlevel%==0 set line=%*&goto :getNETINFO_parseAdapter
 if %gNI_needAdapter%==1 goto :eof
-echo %* |FINDSTR "disconnected">NUL
+echo %* |FINDSTR /C:"disconnected">NUL
 if %errorlevel%==0 set net_%gNI_arrLen%_cn=&set net_%gNI_arrLen%_gw=&set /a gNI_arrLen-=1&set gNI_needAdapter=1&goto :eof
 echo %* |FINDSTR /C:"Default Gateway">NUL
 if %errorlevel%==0 set line=%*&goto :getNETINFO_parseRouter
@@ -101,7 +101,8 @@ set dsp_dbl=&if not %h_dbl% leq 0 set dsp_dbl=%h_dbl%/%INT_flukechecks%
 cls
 COLOR %curcolor%
 echo  -----------------------------------
-echo  -%ThisTitle%-
+echo  ^|%ThisTitle%^|
+echo  ^| http://electrodexs.net/scripts  ^|
 echo. !show_stbtlySTR:~-%colnum%!
 echo. %show_cur_ADAPTER%
 echo. %cur_ROUTER%
@@ -115,6 +116,7 @@ cls
 COLOR %curcolor%
 echo  --------------------------------------------------
 echo  ^|     -%ThisTitle%-        ^|
+echo  ^|       http://electrodexs.net/scripts           ^|
 if "!show_stbtlySTR:~-%colnum%!"=="" echo  --------------------------------------------------
 if not "!show_stbtlySTR:~-%colnum%!"=="" echo. !show_stbtlySTR:~-%colnum%!
 echo.
@@ -154,6 +156,7 @@ COLOR %curcolor%
 echo  ------------------------------------------------------------------------------
 echo  ^|                                                                            ^|
 echo  ^|                   -%ThisTitle%-                      ^|
+echo  ^|                     http://electrodexs.net/scripts                         ^|
 echo  ^|                                                                            ^|
 if not "!show_stbtlySTR:~-%colnum%!"=="" echo. !show_stbtlySTR:~-%colnum%!
 echo.
@@ -206,7 +209,7 @@ goto :eof
 
 :countAdapters
 set totalAdapters=0
-for /f %%n in ('ipconfig ^|FINDSTR /I "adapter"') do set /a totalAdapters+=1
+for /f %%n in ('ipconfig ^|FINDSTR /C:"adapter"') do set /a totalAdapters+=1
 set /a est_secs=(totalAdapters*ca_percent)/100
 goto :eof
 
@@ -307,13 +310,13 @@ if not "%manualRouter%"=="" set testrouter=%cur_ROUTER%
 if "%lastResult%"=="" set lastResult=Connected
 
 for /f "tokens=* delims=" %%p in ('ping -w %timeoutmilsecs% -n 1 %testrouter%') do set ping_test=%%p
-echo %ping_test% |findstr "request could not find" >NUL
+echo %ping_test% |FINDSTR /C:"request could not find" >NUL
 if %errorlevel% equ 0 set result=NotConnected&set resultUpDown=Down
-echo %ping_test% |findstr "Unreachable" >NUL
+echo %ping_test% |FINDSTR /C:"Unreachable" >NUL
 if %errorlevel% equ 0 set result=Unreachable&set resultUpDown=Down
-echo %ping_test% |findstr "General Failure" >NUL
+echo %ping_test% |FINDSTR /C:"General Failure" >NUL
 if %errorlevel% equ 0 set result=Connecting...&set /a down+=timepassed&set curcolor=%pend%
-echo %ping_test% |findstr "Minimum " >NUL
+echo %ping_test% |FINDSTR /C:"Minimum " >NUL
 if %errorlevel% equ 0 set result=Connected&set resultUpDown=Up
 if "%result%"=="" set result=TimeOut&set resultUpDown=Down
 
@@ -357,7 +360,7 @@ goto :eof
 :check_adapterenabled
 if "%isAdmin%"=="0" goto :eof
 if "%cur_ADAPTER%"=="" goto :eof
-netsh interface show interface "%cur_ADAPTER%" |FINDSTR "Disabled">NUL
+netsh interface show interface "%cur_ADAPTER%" |FINDSTR /C:"Disabled">NUL
 if %errorlevel% neq 0 goto :eof
 @set curstatus=Enabling adapter...
 %debgn%call :header
@@ -667,9 +670,9 @@ goto :eof
 goto :eof
 
 :SETMODECON
-if /i "%viewmode%"=="mini" set cols=37&set lines=9
-if /i "%viewmode%"=="normal" set cols=52&set lines=13
-if /i "%viewmode%"=="details" set cols=80&set lines=27
+if /i "%viewmode%"=="mini" set cols=37&set lines=10
+if /i "%viewmode%"=="normal" set cols=52&set lines=14
+if /i "%viewmode%"=="details" set cols=80&set lines=28
 if not "%1"=="" set cols=%1&set lines=%2
 if not "%pretty%"=="1" set cols=80&set lines=900
 MODE CON COLS=%cols% LINES=%lines%
@@ -686,13 +689,13 @@ goto :eof
 DEL /F /Q "%temp%\getadminNWCR.vbs">NUL 2>&1
 set isAdmin=0
 set usenetsession=&set useregadd=::
-sc query lanmanserver |FINDSTR /I /C:running>NUL 2>&1
+sc query lanmanserver |FINDSTR /C:RUNNING>NUL 2>&1
 if not %errorlevel%==0 set useregadd=&set usenetsession=::
 %useregadd%REG ADD HKLM /F>nul 2>&1
 %usenetsession%net session >nul 2>&1
 if %errorLevel%==0 set isAdmin=1
 
-%no_taskkill%for /f "usebackq tokens=*" %%a in (`taskkill /F /FI "WINDOWTITLE eq Limited: %ThisTitle%" ^|findstr /i "success"`) do set killresult=%%a
+%no_taskkill%for /f "usebackq tokens=*" %%a in (`taskkill /F /FI "WINDOWTITLE eq Limited: %ThisTitle%" ^|FINDSTR /C:SUCCESS`) do set killresult=%%a
 %no_taskkill%if not "%killresult%"=="" goto :eof
 if %isAdmin%==1 goto :eof
 title Limited: %ThisTitle%
@@ -701,7 +704,7 @@ if not "%requestAdmin%"=="1" goto :eof
 %no_taskkill%echo StartAdmin.ShellExecute "%~s0", "", "", "runas", 1 >> "%temp%\getadminNWCR.vbs"
 %no_taskkill%echo Requesting admin rights...
 %no_taskkill%echo (This will close upon successful request)
-%no_taskkill%cscript //H:cscript //B "%temp%\getadminNWCR.vbs" /nologo>NUL 2>&1
+%no_taskkill%cscript //H:wscript //B //T:15 "%temp%\getadminNWCR.vbs" //nologo>NUL 2>&1
 %no_taskkill%ping 127.0.0.1>NUL
 %no_taskkill%ping 127.0.0.1>NUL
 goto :eof
@@ -771,7 +774,7 @@ set norm=^&call :crazy&set warn=^&call :crazy&set alrt=^&call :crazy&set crazyst
 
 :countTunnelAdapters
 set totalTunnelAdapters=0
-for /f %%n in ('ipconfig ^|FINDSTR /I "tunnel"') do set /a totalTunnelAdapters+=1
+for /f %%n in ('ipconfig ^|FINDSTR /C:"Tunnel"') do set /a totalTunnelAdapters+=1
 goto :eof
 
 :alert_2manyconnections
@@ -781,11 +784,9 @@ set /a est_min=est_secs/60
 set /a est_sec=est_secs-(est_min*60)
 set rkey=hklm\system\currentcontrolset\services\tcpip6\parameters
 set rval=DisabledComponents
-for /f "tokens=3*" %%i in ('reg query "%rkey%" /v "%rval%" ^| findstr /i "%rval%"') DO set ipv6_dsbld=%%i
+for /f "tokens=3*" %%i in ('reg query "%rkey%" /v "%rval%" ^| FINDSTR /I "%rval%"') DO set ipv6_dsbld=%%i
 :alert_2manyconnections_ask
-cls
-set usrInput=
-echo.
+cls&set usrInput=&echo.
 echo    -- Warning: Excessive number of Network Connections --
 echo.
 echo  Network Connections: %totalAdapters%
@@ -795,8 +796,7 @@ echo.
 echo  Excessive network connections can cause performance and 
 echo  stability issues, including long delays in connecting to 
 echo  a network and/or the internet.
-echo.
-echo.
+echo.&echo.
 if "%isAdmin%"=="0" ping 127.0.0.1>NUL&ping 127.0.0.1>NUL&goto :eof
 if "%requestDisableIPv6%"=="0" ping 127.0.0.1>NUL&ping 127.0.0.1>NUL&goto :eof
 if "%ipv6_dsbld%"=="0xffffffff" ping 127.0.0.1>NUL&ping 127.0.0.1>NUL&goto :eof
@@ -808,40 +808,29 @@ if /i "%usrInput%"=="n" goto :alert_2manyconnections_ask_no
 goto :alert_2manyconnections_ask
 
 :alert_2manyconnections_ask_no
-cls
-echo.
-echo.
+cls&echo.&echo.
 echo  This option can be disabled by editing this script's 
 echo  settings. Settings can be accessed by opening this
 echo  script with notepad.
-echo.
-pause
-goto :eof
+echo.&pause&goto :eof
 
 :disable_IPv6
-set oldnumtotal=%totalAdapters%
-cls
-echo.
-echo Disable IPv6:
-set disableipv6_err=0
+set oldnumtotal=%totalAdapters%&cls&echo.
+echo Disable IPv6:&set disableipv6_err=0
 echo. |set /p dummy=-add 'DisableComponents' to registry...
 :: the number '4294967295' is not random; it creates the hex value '0xffffffff'
-echo y|reg add "%rkey%" /v "%rval%" /t REG_DWORD /d 4294967295>NUL
+echo y|reg add "%rkey%" /v "%rval%" /t REG_DWORD /d 4294967295>NUL 2>&1
 if not %errorlevel% equ 0 echo Fail %errorlevel%&set disableipv6_err=1
-echo.
-echo. |set /p dummy=-set netsh interface teredo state disable...
+echo.&echo. |set /p dummy=-set netsh interface teredo state disable...
 netsh interface teredo set state disable>NUL 2>&1
 if not %errorlevel% equ 0 echo. |set /p dummy=Fail %errorlevel%&set /a disableipv6_err+=1
-echo.
-echo. |set /p dummy=-set netsh interface 6to4 state disable...
+echo.&echo. |set /p dummy=-set netsh interface 6to4 state disable...
 netsh interface 6to4 set state disabled>NUL 2>&1
 if not %errorlevel% equ 0 echo. |set /p dummy=Fail %errorlevel%&set /a disableipv6_err+=1
-echo.
-echo. |set /p dummy=-set netsh interface isatap state disable...
+echo.&echo. |set /p dummy=-set netsh interface isatap state disable...
 netsh interface isatap set state disabled>NUL 2>&1
 if not %errorlevel% equ 0 echo. |set /p dummy=Fail %errorlevel%&set /a disableipv6_err+=1
-echo.
-if %disableipv6_err% geq 1 echo.&echo %disableipv6_err% commands did not complete successfully.
+echo.&if %disableipv6_err% geq 1 echo.&echo %disableipv6_err% commands did not complete successfully.
 if %disableipv6_err% leq 0 echo.&echo Commands completed successfully.
 call :countAdapters
 set /a removedadapters=oldnumtotal-totaladapters
