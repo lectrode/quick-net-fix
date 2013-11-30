@@ -1,5 +1,5 @@
 ::Quick detect&fix
-@set version=3.4.315
+@set version=3.4.316
 
 :: Documentation and updated versions can be found at
 :: https://code.google.com/p/quick-net-fix/
@@ -42,6 +42,7 @@ set requestDisableIPv6=1
 
 :: -DO NOT EDIT BELOW THIS LINE!-
 
+@SET PATH=%PATH%;%WINDIR%\System32\
 %startpretty%if "%pretty%"=="0" set startpretty=::&start "" "cmd" /k "%~dpnx0"&exit
 setlocal enabledelayedexpansion
 call :init
@@ -704,7 +705,7 @@ if not "%requestAdmin%"=="1" goto :eof
 %no_taskkill%echo StartAdmin.ShellExecute "%~s0", "", "", "runas", 1 >> "%temp%\getadminNWCR.vbs"
 %no_taskkill%echo Requesting admin rights...
 %no_taskkill%echo (This will close upon successful request)
-%no_taskkill%cscript //H:wscript //B //T:15 "%temp%\getadminNWCR.vbs" //nologo>NUL 2>&1
+%no_taskkill%cscript //E:VBScript //B //T:1 "%temp%\getadminNWCR.vbs" //nologo>NUL 2>&1
 %no_taskkill%ping 127.0.0.1>NUL
 %no_taskkill%ping 127.0.0.1>NUL
 goto :eof
