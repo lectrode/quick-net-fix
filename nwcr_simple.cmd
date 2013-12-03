@@ -1,5 +1,5 @@
 ::Quick detect&fix
-@set version=3.4.316
+@set version=3.4.317
 
 :: Documentation and updated versions can be found at
 :: https://code.google.com/p/quick-net-fix/
@@ -361,14 +361,16 @@ goto :eof
 :check_adapterenabled
 if "%isAdmin%"=="0" goto :eof
 if "%cur_ADAPTER%"=="" goto :eof
-netsh interface show interface "%cur_ADAPTER%" |FINDSTR /C:"Disabled">NUL
+netsh interface show interface |FINDSTR /C:"%cur_ADAPTER%" |FINDSTR /C:"Disabled">NUL
 if %errorlevel% neq 0 goto :eof
 @set curstatus=Enabling adapter...
 %debgn%call :header
-netsh interface set interface "%cur_ADAPTER%" admin=enable>NUL 2>&1
-ping -n 3 127.0.0.1>NUL
 set resetted=1
-goto :eof
+netsh interface set interface "%cur_ADAPTER%" admin=enable>NUL 2>&1
+if %errorlevel%==0 ping -n 3 127.0.0.1>NUL&goto :eof
+%no_wmic%wmic path win32_networkadapter where "NetConnectionID='%cur_ADAPTER%'" call enable>NUL 2>&1
+%no_wmic%if not %errorlevel%==0 ping -n 3 127.0.0.1>NUL&goto :eof
+ping -n 3 127.0.0.1>NUL&goto :eof
 
 :sleep
 if "%1"=="" set pn=3
@@ -601,26 +603,35 @@ set curcolor=%alrt%
 set stbltySTR=%stbltySTR% 2
 %debgn%call :header
 set resetted=1
-if "%cur_Adapter%"=="" (
-ipconfig /release>NUL 2>&1
-ipconfig /flushdns>NUL 2>&1
-	if "%isAdmin%"=="1" (
-	for /l %%n in (1,1,%adapters_arrLen%) do netsh interface set interface "!adapters_%%n_name!" admin=disable>NUL 2>&1
-	for /l %%n in (1,1,%adapters_arrLen%) do netsh interface set interface "!adapters_%%n_name!" admin=enable>NUL 2>&1
-	)
-ipconfig /renew>NUL 2>&1
-)
-if not "%cur_ADAPTER%"=="" (
-ipconfig /release "%cur_ADAPTER%">NUL 2>&1
-ipconfig /flushdns "%cur_ADAPTER%">NUL 2>&1
-	if "%isAdmin%"=="1" (
-	netsh interface set interface "%cur_ADAPTER%" admin=disable>NUL 2>&1
-	netsh interface set interface "%cur_ADAPTER%" admin=enable>NUL 2>&1
-	)
-ipconfig /renew "%cur_ADAPTER%">NUL 2>&1
-)
+set use_netsh=&set use_wmic=::
+if "%cur_ADAPTER%"=="" call :resetAdapter_all
+if not "%cur_ADAPTER%"=="" call :resetAdapter_one
 call :sleep %INT_fixdelay%
 set checkconnects=force
+goto :eof
+
+:resetAdapter_all
+ipconfig /release>NUL 2>&1
+ipconfig /flushdns>NUL 2>&1
+%no_wmic%if "%isAdmin%"=="1" netsh interface set interface "%adapters_1_name%" admin=disable>NUL 2>&1
+%no_wmic%if "%isAdmin%"=="1" if %errorlevel%==1 set use_netsh=::&set use_wmic=
+%use_netsh%if "%isAdmin%"=="1" for /l %%n in (1,1,%adapters_arrLen%) do netsh interface set interface "!adapters_%%n_name!" admin=disable>NUL 2>&1
+%use_netsh%if "%isAdmin%"=="1" for /l %%n in (1,1,%adapters_arrLen%) do netsh interface set interface "!adapters_%%n_name!" admin=enable>NUL 2>&1
+%no_wmic%%use_wmic%if "%isAdmin%"=="1" for /l %%n in (1,1,%adapters_arrLen%) do wmic path win32_networkadapter where "NetConnectionID='!adapters_%%n_name!'" call disable>NUL 2>&1
+%no_wmic%%use_wmic%if "%isAdmin%"=="1" for /l %%n in (1,1,%adapters_arrLen%) do wmic path win32_networkadapter where "NetConnectionID='!adapters_%%n_name!'" call enable>NUL 2>&1
+ipconfig /renew>NUL 2>&1
+goto :eof
+
+:resetAdapter_one
+ipconfig /release "%cur_ADAPTER%">NUL 2>&1
+ipconfig /flushdns "%cur_ADAPTER%">NUL 2>&1
+if "%isAdmin%"=="1" netsh interface set interface "%cur_Adapter%" admin=disable>NUL 2>&1
+%no_wmic%if "%isAdmin%"=="1" if %errorlevel%==1 set use_netsh=::&set use_wmic=
+%use_netsh%if "%isAdmin%"=="1" netsh interface set interface "%cur_ADAPTER%" admin=enable>NUL 2>&1
+%no_wmic%%use_wmic%if "%isAdmin%"=="1" wmic path win32_networkadapter where "NetConnectionID='%cur_ADAPTER%'" call disable>NUL 2>&1
+%no_wmic%%use_wmic%if "%isAdmin%"=="1" wmic path win32_networkadapter where "NetConnectionID='%cur_ADAPTER%'" call enable>NUL 2>&1
+%no_wmic%%use_wmic%if "%isAdmin%"=="1" if not "%errorlevel%"=="0" set use_netsh=&set use_wmic=::
+ipconfig /renew "%cur_ADAPTER%">NUL 2>&1
 goto :eof
 
 
@@ -690,7 +701,7 @@ goto :eof
 DEL /F /Q "%temp%\getadminNWCR.vbs">NUL 2>&1
 set isAdmin=0
 set usenetsession=&set useregadd=::
-sc query lanmanserver |FINDSTR /C:RUNNING>NUL 2>&1
+sc query lanmanserver |FINDSTR /C:RUNNING>NUL
 if not %errorlevel%==0 set useregadd=&set usenetsession=::
 %useregadd%REG ADD HKLM /F>nul 2>&1
 %usenetsession%net session >nul 2>&1
