@@ -1,5 +1,5 @@
 ::Quick detect&fix
-@set version=3.4.317
+@set version=3.4.318
 
 :: Documentation and updated versions can be found at
 :: https://code.google.com/p/quick-net-fix/
@@ -13,7 +13,7 @@ set INT_flukechecks=7		Default: 7 (test x times to verify result)
 set INT_checkdelay=5		Default: 5 seconds
 set INT_fixdelay=10			Default: 10 seconds
 set INT_flukecheckdelay=1	Default: 1 seconds
-set INT_timeoutsecs=1		Default: 1 seconds
+set INT_timeoutsecs=0		Default: 0 (auto) seconds
 set INT_checkrouterdelay=0	Default: 0 (auto) (wait x number of connects before verifying router and adapter)
 
 ::-Filters- (Separate filter keywords with space. Matches are filtered OUT)
@@ -135,6 +135,7 @@ goto :eof
 set ismanualA=&if "%manualAdapter%"=="" set ismanualA= (AUTO)
 set ismanualR=&if "%manualRouter%"=="" set ismanualR= (AUTO)
 set dsp_cur_ROUTER=%cur_Router%%ismanualR%%statspacer%
+set dsp_secondaryRouter=%secondaryRouter%%statspacer%
 if "%cur_ROUTER%"=="" set dsp_cur_ROUTER=%secondaryRouter%%ismanualR%%statspacer%
 set dsp_uptime=%uptime%%statspacer%
 set dsp_GRT_TimeRan=%GRT_TimeRan%%statspacer%
@@ -145,6 +146,7 @@ set dspAdmin=True&if %isAdmin%==0 set dspAdmin=False
 set dspUsrInput=True&if %fullAuto%==0 set dspUsrInput=False
 set dspReqAdmin=True&if %requestAdmin%==0 set dspReqAdmin=False
 set dspCRD=[%INT_checkrouterdelay%]%STR_ca_percent%%statspacer%
+set dspAvgTOS=[%timeoutmilsecs%]%STR_timeout%%statspacer%
 set dsp_fixes=%numfixes%%statspacer%
 set H_filterRouters=%filterRouters%%statspacer%
 set H_filterAdapters=%filterAdapters%%statspacer%
@@ -163,15 +165,15 @@ if not "!show_stbtlySTR:~-%colnum%!"=="" echo. !show_stbtlySTR:~-%colnum%!
 echo.
 echo  Connection: %show_cur_ADAPTER%%ismanualA%
 echo  Router:     %dsp_cur_ROUTER:~0,40%NIC Adapters:      %totalAdapters%
-echo  Uptime:     %dsp_uptime:~0,40%No User Input:     %dspUsrInput%
-echo  Runtime:    %dsp_GRT_TimeRan:~0,40%Stability Hist:    %INT_StabilityHistory%
-echo  Stability:  %dsp_stability:~0,40%Request Admin:     %dspReqAdmin%
-echo  Fixes:      %dsp_fixes:~0,40%Is Admin:          %dspAdmin%
-echo                                                      Theme:             %theme%
+echo  Router 2:   %dsp_secondaryRouter:~0,40%No User Input:     %dspUsrInput%
+echo  Uptime:     %dsp_uptime:~0,40%Stability Hist:    %INT_StabilityHistory%
+echo  Runtime:    %dsp_GRT_TimeRan:~0,40%Request Admin:     %dspReqAdmin%
+echo  Stability:  %dsp_stability:~0,40%Is Admin:          %dspAdmin%
+echo  Fixes:      %dsp_fixes:~0,40%Theme:             %theme%
+echo                                                      Fluke Checks:      %INT_flukechecks%
 echo                                                      Check Delay:       %INT_checkdelay%
-echo  Verify Router Delay: %dspCRD:~0,31%Fluke Checks:      %INT_flukechecks%
-echo                                                      Fix Delay:         %INT_fixdelay%
-echo                                                      Test Timeout:      %INT_timeoutsecs%
+echo  Verify Router Delay: %dspCRD:~0,31%Test Timeout Secs: %INT_timeoutsecs%
+echo  Test Timeout Mils: %dspAvgTOS:~0,33%Fix Delay:         %INT_fixdelay%
 echo                                                      Fluke Check Delay: %INT_flukecheckdelay%
 echo. Router Filters:  %dsp_rfilt1:~0,30%
 echo.                  %dsp_rfilt2:~0,30%
@@ -228,29 +230,43 @@ set last_checkca=%checkca%&set last_ca_percent=%1
 if not "%1"=="" if %num% lss %MX_avgca% set /a avg_ca_percent+=%1&set STR_ca_percent=%STR_ca_percent% %1
 if not "%1"=="" if %num% lss %MX_avgca% set /a num+=1&shift&goto :Update_avgca_loop
 set /a ca_percent=(avg_ca_percent/num)
-if "%manualVerifyDelay%"=="" goto :eof
+if "%AUTO_checkrouterdelay%"=="" goto :eof
 set /a est_secs=(totalAdapters*ca_percent)/100
 set /a INT_checkrouterdelay=est_secs+1
 if %INT_checkrouterdelay% lss %MN_crd% set INT_checkrouterdelay=%MN_crd%
 if %INT_checkrouterdelay% gtr %MX_crd% set INT_checkrouterdelay=%MX_crd%
 goto :eof
 
+:Update_avgtimeout
+if "%AUTO_timeoutsecs%"=="" goto :eof
+set num=0
+set avg_timeout=0
+set STR_timeout=
+:Update_avgtimeout_loop
+if not "%1"=="" if %num% lss %MX_avgtimeout% set /a avg_timeout+=%1&set STR_timeout=%STR_timeout% %1
+if not "%1"=="" if %num% lss %MX_avgtimeout% set /a num+=1&shift&goto :Update_avgtimeout_loop
+set /a timeoutmilsecs=(avg_timeout/num)+((avg_timeout/num)/2)
+if %timeoutmilsecs% lss %MN_timeout% set timeoutmilsecs=%MN_timeout%
+if %timeoutmilsecs% gtr %MX_timeout% set timeoutmilsecs=%MX_timeout%
+goto :eof
 
 :precisiontimer
 set id=%1
 set var=%2
-if /i "%var%"=="start" set startsecs%id%=%time:~6,2%&set startmins%id%=%time:~3,2%&goto :eof
+if /i "%var%"=="start" set startmils%id%=%time:~9,2%&set startsecs%id%=%time:~6,2%&set startmins%id%=%time:~3,2%&goto :eof
 if /i "%var%"=="halt" set startsecs%id%=invalid&goto :eof
 if "!startsecs%id%!"=="invalid" set %var%=0&goto :eof
-set endsecs%id%=%time:~6,2%
-set endmins%id%=%time:~3,2%
+set endmils%id%=%time:~9,2%&set endsecs%id%=%time:~6,2%&set endmins%id%=%time:~3,2%
+if "!startmils%id%:~0,1!"=="0" set startmils%id%=!startmils%id%:~1,1!
 if "!startsecs%id%:~0,1!"=="0" set startsecs%id%=!startsecs%id%:~1,1!
 if "!startmins%id%:~0,1!"=="0" set startmins%id%=!startmins%id%:~1,1!
+if "!endmils%id%:~0,1!"=="0" set endmils%id%=!endmils%id%:~1,1!
 if "!endsecs%id%:~0,1!"=="0" set endsecs%id%=!endsecs%id%:~1,1!
 if "!endmins%id%:~0,1!"=="0" set endmins%id%=!endmins%id%:~1,1!
+if !endmils%id%! lss !startmils%id%! set /a endmils%id%+=100&set /a endsecs%id%-=1
 if !endsecs%id%! lss !startsecs%id%! set /a endsecs%id%+=60&set /a endmins%id%-=1
 if !endmins%id%! lss !startmins%id%! set /a endmins%id%+=60
-set /a %var%=endsecs%id%-startsecs%id%+((endmins%id%-startmins%id%)*60)
+set /a %var%=(endmils%id%-startmils%id%)+((endsecs%id%-startsecs%id%)*100)+(((endmins%id%-startmins%id%)*60)*100)
 goto :eof
 
 
@@ -269,6 +285,7 @@ if "%cur_ROUTER%"=="" if "%cur_ADAPTER%"=="" call :EnumerateAdapters
 
 :checkRouterAdapter_end
 call :precisiontimer cRA tot
+set /a tot/=100
 set /a timepassed+=tot
 if not %tot%==0 set /a new_ca_percent=(tot*100)/totalAdapters
 if not %tot%==0 call :Update_avgca %new_ca_percent% %STR_ca_percent%
@@ -303,14 +320,15 @@ goto :eof
 :check
 @set curstatus=Testing connectivity...
 %debgn%call :header
-set result=
-set resultUpDown=
-set testrouter=%secondaryRouter%
+set result=&set resultUpDown=&set testrouter=%secondaryRouter%
 if not "%cur_ROUTER%"=="" if %dbl% equ 0 set testrouter=%cur_ROUTER%
 if not "%manualRouter%"=="" set testrouter=%cur_ROUTER%
 if "%lastResult%"=="" set lastResult=Connected
+if "%timeoutmilsecs_add%"=="1" set /a timeoutmilsecs+=1000&set timeoutmilsecs_add=0
 
+call :precisiontimer PING start
 for /f "tokens=* delims=" %%p in ('ping -w %timeoutmilsecs% -n 1 %testrouter%') do set ping_test=%%p
+call :precisiontimer PING pingtime
 echo %ping_test% |FINDSTR /C:"request could not find" >NUL
 if %errorlevel% equ 0 set result=NotConnected&set resultUpDown=Down
 echo %ping_test% |FINDSTR /C:"Unreachable" >NUL
@@ -319,7 +337,7 @@ echo %ping_test% |FINDSTR /C:"General Failure" >NUL
 if %errorlevel% equ 0 set result=Connecting...&set /a down+=timepassed&set curcolor=%pend%
 echo %ping_test% |FINDSTR /C:"Minimum " >NUL
 if %errorlevel% equ 0 set result=Connected&set resultUpDown=Up
-if "%result%"=="" set result=TimeOut&set resultUpDown=Down
+if "%result%"=="" set result=TimeOut&set resultUpDown=Down&set /a timeoutmilsecs_add=1
 
 if "%resultUpDown%"=="Up" (
 set /a checkconnects+=1
@@ -340,13 +358,17 @@ if "%result%"=="TimeOut" set /a down+=INT_timeoutsecs
 set curcolor=%warn%
 set stbltySTR=%stbltySTR% 1
 set result=%result%
+if not %dbl%==0 call :setSecondaryRouter
 )
 
 set timepassed=0
 if %dbl% gtr 0 set showdbl=(fluke check %dbl%/%INT_flukechecks%)
 set /a dbl+=1
+set /a pingtime*=10
+call :update_avgtimeout %pingtime% %STR_timeout%
 call :set_uptime
 call :set_stability %stbltySTR%
+
 
 if "%result%"=="Connected" if not "%lastresult%"=="Connected" if "%resetted%"=="1" set /a numfixes+=1
 set lastresult=%result%
@@ -367,10 +389,19 @@ if %errorlevel% neq 0 goto :eof
 %debgn%call :header
 set resetted=1
 netsh interface set interface "%cur_ADAPTER%" admin=enable>NUL 2>&1
-if %errorlevel%==0 ping -n 3 127.0.0.1>NUL&goto :eof
+if %errorlevel%==0 set stbltySTR=%stbltySTR% 2&call :sleep %INT_fixdelay%&goto :eof
 %no_wmic%wmic path win32_networkadapter where "NetConnectionID='%cur_ADAPTER%'" call enable>NUL 2>&1
-%no_wmic%if not %errorlevel%==0 ping -n 3 127.0.0.1>NUL&goto :eof
-ping -n 3 127.0.0.1>NUL&goto :eof
+%no_wmic%if not %errorlevel%==0 set stbltySTR=%stbltySTR% 2&call :sleep %INT_fixdelay%&goto :eof
+goto :eof
+
+:setSecondaryRouter
+if %secondaryRouternum%==0 set secondaryRouter=www.google.com
+if %secondaryRouternum%==1 set secondaryRouter=www.ask.com
+if %secondaryRouternum%==2 set secondaryRouter=www.yahoo.com
+if %secondaryRouternum%==3 set secondaryRouter=www.bing.com
+set /a secondaryRouternum+=1
+if %secondaryRouternum% geq 4 set secondaryRouternum=0
+goto :eof
 
 :sleep
 if "%1"=="" set pn=3
@@ -383,7 +414,15 @@ if %pn% leq 0 goto :eof
 %debgn%call :header
 set /a timepassed+=pn
 set /a pn+=1
-ping -n %pn% -w 1000 127.0.0.1>nul
+ping -n %pn% -w 1000 127.0.0.1>nul&goto :eof
+
+:SETMODECON
+if /i "%viewmode%"=="mini" set cols=37&set lines=10
+if /i "%viewmode%"=="normal" set cols=52&set lines=14
+if /i "%viewmode%"=="details" set cols=80&set lines=28
+if not "%1"=="" set cols=%1&set lines=%2
+if not "%pretty%"=="1" set cols=80&set lines=900
+MODE CON COLS=%cols% LINES=%lines%
 goto :eof
 
 :crazy
@@ -402,7 +441,7 @@ goto :eof
 
 :set_uptime
 if %up% geq 100000 set /a up=up/10&set /a down=down/10
-set /a uptime=((up*10000)/(up+down))
+set /a uptime=((up*10000)/(up+down))>NUL 2>&1
 set /a uptime+=0
 set uptime=%uptime:~0,-2%.%uptime:~-2%%%
 call :getruntime
@@ -634,69 +673,6 @@ if "%isAdmin%"=="1" netsh interface set interface "%cur_Adapter%" admin=disable>
 ipconfig /renew "%cur_ADAPTER%">NUL 2>&1
 goto :eof
 
-
-:init
-@if not "%pretty%"=="1" set debgn=::
-@call :init_settnSTR viewmode %viewmode%
-@call :SETMODECON
-%debgn%@echo off
-%debgn%cls
-@PROMPT=^>
-@echo.
-@echo .|set /p dummy=initializing...
-@set ThisTitle=Lectrode's Quick Net Fix v%version%
-@TITLE %ThisTitle%
-@call :testCompatibility
-@call :detectIsAdmin
-@call :init_colors %theme%
-%debgn%COLOR %norm%
-@call :getruntime
-@set numfixes=0
-@set up=0
-@set down=0
-@set timepassed=0
-@set dbl=0
-@set numAdapters=0
-@set checkconnects=0
-@set stbltySTR=
-@set secondaryRouter=www.google.com
-@set ca_percent=5
-@set MN_crd=5
-@set MX_crd=120
-@set MX_avgca=5
-@set statspacer=                                                               .
-@for /f "tokens=1,* DELIMS==" %%s in ('set INT_') do call :init_settn %%s %%t
-@set orig_checkdelay=%INT_checkdelay%
-@set INT_checkdelay=1
-@if %INT_checkrouterdelay%==0 set manualVerifyDelay=AUTO
-@set /a timeoutmilsecs=1000*INT_timeoutsecs
-@call :init_manualRouter %manualRouter%
-@for /f "tokens=1 DELIMS=:" %%a in ("%manualAdapter%") do call :init_manualAdapter %%a
-@call :init_bar
-@call :countAdapters
-@call :countTunnelAdapters
-@if %totalAdapters% geq 20 call :alert_2manyconnections
-@call :SETMODECON
-@call :update_avgca %ca_percent%
-@echo .|set /p dummy=..
-goto :eof
-
-:SETMODECON
-if /i "%viewmode%"=="mini" set cols=37&set lines=10
-if /i "%viewmode%"=="normal" set cols=52&set lines=14
-if /i "%viewmode%"=="details" set cols=80&set lines=28
-if not "%1"=="" set cols=%1&set lines=%2
-if not "%pretty%"=="1" set cols=80&set lines=900
-MODE CON COLS=%cols% LINES=%lines%
-goto :eof
-
-:testCompatibility
-taskkill /?>NUL 2>&1
-if %errorlevel%==9009 set no_taskkill=::
-wmic /?>NUL 2>&1
-if %errorlevel%==9009 set no_wmic=::
-goto :eof
-
 :detectIsAdmin
 DEL /F /Q "%temp%\getadminNWCR.vbs">NUL 2>&1
 set isAdmin=0
@@ -720,69 +696,6 @@ if not "%requestAdmin%"=="1" goto :eof
 %no_taskkill%ping 127.0.0.1>NUL
 %no_taskkill%ping 127.0.0.1>NUL
 goto :eof
-
-:init_settn
-set /a %1=%2
-goto :eof
-
-:init_settnSTR
-set %1=%2
-goto :eof
-
-:init_manualRouter
-set manualRouter=%1
-set manualRouter=%manualRouter:http:=%
-set manualRouter=%manualRouter:https:=%
-set manualRouter=%manualRouter:/=%
-if "%manualRouter%"=="Examples:" set manualRouter=
-if not "%manualRouter%"=="" set cur_ROUTER=%manualRouter%
-if /I "%manualRouter%"=="none" set cur_ROUTER=%secondaryRouter%
-goto :eof
-
-:init_manualAdapter
-set manualAdapter=%*
-set manualAdapter=%manualAdapter:Examples=%
-if "%manualAdapter%"=="" goto :eof
-set manualAdapter=%manualAdapter:	=%
-if not "%manualAdapter%"=="" set cur_ADAPTER=%manualAdapter%
-if /I "%manualAdapter%"=="all" set cur_ADAPTER=
-goto :eof
-
-:init_bar
-set /a colnum=cols-2
-set -=
-set aft-=
-if %colnum% leq %INT_StabilityHistory% goto :eof
-set /a numhyp=(colnum/INT_StabilityHistory)
-set /a hypleft=(colnum-(numhyp*INT_StabilityHistory))
-set /a numhyp-=1
-:init_bar_loop
-if not %numhyp% leq 0 set -=%-%-&set /a numhyp-=1
-if not %hypleft% leq 0 set aft-=%aft-%-&set /a hypleft-=1
-set /a bar_loop_tot=numhyp+hypleft
-if %bar_loop_tot% gtr 0 goto :init_bar_loop
-goto :eof
-
-:init_colors
-set theme=%1&call :init_colors_%theme%&goto :eof
-
-:init_colors_none
-set norm=&set warn=&set alrt=&goto :eof
-
-:init_colors_subtle
-set norm=07&set warn=06&set alrt=04&set pend=03&goto :eof
-
-:init_colors_vibrant
-set norm=0a&set warn=0e&set alrt=0c&set pend=0b&goto :eof
-
-:init_colors_fullsubtle
-set norm=20&set warn=60&set alrt=40&set pend=30&goto :eof
-
-:init_colors_fullvibrant
-set norm=a0&set warn=e0&set alrt=c0&set pend=b0&goto :eof
-
-:init_colors_crazy
-set norm=^&call :crazy&set warn=^&call :crazy&set alrt=^&call :crazy&set crazystr=0123456789ABCDEF&goto :eof
 
 :countTunnelAdapters
 set totalTunnelAdapters=0
@@ -853,3 +766,123 @@ echo take effect.
 ping 127.0.0.1>NUL
 ping 127.0.0.1>NUL
 goto :eof
+
+:testCompatibility
+taskkill /?>NUL 2>&1
+if %errorlevel%==9009 set no_taskkill=::
+wmic /?>NUL 2>&1
+if %errorlevel%==9009 set no_wmic=::
+goto :eof
+
+:init
+@if not "%pretty%"=="1" set debgn=::
+@call :init_settnSTR viewmode %viewmode%
+@call :SETMODECON
+%debgn%@echo off
+%debgn%cls
+@PROMPT=^>
+@echo.
+@echo .|set /p dummy=initializing...
+@set ThisTitle=Lectrode's Quick Net Fix v%version%
+@TITLE %ThisTitle%
+@call :testCompatibility
+@call :detectIsAdmin
+@call :init_colors %theme%
+%debgn%COLOR %norm%
+@call :getruntime
+@set numfixes=0
+@set up=0
+@set down=0
+@set timepassed=0
+@set dbl=0
+@set numAdapters=0
+@set checkconnects=0
+@set stbltySTR=
+@set ca_percent=5
+@set MN_crd=5
+@set MX_crd=120
+@set MX_avgca=5
+@set MX_avgtimeout=5
+@set MN_timeout=100
+@set MX_timeout=5000
+@set statspacer=                                                               .
+@for /f "tokens=1,* DELIMS==" %%s in ('set INT_') do call :init_settn %%s %%t
+@set orig_checkdelay=%INT_checkdelay%
+@set INT_checkdelay=1
+@if %INT_checkrouterdelay%==0 set AUTO_checkrouterdelay=1
+@if %INT_timeoutsecs%==0 set AUTO_timeoutsecs=1&call :update_avgtimeout 3000
+@if "%AUTO_timeoutsecs%"=="" set /a timeoutmilsecs=1000*INT_timeoutsecs
+@set secondaryRouternum=0&call :setSecondaryRouter
+@call :init_manualRouter %manualRouter%
+@for /f "tokens=1 DELIMS=:" %%a in ("%manualAdapter%") do call :init_manualAdapter %%a
+@call :init_bar
+@call :countAdapters
+@call :countTunnelAdapters
+@if %totalAdapters% geq 20 call :alert_2manyconnections
+@call :SETMODECON
+@call :update_avgca %ca_percent%
+@echo .|set /p dummy=..
+goto :eof
+
+:init_settn
+set /a %1=%2
+goto :eof
+
+:init_settnSTR
+set %1=%2
+goto :eof
+
+:init_manualRouter
+set manualRouter=%1
+set manualRouter=%manualRouter:http:=%
+set manualRouter=%manualRouter:https:=%
+set manualRouter=%manualRouter:/=%
+if "%manualRouter%"=="Examples:" set manualRouter=
+if not "%manualRouter%"=="" set cur_ROUTER=%manualRouter%
+if /I "%manualRouter%"=="none" set cur_ROUTER=%secondaryRouter%
+goto :eof
+
+:init_manualAdapter
+set manualAdapter=%*
+set manualAdapter=%manualAdapter:Examples=%
+if "%manualAdapter%"=="" goto :eof
+set manualAdapter=%manualAdapter:	=%
+if not "%manualAdapter%"=="" set cur_ADAPTER=%manualAdapter%
+if /I "%manualAdapter%"=="all" set cur_ADAPTER=
+goto :eof
+
+:init_bar
+set /a colnum=cols-2
+set -=
+set aft-=
+if %colnum% leq %INT_StabilityHistory% goto :eof
+set /a numhyp=(colnum/INT_StabilityHistory)
+set /a hypleft=(colnum-(numhyp*INT_StabilityHistory))
+set /a numhyp-=1
+:init_bar_loop
+if not %numhyp% leq 0 set -=%-%-&set /a numhyp-=1
+if not %hypleft% leq 0 set aft-=%aft-%-&set /a hypleft-=1
+set /a bar_loop_tot=numhyp+hypleft
+if %bar_loop_tot% gtr 0 goto :init_bar_loop
+goto :eof
+
+:init_colors
+set theme=%1&call :init_colors_%theme%&goto :eof
+
+:init_colors_none
+set norm=&set warn=&set alrt=&goto :eof
+
+:init_colors_subtle
+set norm=07&set warn=06&set alrt=04&set pend=03&goto :eof
+
+:init_colors_vibrant
+set norm=0a&set warn=0e&set alrt=0c&set pend=0b&goto :eof
+
+:init_colors_fullsubtle
+set norm=20&set warn=60&set alrt=40&set pend=30&goto :eof
+
+:init_colors_fullvibrant
+set norm=a0&set warn=e0&set alrt=c0&set pend=b0&goto :eof
+
+:init_colors_crazy
+set norm=^&call :crazy&set warn=^&call :crazy&set alrt=^&call :crazy&set crazystr=0123456789ABCDEF&goto :eof
