@@ -1,5 +1,5 @@
 ::Quick detect&fix
-@set version=3.4.318
+@set version=4.0.319
 
 :: Documentation and updated versions can be found at
 :: https://code.google.com/p/quick-net-fix/
