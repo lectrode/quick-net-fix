@@ -1,5 +1,5 @@
 ::Quick detect&fix
-@set version=4.0.319
+@set version=4.0.320
 
 :: Documentation and updated versions can be found at
 :: https://code.google.com/p/quick-net-fix/
@@ -41,8 +41,10 @@ set requestDisableIPv6=1
 
 
 :: -DO NOT EDIT BELOW THIS LINE!-
-
-@SET PATH=%PATH%;%WINDIR%\System32\
+@if not "%comspec%"=="" for /f "delims=" %%a in ("%comspec%") do set "SYSTEMDRIVE=%%~da"&set "PATH=%%~dpa;%PATH%
+@set PATHEXT=.COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC;%PATHEXT%
+@if "%TEMP%"=="" set TEMP=%APPDATA%\TEMP
+@if "%TEMP%"=="\TEMP" set TEMP=%SYSTEMDRIVE%\Windows\Temp
 %startpretty%if "%pretty%"=="0" set startpretty=::&start "" "cmd" /k "%~dpnx0"&exit
 setlocal enabledelayedexpansion
 call :init
@@ -277,7 +279,7 @@ call :precisiontimer cRA start
 call :countAdapters
 set curstatus=Verify Router/Adapter [%est_secs%s]&call :header
 call :getNETINFO
-set cur_ROUTER=&set cur_ADAPTER=
+set cur_ROUTER=&set cur_ADAPTER=&set show_cur_ADAPTER=
 if not "%manualAdapter%"=="" call :getRouter
 if not "%manualRouter%"=="" call :getAdapter
 if "%cur_ROUTER%"=="" if "%cur_ADAPTER%"=="" call :getRouterAdapter
@@ -345,9 +347,7 @@ if not "%lastresult%"=="Connected" set /a timepassed/=2
 if not "%lastresult%"=="Connected" if not "%resetted%"=="1" set checkconnects=force
 if not "%lastresult%"=="Connected" if "%resetted%"=="1" if "%cur_Adapter%"==""  set checkconnects=force
 if %timepassed% leq 0 set timepassed=1
-set /a up+=timepassed
-set curcolor=%norm%
-set stbltySTR=%stbltySTR% 0
+set /a up+=timepassed&set curcolor=%norm%&set stbltySTR=%stbltySTR% 0
 )
 
 if "%resultUpDown%"=="Down" (
@@ -355,9 +355,7 @@ if "%lastresult%"=="Connected" set /a timepassed/=2
 if not "%lastresult%"=="" if %timepassed% leq 0 set timepassed=1
 set /a down+=timepassed
 if "%result%"=="TimeOut" set /a down+=INT_timeoutsecs
-set curcolor=%warn%
-set stbltySTR=%stbltySTR% 1
-set result=%result%
+set curcolor=%warn%&set stbltySTR=%stbltySTR% 1
 if not %dbl%==0 call :setSecondaryRouter
 )
 
@@ -375,7 +373,7 @@ set lastresult=%result%
 if "%result%"=="Connected" set resetted=0
 if "%result%"=="NotConnected" call :check_adapterenabled
 if not "%result%"=="Connected" if not %dbl% gtr %INT_flukechecks% call :sleep %INT_flukecheckdelay%&goto :check
-if not "%result%"=="Connected" if %dbl% gtr %INT_flukechecks% call :resetAdapter
+if not "%result%"=="Connected" if %dbl% gtr %INT_flukechecks% call :resetConnection
 set dbl=0
 set showdbl=
 goto :eof
@@ -383,16 +381,16 @@ goto :eof
 :check_adapterenabled
 if "%isAdmin%"=="0" goto :eof
 if "%cur_ADAPTER%"=="" goto :eof
-netsh interface show interface |FINDSTR /C:"%cur_ADAPTER%" |FINDSTR /C:"Disabled">NUL
-if %errorlevel% neq 0 goto :eof
+ipconfig |FINDSTR /C:"adapter %cur_ADAPTER%:">NUL
+if %errorlevel% equ 0 goto :eof
 @set curstatus=Enabling adapter...
 %debgn%call :header
 set resetted=1
 netsh interface set interface "%cur_ADAPTER%" admin=enable>NUL 2>&1
 if %errorlevel%==0 set stbltySTR=%stbltySTR% 2&call :sleep %INT_fixdelay%&goto :eof
 %no_wmic%wmic path win32_networkadapter where "NetConnectionID='%cur_ADAPTER%'" call enable>NUL 2>&1
-%no_wmic%if not %errorlevel%==0 set stbltySTR=%stbltySTR% 2&call :sleep %INT_fixdelay%&goto :eof
-goto :eof
+%no_wmic%if %errorlevel%==0 set stbltySTR=%stbltySTR% 2&call :sleep %INT_fixdelay%&goto :eof
+call :resetAdapter_oldOS enable %cur_ADAPTER%&set stbltySTR=%stbltySTR% 2&goto :eof
 
 :setSecondaryRouter
 if %secondaryRouternum%==0 set secondaryRouter=www.google.com
@@ -519,6 +517,154 @@ set GRT_MO_11=30
 set GRT_MO_12=31
 goto :eof
 
+:EnumerateAdapters
+set adapters_arrLen=0
+%no_wmic%for /f "tokens=* delims=" %%n in ('wmic nic get NetConnectionID') do call :EnumerateAdapters_parse %%n
+%no_wmic%goto :eof
+for /f "tokens=* delims=" %%n in ('netsh int show int') do call :EnumerateAdapters_parse %%n
+for /f "tokens=* delims=" %%n in ('netsh mbn show interfaces') do call :EnumerateAdapters_parseMBN %%n
+goto :eof
+
+:EnumerateAdapters_parse
+if "%*"=="" goto :eof
+if "%*"=="NetConnectionID" goto :eof
+if "%1 %2"=="Admin State" goto :eof
+set line=%*
+if "%line:~0,4%"=="----" goto :eof
+if not "%filterAdapters%"=="" echo %line%|FINDSTR /I /L "%filterAdapters%">NUL
+if not "%filterAdapters%"=="" if %errorlevel% equ 0 goto :eof
+set /a adapters_arrLen+=1
+%no_wmic%set adapters_%adapters_arrLen%_name=%line%&goto :eof
+for /f "tokens=2* delims= " %%c in ("%line%") do set adapters_%adapters_arrLen%_name=%%d
+goto :eof
+
+:EnumerateAdapters_parseMBN
+echo x %*|FINDSTR /C:"Name">NUL
+if not %errorlevel%==0 goto :eof
+set line=%*
+if not "%filterAdapters%"=="" echo %line%|FINDSTR /I /L "%filterAdapters%">NUL
+if not "%filterAdapters%"=="" if %errorlevel%==0 goto :eof
+set /a adapters_arrLen+=1
+set adapters_%adapters_arrLen%_name=%line:*: =%&goto :eof
+
+
+:resetConnection
+set curcolor=%alrt%
+@set curstatus=Attempting to fix connection...
+set stbltySTR=%stbltySTR% 2
+%debgn%call :header
+set resetted=1
+if "%cur_ADAPTER%"=="" call :resetConnection_all
+if not "%cur_ADAPTER%"=="" call :resetConnection_one
+call :sleep %INT_fixdelay%
+set checkconnects=force
+goto :eof
+
+:resetConnection_all
+ipconfig /release>NUL 2>&1
+ipconfig /flushdns>NUL 2>&1
+%use_admin%set use_netsh=::
+%use_admin%netsh interface set interface "%adapters_1_name%" admin=disable>NUL 2>&1
+%use_admin%if %errorlevel%==0 set use_netsh=&set use_wmic=::&set use_vbs=::
+%use_admin%%use_netsh%for /l %%n in (1,1,%adapters_arrLen%) do netsh interface set interface "!adapters_%%n_name!" admin=disable>NUL 2>&1
+%use_admin%%use_netsh%for /l %%n in (1,1,%adapters_arrLen%) do netsh interface set interface "!adapters_%%n_name!" admin=enable>NUL 2>&1
+%use_admin%%no_wmic%%use_wmic%wmic path win32_networkadapter where "NetConnectionID='%adapters_1_name%'" call disable>NUL 2>&1
+%use_admin%%no_wmic%%use_wmic%if %errorlevel%==0 set use_wmic=&set use_vbs=::
+%use_admin%%no_wmic%%use_wmic%for /l %%n in (1,1,%adapters_arrLen%) do wmic path win32_networkadapter where "NetConnectionID='!adapters_%%n_name!'" call disable>NUL 2>&1
+%use_admin%%no_wmic%%use_wmic%for /l %%n in (1,1,%adapters_arrLen%) do wmic path win32_networkadapter where "NetConnectionID='!adapters_%%n_name!'" call enable>NUL 2>&1
+%use_admin%%use_vbs%for /l %%n in (1,1,%adapters_arrLen%) do call :resetAdapter_oldOS disable !adapters_%%n_name!
+%use_admin%%use_vbs%for /l %%n in (1,1,%adapters_arrLen%) do call :resetAdapter_oldOS enable !adapters_%%n_name!
+ipconfig /renew>NUL 2>&1
+goto :eof
+
+:resetConnection_one
+ipconfig /release "%cur_ADAPTER%">NUL 2>&1
+ipconfig /flushdns "%cur_ADAPTER%">NUL 2>&1
+set use_netsh=::
+%use_admin%netsh interface set interface "%cur_Adapter%" admin=disable>NUL 2>&1
+%use_admin%if %errorlevel%==0 set use_netsh=&set use_wmic=::&set use_vbs=::
+%use_admin%%use_netsh%netsh interface set interface "%cur_ADAPTER%" admin=enable>NUL 2>&1
+%use_admin%%no_wmic%wmic path win32_networkadapter where "NetConnectionID='%cur_ADAPTER%'" call disable>NUL 2>&1
+%use_admin%%no_wmic%if %errorlevel%==0 set use_wmic=&set use_vbs=::
+%use_admin%%no_wmic%%use_wmic%wmic path win32_networkadapter where "NetConnectionID='%cur_ADAPTER%'" call enable>NUL 2>&1
+%use_admin%%use_vbs%call :resetAdapter_oldOS disable %cur_ADAPTER%
+%use_admin%%use_vbs%call :resetAdapter_oldOS enable %cur_ADAPTER%
+ipconfig /renew "%cur_ADAPTER%">NUL 2>&1
+goto :eof
+
+:resetAdapter_oldOS
+if /I "%1"=="enable" set disoren=Enable&set trufalse=false
+if /I "%1"=="disable" set disoren=Disable&set trufalse=true
+set reset_adaptername=%*
+set reset_adaptername=!reset_adaptername:%1 =!
+set resetfile=%temp%\NetworkResetNWCR.vbs
+@echo on
+@echo Const ssfCONTROLS = 3 '>"%resetfile%"
+@echo sEnableVerb = "En&able" '>>"%resetfile%"
+@echo sDisableVerb = "Disa&ble" '>>"%resetfile%"
+@echo set shellApp = createobject("shell.application") '>>"%resetfile%"
+@echo set oControlPanel = shellApp.Namespace(ssfCONTROLS) '>>"%resetfile%"
+@echo set oNetConnections = nothing '>>"%resetfile%"
+@echo for each folderitem in oControlPanel.items '>>"%resetfile%"
+@echo   if folderitem.name = "Network Connections" then '>>"%resetfile%"
+@echo         set oNetConnections = folderitem.getfolder: exit for '>>"%resetfile%"
+@echo end if '>>"%resetfile%"
+@echo next '>>"%resetfile%"
+@echo if oNetConnections is nothing then '>>"%resetfile%"
+@echo wscript.quit '>>"%resetfile%"
+@echo end if '>>"%resetfile%"
+@echo set oLanConnection = nothing '>>"%resetfile%"
+@echo for each folderitem in oNetConnections.items '>>"%resetfile%"
+@echo if lcase(folderitem.name) = lcase("%reset_adaptername%") then '>>"%resetfile%"
+@echo set oLanConnection = folderitem: exit for '>>"%resetfile%"
+@echo end if '>>"%resetfile%"
+@echo next '>>"%resetfile%"
+@echo Dim objFSO '>>"%resetfile%"
+@echo if oLanConnection is nothing then '>>"%resetfile%"
+@echo wscript.quit '>>"%resetfile%"
+@echo end if '>>"%resetfile%"
+@echo bEnabled = true '>>"%resetfile%"
+@echo set oEnableVerb = nothing '>>"%resetfile%"
+@echo set oDisableVerb = nothing '>>"%resetfile%"
+@echo s = "Verbs: " ^& vbcrlf '>>"%resetfile%"
+@echo for each verb in oLanConnection.verbs '>>"%resetfile%"
+@echo s = s ^& vbcrlf ^& verb.name '>>"%resetfile%"
+@echo if verb.name = sEnableVerb then '>>"%resetfile%"
+@echo set oEnableVerb = verb '>>"%resetfile%"
+@echo bEnabled = false '>>"%resetfile%"
+@echo end if '>>"%resetfile%"
+@echo if verb.name = sDisableVerb then '>>"%resetfile%"
+@echo set oDisableVerb = verb '>>"%resetfile%"
+@echo end if '>>"%resetfile%"
+@echo next '>>"%resetfile%"
+@echo if bEnabled = %trufalse% then '>>"%resetfile%"
+@echo o%disOrEn%Verb.DoIt '>>"%resetfile%"
+@echo end if '>>"%resetfile%"
+@echo wscript.sleep 2000 '>>"%resetfile%"
+%debgn%@echo off
+start /B /WAIT cmd /C cscript //B //NoLogo "%resetfile%"
+DEL /F /Q "%resetfile%">NUL 2>&1
+goto :eof
+
+:detectIsAdmin
+DEL /F /Q "%temp%\getadminNWCR.vbs">NUL 2>&1
+set isAdmin=0&set usenetsession=&set useregadd=::
+sc query lanmanserver |FINDSTR /C:RUNNING>NUL
+if not %errorlevel%==0 set useregadd=&set usenetsession=::
+%useregadd%REG ADD HKLM /F>nul 2>&1
+%usenetsession%net session >nul 2>&1
+if %errorLevel%==0 set isAdmin=1
+%no_taskkill%for /f "usebackq tokens=*" %%a in (`taskkill /F /FI "WINDOWTITLE eq Limited: %ThisTitle%" ^|FINDSTR /C:SUCCESS`) do set killresult=%%a
+%no_taskkill%if not "%killresult%"=="" goto :eof
+if %isAdmin%==1 goto :eof
+title Limited: %ThisTitle%
+if not "%requestAdmin%"=="1" goto :eof
+%no_taskkill%echo Set StartAdmin = CreateObject^("Shell.Application"^) > "%temp%\getadminNWCR.vbs"
+%no_taskkill%echo StartAdmin.ShellExecute "%~s0", "", "", "runas", 1 >> "%temp%\getadminNWCR.vbs"
+%no_taskkill%echo Requesting admin rights...&echo (This will close upon successful request)
+%no_taskkill%cscript //E:VBScript //B //T:1 "%temp%\getadminNWCR.vbs" //nologo>NUL 2>&1
+%no_taskkill%ping 127.0.0.1>NUL&ping 127.0.0.1>NUL&DEL /F /Q "%temp%\getadminNWCR.vbs">NUL 2>&1
+goto :eof
 
 :Ask4NET
 if "%fullAuto%"=="1" set manualRouter=%secondaryRouter%&set cur_ROUTER=%secondaryRouter%
@@ -613,88 +759,6 @@ for /l %%n in (1,1,%adapters_arrLen%) do if "%usrinput%"=="%%n" set cur_ADAPTER=
 if "%cur_ADAPTER%"=="" goto :ask4connection
 set manualadapter=%cur_ADAPTER%&set show_cur_ADAPTER=%cur_ADAPTER%
 echo.
-goto :eof
-
-:EnumerateAdapters
-set adapters_arrLen=0
-%no_wmic%for /f "tokens=* delims=" %%n in ('wmic nic get NetConnectionID') do call :EnumerateAdapters_parse %%n
-%no_wmic%goto :eof
-for /f "tokens=* delims=" %%n in ('netsh int show int') do call :EnumerateAdapters_parse %%n
-goto :eof
-
-:EnumerateAdapters_parse
-if "%*"=="" goto :eof
-if "%*"=="NetConnectionID" goto :eof
-if "%1 %2"=="Admin State" goto :eof
-set line=%*
-if "%line:~0,4%"=="----" goto :eof
-if not "%filterAdapters%"=="" echo %line%|FINDSTR /I /L "%filterAdapters%">NUL
-if not "%filterAdapters%"=="" if %errorlevel% equ 0 goto :eof
-set /a adapters_arrLen+=1
-%no_wmic%set adapters_%adapters_arrLen%_name=%line%&goto :eof
-for /f "tokens=2* delims= " %%c in ("%line%") do set adapters_%adapters_arrLen%_name=%%d
-goto :eof
-
-
-:resetAdapter
-set curcolor=%alrt%
-@set curstatus=Attempting to fix connection...
-set stbltySTR=%stbltySTR% 2
-%debgn%call :header
-set resetted=1
-set use_netsh=&set use_wmic=::
-if "%cur_ADAPTER%"=="" call :resetAdapter_all
-if not "%cur_ADAPTER%"=="" call :resetAdapter_one
-call :sleep %INT_fixdelay%
-set checkconnects=force
-goto :eof
-
-:resetAdapter_all
-ipconfig /release>NUL 2>&1
-ipconfig /flushdns>NUL 2>&1
-%no_wmic%if "%isAdmin%"=="1" netsh interface set interface "%adapters_1_name%" admin=disable>NUL 2>&1
-%no_wmic%if "%isAdmin%"=="1" if %errorlevel%==1 set use_netsh=::&set use_wmic=
-%use_netsh%if "%isAdmin%"=="1" for /l %%n in (1,1,%adapters_arrLen%) do netsh interface set interface "!adapters_%%n_name!" admin=disable>NUL 2>&1
-%use_netsh%if "%isAdmin%"=="1" for /l %%n in (1,1,%adapters_arrLen%) do netsh interface set interface "!adapters_%%n_name!" admin=enable>NUL 2>&1
-%no_wmic%%use_wmic%if "%isAdmin%"=="1" for /l %%n in (1,1,%adapters_arrLen%) do wmic path win32_networkadapter where "NetConnectionID='!adapters_%%n_name!'" call disable>NUL 2>&1
-%no_wmic%%use_wmic%if "%isAdmin%"=="1" for /l %%n in (1,1,%adapters_arrLen%) do wmic path win32_networkadapter where "NetConnectionID='!adapters_%%n_name!'" call enable>NUL 2>&1
-ipconfig /renew>NUL 2>&1
-goto :eof
-
-:resetAdapter_one
-ipconfig /release "%cur_ADAPTER%">NUL 2>&1
-ipconfig /flushdns "%cur_ADAPTER%">NUL 2>&1
-if "%isAdmin%"=="1" netsh interface set interface "%cur_Adapter%" admin=disable>NUL 2>&1
-%no_wmic%if "%isAdmin%"=="1" if %errorlevel%==1 set use_netsh=::&set use_wmic=
-%use_netsh%if "%isAdmin%"=="1" netsh interface set interface "%cur_ADAPTER%" admin=enable>NUL 2>&1
-%no_wmic%%use_wmic%if "%isAdmin%"=="1" wmic path win32_networkadapter where "NetConnectionID='%cur_ADAPTER%'" call disable>NUL 2>&1
-%no_wmic%%use_wmic%if "%isAdmin%"=="1" wmic path win32_networkadapter where "NetConnectionID='%cur_ADAPTER%'" call enable>NUL 2>&1
-%no_wmic%%use_wmic%if "%isAdmin%"=="1" if not "%errorlevel%"=="0" set use_netsh=&set use_wmic=::
-ipconfig /renew "%cur_ADAPTER%">NUL 2>&1
-goto :eof
-
-:detectIsAdmin
-DEL /F /Q "%temp%\getadminNWCR.vbs">NUL 2>&1
-set isAdmin=0
-set usenetsession=&set useregadd=::
-sc query lanmanserver |FINDSTR /C:RUNNING>NUL
-if not %errorlevel%==0 set useregadd=&set usenetsession=::
-%useregadd%REG ADD HKLM /F>nul 2>&1
-%usenetsession%net session >nul 2>&1
-if %errorLevel%==0 set isAdmin=1
-
-%no_taskkill%for /f "usebackq tokens=*" %%a in (`taskkill /F /FI "WINDOWTITLE eq Limited: %ThisTitle%" ^|FINDSTR /C:SUCCESS`) do set killresult=%%a
-%no_taskkill%if not "%killresult%"=="" goto :eof
-if %isAdmin%==1 goto :eof
-title Limited: %ThisTitle%
-if not "%requestAdmin%"=="1" goto :eof
-%no_taskkill%echo Set StartAdmin = CreateObject^("Shell.Application"^) > "%temp%\getadminNWCR.vbs"
-%no_taskkill%echo StartAdmin.ShellExecute "%~s0", "", "", "runas", 1 >> "%temp%\getadminNWCR.vbs"
-%no_taskkill%echo Requesting admin rights...
-%no_taskkill%echo (This will close upon successful request)
-%no_taskkill%cscript //E:VBScript //B //T:1 "%temp%\getadminNWCR.vbs" //nologo>NUL 2>&1
-%no_taskkill%ping 127.0.0.1>NUL
-%no_taskkill%ping 127.0.0.1>NUL
 goto :eof
 
 :countTunnelAdapters
@@ -806,6 +870,7 @@ goto :eof
 @set MN_timeout=100
 @set MX_timeout=5000
 @set statspacer=                                                               .
+if "%isAdmin%"=="0" set use_admin=::
 @for /f "tokens=1,* DELIMS==" %%s in ('set INT_') do call :init_settn %%s %%t
 @set orig_checkdelay=%INT_checkdelay%
 @set INT_checkdelay=1
