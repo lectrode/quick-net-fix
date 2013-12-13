@@ -1,5 +1,5 @@
 ::Quick detect&fix
-@set version=4.0.320
+@set version=4.0.321
 
 :: Documentation and updated versions can be found at
 :: https://code.google.com/p/quick-net-fix/
@@ -18,7 +18,7 @@ set INT_checkrouterdelay=0	Default: 0 (auto) (wait x number of connects before v
 
 ::-Filters- (Separate filter keywords with space. Matches are filtered OUT)
 set filterRouters=
-set filterAdapters=Tunnel VirtualBox VMnet VMware Loopback Pseudo Bluetooth
+set filterAdapters=Tunnel VirtualBox VMnet VMware Loopback Pseudo Bluetooth Internal
 
 ::-GUI-
 set pretty=1
@@ -41,7 +41,8 @@ set requestDisableIPv6=1
 
 
 :: -DO NOT EDIT BELOW THIS LINE!-
-@if not "%comspec%"=="" for /f "delims=" %%a in ("%comspec%") do set "SYSTEMDRIVE=%%~da"&set "PATH=%%~dpa;%PATH%
+@if not "%comspec%"=="" for /f "delims=" %%a in ("%comspec%") do set "PATH=%%~dpa;%PATH%"
+@if "%comspec%"=="" if exist "%SYSTEMDRIVE%\Windows\system32" set "PATH=%SYSTEMDRIVE%\Windows\system32;%PATH%"
 @set PATHEXT=.COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC;%PATHEXT%
 @if "%TEMP%"=="" set TEMP=%APPDATA%\TEMP
 @if "%TEMP%"=="\TEMP" set TEMP=%SYSTEMDRIVE%\Windows\Temp
@@ -833,9 +834,9 @@ goto :eof
 
 :testCompatibility
 taskkill /?>NUL 2>&1
-if %errorlevel%==9009 set no_taskkill=::
+if not %errorlevel%==0 set no_taskkill=::
 wmic /?>NUL 2>&1
-if %errorlevel%==9009 set no_wmic=::
+if not %errorlevel%==0 set no_wmic=::
 goto :eof
 
 :init
