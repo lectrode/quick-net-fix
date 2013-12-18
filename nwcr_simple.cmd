@@ -1,5 +1,5 @@
 ::Quick detect&fix
-@set version=4.1.322
+@set version=4.1.323
 
 :: Documentation and updated versions can be found at
 :: https://code.google.com/p/quick-net-fix/
@@ -41,10 +41,11 @@ set requestDisableIPv6=1
 
 
 :: -DO NOT EDIT BELOW THIS LINE!-
+setlocal enabledelayedexpansion
+setlocal enableextensions
 set thisdir=%~dp0
 call :testValidPATHS
-%startpretty%if "%pretty%"=="0" set startpretty=::&start "" "cmd" /k "%~dpnx0"&exit
-setlocal enabledelayedexpansion
+%startpretty%if "%pretty%"=="0" set startpretty=::&start /b "" "cmd" /k "%~dpnx0"&exit /b
 call :init
 call :checkRouterAdapter
 
@@ -826,9 +827,7 @@ echo Removed %removedadapters% adapters
 echo.
 echo You may have to reboot your computer for some changes to 
 echo take effect.
-ping 127.0.0.1>NUL
-ping 127.0.0.1>NUL
-goto :eof
+ping 127.0.0.1>NUL&ping 127.0.0.1>NUL&goto :eof
 
 :testValidPATHS
 @set PATHEXT=.COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC;%PATHEXT%
@@ -865,15 +864,18 @@ if not %errorlevel%==0 set no_reg=::
 goto :eof
 
 :disableQuickEdit
-set qkey=hkcu\Console
+set qkey=HKEY_CURRENT_USER\Console
 set qval=QuickEdit
-if not "%qedit_dsbld%"=="" echo y|reg add "%qkey%" /v "%qval%" /t REG_DWORD /d %qedit_dsbld%&cls
-if not "%qedit_dsbld%"=="" goto :eof
-for /f "tokens=3*" %%i in ('reg query "%qkey%" /v "%qval%" ^| FINDSTR /I "%qval%"') DO set qedit_dsbld=%%i
-if "%qedit_dsbld%"=="0x0" goto :eof
-echo y|reg add "%qkey%" /v "%qval%" /t REG_DWORD /d 0&cls
-start "" "cmd" /k "%~dpnx0"&exit
-goto :eof
+%no_reg%if not "%qedit_dsbld%"=="" echo y|reg add "%qkey%" /v "%qval%" /t REG_DWORD /d %qedit_dsbld%&cls
+%no_reg%if not "%qedit_dsbld%"=="" goto :eof
+%no_reg%for /f "tokens=3*" %%i in ('reg query "%qkey%" /v "%qval%" ^| FINDSTR /I "%qval%"') DO set qedit_dsbld=%%i
+%no_reg%if "%qedit_dsbld%"=="0x0" goto :eof
+%no_reg%echo y|reg add "%qkey%" /v "%qval%" /t REG_DWORD /d 0&cls&start "" "cmd" /k "%~dpnx0"&exit
+if exist "%TEMP%\qNET_quickedit.reg" regedit /S "%TEMP%\qNET_quickedit.reg"&DEL /F /Q "%TEMP%\qNET_quickedit.reg"&goto :eof
+regedit /S /e "%TEMP%\qNET_quickedit.reg" "%qkey%"
+echo REGEDIT4>"%TEMP%\qNET_quickedit2.reg"&echo [%qkey%]>>"%TEMP%\qNET_quickedit2.reg"
+(echo "%qval%"=dword:00000000)>>"%TEMP%\qNET_quickedit2.reg"
+regedit /S "%TEMP%\qNET_quickedit2.reg"&DEL /F /Q "%TEMP%\qNET_quickedit2.reg"&start "" "cmd" /k "%~dpnx0"&exit
 
 :init
 @if not "%pretty%"=="1" set debgn=::
@@ -889,7 +891,7 @@ goto :eof
 @call :testCompatibility
 @call :detectIsAdmin
 @if "%isAdmin%"=="0" set use_admin=::
-%no_reg%@call :disableQuickEdit
+%debgn%@call :disableQuickEdit
 @call :init_colors %theme%
 %debgn%COLOR %norm%
 @call :getruntime
