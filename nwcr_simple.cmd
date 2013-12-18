@@ -1,5 +1,5 @@
 ::Quick detect&fix
-@set version=4.0.321
+@set version=4.1.322
 
 :: Documentation and updated versions can be found at
 :: https://code.google.com/p/quick-net-fix/
@@ -41,11 +41,8 @@ set requestDisableIPv6=1
 
 
 :: -DO NOT EDIT BELOW THIS LINE!-
-@if not "%comspec%"=="" for /f "delims=" %%a in ("%comspec%") do set "PATH=%%~dpa;%PATH%"
-@if "%comspec%"=="" if exist "%SYSTEMDRIVE%\Windows\system32" set "PATH=%SYSTEMDRIVE%\Windows\system32;%PATH%"
-@set PATHEXT=.COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC;%PATHEXT%
-@if "%TEMP%"=="" set TEMP=%APPDATA%\TEMP
-@if "%TEMP%"=="\TEMP" set TEMP=%SYSTEMDRIVE%\Windows\Temp
+set thisdir=%~dp0
+call :testValidPATHS
 %startpretty%if "%pretty%"=="0" set startpretty=::&start "" "cmd" /k "%~dpnx0"&exit
 setlocal enabledelayedexpansion
 call :init
@@ -323,23 +320,19 @@ goto :eof
 :check
 @set curstatus=Testing connectivity...
 %debgn%call :header
-set result=&set resultUpDown=&set testrouter=%secondaryRouter%
+set ping_test=&set result=&set resultUpDown=&set testrouter=%secondaryRouter%
 if not "%cur_ROUTER%"=="" if %dbl% equ 0 set testrouter=%cur_ROUTER%
 if not "%manualRouter%"=="" set testrouter=%cur_ROUTER%
 if "%lastResult%"=="" set lastResult=Connected
 if "%timeoutmilsecs_add%"=="1" set /a timeoutmilsecs+=1000&set timeoutmilsecs_add=0
 
 call :precisiontimer PING start
-for /f "tokens=* delims=" %%p in ('ping -w %timeoutmilsecs% -n 1 %testrouter%') do set ping_test=%%p
+for /f "tokens=* delims=" %%p in ('ping -w %timeoutmilsecs% -n 1 %testrouter%') do set ping_test=!ping_test! %%p
 call :precisiontimer PING pingtime
-echo %ping_test% |FINDSTR /C:"request could not find" >NUL
-if %errorlevel% equ 0 set result=NotConnected&set resultUpDown=Down
-echo %ping_test% |FINDSTR /C:"Unreachable" >NUL
-if %errorlevel% equ 0 set result=Unreachable&set resultUpDown=Down
-echo %ping_test% |FINDSTR /C:"General Failure" >NUL
-if %errorlevel% equ 0 set result=Connecting...&set /a down+=timepassed&set curcolor=%pend%
-echo %ping_test% |FINDSTR /C:"Minimum " >NUL
+echo "%ping_test%" |FINDSTR /C:"Reply from " >NUL
 if %errorlevel% equ 0 set result=Connected&set resultUpDown=Up
+echo "%ping_test%" |FINDSTR /C:"request could not find" /C:"Unknown host" /C:"unreachable" /C:"General failure" >NUL
+if %errorlevel% equ 0 set result=NotConnected&set resultUpDown=Down
 if "%result%"=="" set result=TimeOut&set resultUpDown=Down&set /a timeoutmilsecs_add=1
 
 if "%resultUpDown%"=="Up" (
@@ -384,7 +377,7 @@ if "%isAdmin%"=="0" goto :eof
 if "%cur_ADAPTER%"=="" goto :eof
 ipconfig |FINDSTR /C:"adapter %cur_ADAPTER%:">NUL
 if %errorlevel% equ 0 goto :eof
-@set curstatus=Enabling adapter...
+@set curstatus=Enabling adapter...&set curcolor=%pend%
 %debgn%call :header
 set resetted=1
 netsh interface set interface "%cur_ADAPTER%" admin=enable>NUL 2>&1
@@ -523,7 +516,7 @@ set adapters_arrLen=0
 %no_wmic%for /f "tokens=* delims=" %%n in ('wmic nic get NetConnectionID') do call :EnumerateAdapters_parse %%n
 %no_wmic%goto :eof
 for /f "tokens=* delims=" %%n in ('netsh int show int') do call :EnumerateAdapters_parse %%n
-for /f "tokens=* delims=" %%n in ('netsh mbn show interfaces') do call :EnumerateAdapters_parseMBN %%n
+for /f "tokens=* delims=" %%n in ('netsh mbn show int') do call :EnumerateAdapters_parseMBN %%n
 goto :eof
 
 :EnumerateAdapters_parse
@@ -557,7 +550,7 @@ set stbltySTR=%stbltySTR% 2
 set resetted=1
 if "%cur_ADAPTER%"=="" call :resetConnection_all
 if not "%cur_ADAPTER%"=="" call :resetConnection_one
-call :sleep %INT_fixdelay%
+set curcolor=%pend%&call :sleep %INT_fixdelay%
 set checkconnects=force
 goto :eof
 
@@ -609,6 +602,8 @@ set resetfile=%temp%\NetworkResetNWCR.vbs
 @echo for each folderitem in oControlPanel.items '>>"%resetfile%"
 @echo   if folderitem.name = "Network Connections" then '>>"%resetfile%"
 @echo         set oNetConnections = folderitem.getfolder: exit for '>>"%resetfile%"
+@echo   elseif folderitem.name = "Network and Dial-up Connections" then '>>"%resetfile%"
+@echo         set oNetConnections = folderitem.getfolder: exit for '>>"%resetfile%"
 @echo end if '>>"%resetfile%"
 @echo next '>>"%resetfile%"
 @echo if oNetConnections is nothing then '>>"%resetfile%"
@@ -649,12 +644,15 @@ goto :eof
 
 :detectIsAdmin
 DEL /F /Q "%temp%\getadminNWCR.vbs">NUL 2>&1
-set isAdmin=0&set usenetsession=&set useregadd=::
-sc query lanmanserver |FINDSTR /C:RUNNING>NUL
-if not %errorlevel%==0 set useregadd=&set usenetsession=::
-%useregadd%REG ADD HKLM /F>nul 2>&1
-%usenetsession%net session >nul 2>&1
-if %errorLevel%==0 set isAdmin=1
+set isAdmin=0
+net session >nul 2>&1
+if %errorLevel%==0 set isAdmin=1&set useregadd=::&set usetypenul=::
+%no_reg%%useregadd%set usetypenul=::
+%no_reg%%useregadd%REG ADD HKLM /F>nul 2>&1
+%no_reg%%useregadd%if %errorLevel%==0 set isAdmin=1&set usetypenul=::
+%no_windir%%usetypenul%type nul>"%WINDIR%\testisadmin.txt"
+%no_windir%%usetypenul%del /f /q "%WINDIR%\testisadmin.txt">NUL 2>&1
+%no_windir%%usetypenul%if %errorLevel%==0 set isAdmin=1
 %no_taskkill%for /f "usebackq tokens=*" %%a in (`taskkill /F /FI "WINDOWTITLE eq Limited: %ThisTitle%" ^|FINDSTR /C:SUCCESS`) do set killresult=%%a
 %no_taskkill%if not "%killresult%"=="" goto :eof
 if %isAdmin%==1 goto :eof
@@ -832,11 +830,49 @@ ping 127.0.0.1>NUL
 ping 127.0.0.1>NUL
 goto :eof
 
+:testValidPATHS
+@set PATHEXT=.COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC;%PATHEXT%
+@if exist "%WINDIR%" set haswindir=::&set PATH=%WINDIR%\system32;%PATH%
+%haswindir%@if exist "%SYSTEMDRIVE%\Windows" set WINDIR="%SYSTEMDRIVE%\Windows"&set haswindir=::&set PATH=%WINDIR%\system32;%PATH%
+%haswindir%@if exist "%SYSTEMDRIVE%\WINNT" set WINDIR="%SYSTEMDRIVE%\WINNT"&set haswindir=::&set PATH=%WINDIR%\system32;%PATH%
+%haswindir%set use_windir=::
+@findstr /?>NUL 2>&1
+@if %errorlevel%==0 set hassys32=::
+%hassys32%@if exist "%comspec%" for /f "delims=" %%a in ("%comspec%") do set "PATH=%%~dpa;%PATH%"
+%hassys32%@if exist "%SYSTEMDRIVE%\Windows\system32" set "PATH=%SYSTEMDRIVE%\Windows\system32;%PATH%"
+%hassys32%@if exist "%SYSTEMDRIVE%\WINNT\system32" set "PATH=%SYSTEMDRIVE%\WINNT\system32;%PATH%"
+%hassys32%@findstr /?>NUL 2>&1
+%hassys32%@if not %errorlevel%==0 echo Could not find System32!&exit /b
+
+if exist "%TEMP%" set hastemp=::
+%hastemp%@if exist "%APPDATA%\TEMP" set TEMP=%APPDATA%\TEMP&set hastemp=::
+%hastemp%@if exist "%SYSTEMDRIVE%\Windows\Temp" set TEMP=%SYSTEMDRIVE%\Windows\Temp&set hastemp=::
+%hastemp%@if exist "%SYSTEMDRIVE%\WINNT\Temp" set TEMP=%SYSTEMDRIVE%\WINNT\Temp&set hastemp=::
+%hastemp%@if exist "%WINDIR%\Temp" set TEMP="%WINDIR%\Temp"&set hastemp=::
+%hastemp%@set TEMP=%thisdir%qNET_Temp&md %thisdir%qNET_Temp
+%hastemp%@if not exist "%thisdir%qNET_Temp" set TEMP=%thisdir:~0,-1%
+goto :eof
+
 :testCompatibility
 taskkill /?>NUL 2>&1
 if not %errorlevel%==0 set no_taskkill=::
 wmic /?>NUL 2>&1
 if not %errorlevel%==0 set no_wmic=::
+sc create /?>NUL
+if not %errorlevel%==0 set no_sc=::&cls
+reg /?>NUL 2>&1
+if not %errorlevel%==0 set no_reg=::
+goto :eof
+
+:disableQuickEdit
+set qkey=hkcu\Console
+set qval=QuickEdit
+if not "%qedit_dsbld%"=="" echo y|reg add "%qkey%" /v "%qval%" /t REG_DWORD /d %qedit_dsbld%&cls
+if not "%qedit_dsbld%"=="" goto :eof
+for /f "tokens=3*" %%i in ('reg query "%qkey%" /v "%qval%" ^| FINDSTR /I "%qval%"') DO set qedit_dsbld=%%i
+if "%qedit_dsbld%"=="0x0" goto :eof
+echo y|reg add "%qkey%" /v "%qval%" /t REG_DWORD /d 0&cls
+start "" "cmd" /k "%~dpnx0"&exit
 goto :eof
 
 :init
@@ -852,6 +888,8 @@ goto :eof
 @TITLE %ThisTitle%
 @call :testCompatibility
 @call :detectIsAdmin
+@if "%isAdmin%"=="0" set use_admin=::
+%no_reg%@call :disableQuickEdit
 @call :init_colors %theme%
 %debgn%COLOR %norm%
 @call :getruntime
@@ -871,7 +909,6 @@ goto :eof
 @set MN_timeout=100
 @set MX_timeout=5000
 @set statspacer=                                                               .
-if "%isAdmin%"=="0" set use_admin=::
 @for /f "tokens=1,* DELIMS==" %%s in ('set INT_') do call :init_settn %%s %%t
 @set orig_checkdelay=%INT_checkdelay%
 @set INT_checkdelay=1
