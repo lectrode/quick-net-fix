@@ -1,20 +1,14 @@
 ::Quick detect&fix
-@set version=4.1.323
+@set version=4.1.324
+::Documentation and updated versions can be found at
+::https://code.google.com/p/quick-net-fix/
 
-:: Documentation and updated versions can be found at
-:: https://code.google.com/p/quick-net-fix/
-
-::-Settings-
+::------------------------
+::-       SETTINGS       -
+::------------------------
+::-Manual-
 set manualRouter=			Examples: 192.168.0.1 or www.google.com or NONE (optional)
 set manualAdapter=			Examples: Wireless Network Connection or ALL (optional)
-
-set INT_StabilityHistory=25	Default: 25 (number of last tests to determine stability)
-set INT_flukechecks=7		Default: 7 (test x times to verify result)
-set INT_checkdelay=5		Default: 5 seconds
-set INT_fixdelay=10			Default: 10 seconds
-set INT_flukecheckdelay=1	Default: 1 seconds
-set INT_timeoutsecs=0		Default: 0 (auto) seconds
-set INT_checkrouterdelay=0	Default: 0 (auto) (wait x number of connects before verifying router and adapter)
 
 ::-Filters- (Separate filter keywords with space. Matches are filtered OUT)
 set filterRouters=
@@ -25,9 +19,9 @@ set pretty=1
 set theme=subtle			none,subtle,vibrant,fullsubtle,fullvibrant,crazy
 set viewmode=normal			mini,normal,details
 
-::-Advanced-
-::Setting fullAuto to 1 will omit all user input and best guess is made for each decision.
-::If 'requestDisableIPv6' is set to '1', changes that to '0' (auto-reject)
+::-User Interaction-
+::Setting fullAuto to 1 will omit all user input and best guess is made for each decision;
+::if 'requestDisableIPv6' is set to '1', changes that to '0' (auto-reject)
 set fullAuto=0
 
 ::Setting requestAdmin to 1 will request admin rights if it doesn't already have them.
@@ -38,22 +32,27 @@ set requestAdmin=1
 ::Setting options: 0:auto-reject, 1:ask, 2:auto-accept
 set requestDisableIPv6=1
 
+::-Advanced-
+set INT_StabilityHistory=25	Default: 25 [number of last tests to determine stability]
+set INT_flukechecks=0		Default: 0  (auto) [test x times to verify result]
+set INT_flukemaxtime=25		Default: 25 [test for maximum of x seconds to verify result (requires INT_flukechecks=0)]
+set INT_checkdelay=5		Default: 5  [wait x seconds between connectivity tests]
+set INT_fixdelay=10			Default: 10 [wait x seconds after resetting connection]
+set INT_flukecheckdelay=1	Default: 1  [wait x seconds between fluke checks]
+set INT_timeoutsecs=0		Default: 0  (auto) [wait x seconds for timeout]
+set INT_checkrouterdelay=0	Default: 0  (auto) [wait x number of connects before verifying router and adapter]
 
-
-:: -DO NOT EDIT BELOW THIS LINE!-
-setlocal enabledelayedexpansion
-setlocal enableextensions
-set thisdir=%~dp0
-call :testValidPATHS
+:: --------------------------------------
+:: -      DO NOT EDIT BELOW HERE!       -
+:: --------------------------------------
+setlocal enabledelayedexpansion&setlocal enableextensions
+set thisdir=%~dp0&call :testValidPATHS
 %startpretty%if "%pretty%"=="0" set startpretty=::&start /b "" "cmd" /k "%~dpnx0"&exit /b
-call :init
-call :checkRouterAdapter
+call :init&call :checkRouterAdapter
 
 :loop
 %debgn%call :SETMODECON
-call :check
-call :sleep %INT_checkdelay%
-goto :loop
+call :check&call :sleep %INT_checkdelay%&goto :loop
 
 
 :getNETINFO
@@ -100,8 +99,7 @@ goto :header_%viewmode%
 :header_mini
 set /a h_dbl=dbl-1
 set dsp_dbl=&if not %h_dbl% leq 0 set dsp_dbl=%h_dbl%/%INT_flukechecks%
-cls
-COLOR %curcolor%
+cls&COLOR %curcolor%
 echo  -----------------------------------
 echo  ^|%ThisTitle%^|
 echo  ^| http://electrodexs.net/scripts  ^|
@@ -114,8 +112,7 @@ echo. %curstatus%
 goto :eof
 
 :header_normal
-cls
-COLOR %curcolor%
+cls&COLOR %curcolor%
 echo  --------------------------------------------------
 echo  ^|     -%ThisTitle%-        ^|
 echo  ^|       http://electrodexs.net/scripts           ^|
@@ -155,8 +152,7 @@ set dsp_rfilt1=%H_filterRouters:~0,30%%statspacer%
 set dsp_rfilt2=%H_filterRouters:~30,60%%statspacer%
 set dsp_afilt1=%H_filterAdapters:~0,30%%statspacer%
 set dsp_afilt2=%H_filterAdapters:~30,60%%statspacer%
-cls
-COLOR %curcolor%
+cls&COLOR %curcolor%
 echo  ------------------------------------------------------------------------------
 echo  ^|                                                                            ^|
 echo  ^|                   -%ThisTitle%-                      ^|
@@ -251,6 +247,19 @@ if %timeoutmilsecs% lss %MN_timeout% set timeoutmilsecs=%MN_timeout%
 if %timeoutmilsecs% gtr %MX_timeout% set timeoutmilsecs=%MX_timeout%
 goto :eof
 
+:Update_avgdowntest
+if "%AUTO_flukechecks%"=="" goto :eof
+set num=0
+set avg_downtest=0
+set STR_downtest%result%=
+:Update_avgdowntest_loop
+if not "%1"=="" set /a avg_downtest+=%1&set STR_downtest%result%=!STR_downtest%result%! %1
+if not "%1"=="" set /a num+=1&shift&goto :Update_avgdowntest_loop
+set /a INT_flukechecks=(INT_flukemaxtime*1000)/((avg_downtest/num)+(INT_flukecheckdelay*1000))
+if %INT_flukechecks% lss %MN_flukechecks% set INT_flukechecks=%MN_flukechecks%
+if %INT_flukechecks% gtr %MX_flukechecks% set INT_flukechecks=%MX_flukechecks%
+goto :eof
+
 :precisiontimer
 set id=%1
 set var=%2
@@ -303,7 +312,7 @@ if /i "%manualAdapter%"=="all" set cur_ADAPTER=&set show_cur_ADAPTER=[Reset All 
 if %gNI_arrLen%==0 goto :eof
 if %gNI_arrLen%==1 set cur_ROUTER=%net_1_gw%&goto :eof
 for /l %%n in (1,1,%gNI_arrLen%) do if "%manualAdapter%"=="!net_%%n_cn!" set cur_ROUTER=!net_%%n_gw!
-if "%cur_ROUTER%"=="" call :Ask4Router
+if "%cur_ROUTER%"=="" call :Ask4NET router
 goto :eof
 
 :getAdapter
@@ -312,7 +321,7 @@ if /i "%manualRouter%"=="none" set cur_ROUTER=
 if %gNI_arrLen%==0 goto :eof
 if %gNI_arrLen%==1 set cur_ADAPTER=%net_1_cn%&goto :eof
 for /l %%n in (1,1,%gNI_arrLen%) do if "%manualRouter%"=="!net_%%n_gw!" set cur_ADAPTER=!net_%%n_cn!
-if "%cur_ADAPTER%"=="" call :Ask4Adapter
+if "%cur_ADAPTER%"=="" call :Ask4NET adapter
 set show_cur_ADAPTER=%cur_Adapter%
 if /i "%manualAdapter%"=="all" set cur_ADAPTER=&set show_cur_ADAPTER=[Reset All Connections on Error]
 goto :eof
@@ -330,6 +339,7 @@ if "%timeoutmilsecs_add%"=="1" set /a timeoutmilsecs+=1000&set timeoutmilsecs_ad
 call :precisiontimer PING start
 for /f "tokens=* delims=" %%p in ('ping -w %timeoutmilsecs% -n 1 %testrouter%') do set ping_test=!ping_test! %%p
 call :precisiontimer PING pingtime
+set /a pingtime*=10
 echo "%ping_test%" |FINDSTR /C:"Reply from " >NUL
 if %errorlevel% equ 0 set result=Connected&set resultUpDown=Up
 echo "%ping_test%" |FINDSTR /C:"request could not find" /C:"Unknown host" /C:"unreachable" /C:"General failure" >NUL
@@ -352,12 +362,12 @@ set /a down+=timepassed
 if "%result%"=="TimeOut" set /a down+=INT_timeoutsecs
 set curcolor=%warn%&set stbltySTR=%stbltySTR% 1
 if not %dbl%==0 call :setSecondaryRouter
+call :Update_avgdowntest !STR_downtest%result%! %pingtime%
 )
 
 set timepassed=0
 if %dbl% gtr 0 set showdbl=(fluke check %dbl%/%INT_flukechecks%)
 set /a dbl+=1
-set /a pingtime*=10
 call :update_avgtimeout %pingtime% %STR_timeout%
 call :set_uptime
 call :set_stability %stbltySTR%
@@ -369,8 +379,7 @@ if "%result%"=="Connected" set resetted=0
 if "%result%"=="NotConnected" call :check_adapterenabled
 if not "%result%"=="Connected" if not %dbl% gtr %INT_flukechecks% call :sleep %INT_flukecheckdelay%&goto :check
 if not "%result%"=="Connected" if %dbl% gtr %INT_flukechecks% call :resetConnection
-set dbl=0
-set showdbl=
+set dbl=0&set showdbl=&set STR_downtestNotConnected=&set STR_downtestTimeOut=
 goto :eof
 
 :check_adapterenabled
@@ -667,98 +676,48 @@ if not "%requestAdmin%"=="1" goto :eof
 goto :eof
 
 :Ask4NET
-if "%fullAuto%"=="1" set manualRouter=%secondaryRouter%&set cur_ROUTER=%secondaryRouter%
-if "%fullAuto%"=="1" set manualAdapter=all&set cur_ADAPTER=&set show_cur_ADAPTER=[Reset All Connections on Error]&goto :eof
+if not "%1"=="adapter" if "%fullAuto%"=="1" set manualRouter=%secondaryRouter%&set cur_ROUTER=%secondaryRouter%
+if "%1"=="router" if "%fullAuto%"=="1" goto :eof
+if not "%1"=="router" if "%fullAuto%"=="1" set manualAdapter=all&set cur_ADAPTER=&set show_cur_ADAPTER=[Reset All Connections on Error]&goto :eof
 call :precisiontimer cRA halt
+if "%1"=="adapter" call :EnumerateAdapters
 %debgn%set /a lines=%gNI_arrLen%+11
 %debgn%call :SETMODECON 70 %lines%
 echo.
 echo Which one would you like to monitor?
 echo.
 echo Choose by the selection number below.
-echo You may also enter x to cancel.
+if not "%1"=="router" echo You may also enter x to cancel.
+if "%1"=="router" echo You may also type in a router address to use, or x to cancel.
 echo.
-echo  #     Router Adress                  Associated Connection
-echo  ----- ------------------------------ -----------------------------
-for /l %%n in (1,1,%gNI_arrLen%) do set showroutr%%n=[%%n]%statspacer%
-for /l %%n in (1,1,%gNI_arrLen%) do set showroutr%%n=!showroutr%%n:~0,5! !net_%%n_gw!%statspacer%
-for /l %%n in (1,1,%gNI_arrLen%) do set showroutr%%n=!showroutr%%n:~0,36! !net_%%n_cn!%statspacer%
-for /l %%n in (1,1,%gNI_arrLen%) do echo -!showroutr%%n:~0,68!
-echo.
-set usrinput=
+if not "%1"=="adapter" echo  #     Router Adress                  Associated Connection
+if not "%1"=="adapter" echo  ----- ------------------------------ -----------------------------
+if not "%1"=="adapter" for /l %%n in (1,1,%gNI_arrLen%) do set showroutr%%n=[%%n]%statspacer%
+if not "%1"=="adapter" for /l %%n in (1,1,%gNI_arrLen%) do set showroutr%%n=!showroutr%%n:~0,5! !net_%%n_gw!%statspacer%
+if not "%1"=="adapter" for /l %%n in (1,1,%gNI_arrLen%) do set showroutr%%n=!showroutr%%n:~0,36! !net_%%n_cn!%statspacer%
+if not "%1"=="adapter" for /l %%n in (1,1,%gNI_arrLen%) do echo -!showroutr%%n:~0,68!
+if "%1"=="adapter" echo  #     Connection
+if "%1"=="adapter" echo  ----- -------------------------------------------
+if "%1"=="adapter" for /l %%n in (1,1,%adapters_arrLen%) do set showconn%%n=[%%n]%statspacer%
+if "%1"=="adapter" for /l %%n in (1,1,%adapters_arrLen%) do set showconn%%n=!showconn%%n:~0,5! !adapters_%%n_name!%statspacer%
+if "%1"=="adapter" for /l %%n in (1,1,%adapters_arrLen%) do echo -!showconn%%n:~0,50!
+echo.&set usrinput=&set usrinput2=
 set /p usrinput=[] 
 if "%usrinput%"=="" set usrinput=1
-for /l %%n in (1,1,%gNI_arrLen%) do if "%usrinput%"=="%%n" set cur_ROUTER=!net_%%n_gw!&set cur_ADAPTER=!net_%%n_cn!
-if "%usrinput%"=="x" set manualRouter=%secondaryRouter%&set cur_ROUTER=%secondaryRouter%
-if "%usrinput%"=="x" set manualAdapter=all&set cur_Adapter=&set show_cur_ADAPTER=[Reset All Connections on Error]&goto :eof
-if "%cur_ROUTER%"=="" goto :Ask4Router
-set manualRouter=%cur_ROUTER%
-set manualAdapter=%cur_ADAPTER%&set show_cur_ADAPTER=%cur_ADAPTER%
+if not "%1"=="adapter" for /l %%n in (1,1,%gNI_arrLen%) do if "%usrinput%"=="%%n" set cur_ROUTER=!net_%%n_gw!
+if not "%1"=="adapter" if "%manualAdapter%"=="" for /l %%n in (1,1,%gNI_arrLen%) do if "%usrinput%"=="%%n" set cur_ADAPTER=!net_%%n_cn!
+if "%1"=="adapter" for /l %%n in (1,1,%adapters_arrLen%) do if "%usrinput%"=="%%n" set cur_ADAPTER=!adapters_%%n_name!
+if "%usrinput%"=="x" if not "%1"=="adapter" set cur_ROUTER=%secondaryRouter%
+if "%usrinput%"=="x" if not "%1"=="router" set manualAdapter=all&set cur_Adapter=&set show_cur_ADAPTER=[Reset All Connections on Error]&goto :eof
+if "%1"=="router" if "%cur_ROUTER%"=="" cls&echo.&echo.&echo Use "%usrinput%" as router address?
+if "%1"=="router" if "%cur_ROUTER%"=="" set /p usrinput2=[y/n] 
+if "%1"=="router" if "%cur_ROUTER%"=="" if "%usrinput2%"=="" set cur_ROUTER=%usrinput%
+if "%1"=="router" if "%cur_ROUTER%"=="" if /i "%usrinput2%"=="y" set cur_ROUTER=%usrinput%
+if "%1"=="router" if "%cur_ROUTER%"=="" goto :Ask4NET
+if "%1"=="adapter" if "%cur_ADAPTER%"=="" goto :Ask4NET
+if not "%1"=="adapter" set manualRouter=%cur_ROUTER%
+if not "%1"=="router" set manualAdapter=%cur_ADAPTER%&set show_cur_ADAPTER=%cur_ADAPTER%
 cls&call :SETMODECON
-goto :eof
-
-
-
-:Ask4Router
-if "%fullAuto%"=="1" set manualRouter=%secondaryRouter%&set cur_ROUTER=%secondaryRouter%&goto :eof
-call :precisiontimer cRA halt
-%debgn%set /a lines=%gNI_arrLen%+11
-%debgn%call :SETMODECON 70 %lines%
-echo.
-echo Which Router would you like to monitor?
-echo.
-echo Choose a router by the selection number below.
-echo You may also type in a router address to use, or x to cancel.
-echo.
-echo  #     Router Adress                  Associated Connection
-echo  ----- ------------------------------ -----------------------------
-for /l %%n in (1,1,%gNI_arrLen%) do set showroutr%%n=[%%n]%statspacer%
-for /l %%n in (1,1,%gNI_arrLen%) do set showroutr%%n=!showroutr%%n:~0,5! !net_%%n_gw!%statspacer%
-for /l %%n in (1,1,%gNI_arrLen%) do set showroutr%%n=!showroutr%%n:~0,36! !net_%%n_cn!%statspacer%
-for /l %%n in (1,1,%gNI_arrLen%) do echo -!showroutr%%n:~0,68!
-echo.
-set usrinput=
-set usrinput2=
-set /p usrinput=[] 
-if "%usrinput%"=="" set usrinput=1
-for /l %%n in (1,1,%gNI_arrLen%) do if "%usrinput%"=="%%n" set cur_ROUTER=!net_%%n_gw!
-if "%usrinput%"=="x" set manualRouter=%secondaryRouter%&set cur_ROUTER=%secondaryRouter%&goto :eof
-if "%cur_ROUTER%"=="" cls&echo.&echo.&echo Use "%usrinput%" as router address?
-if "%cur_ROUTER%"=="" set /p usrinput2=[y/n] 
-if "%usrinput2%"=="" set cur_ROUTER=%usrinput%
-if /i "%usrinput2%"=="y" set cur_ROUTER=%usrinput%
-if "%cur_ROUTER%"=="" goto :Ask4Router
-set manualrouter=%cur_ROUTER%
-cls&call :SETMODECON
-goto :eof
-
-:Ask4Adapter
-if "%fullAuto%"=="1" set manualAdapter=All&set show_cur_ADAPTER=[Reset All Connections on Error]&goto :eof
-call :precisiontimer cRA halt
-call :EnumerateAdapters
-set /a lines=%adapters_arrLen%+10
-%debgn%call :SETMODECON 52 %lines%
-echo.
-set cur_ADAPTER=
-echo Which connection would you like to monitor?
-echo.
-echo Choose a connection by the selection number below.
-echo You may also type x to cancel.
-echo.
-echo  #     Connection
-echo  ----- -------------------------------------------
-for /l %%n in (1,1,%adapters_arrLen%) do set showconn%%n=[%%n]%statspacer%
-for /l %%n in (1,1,%adapters_arrLen%) do set showconn%%n=!showconn%%n:~0,5! !adapters_%%n_name!%statspacer%
-for /l %%n in (1,1,%adapters_arrLen%) do echo -!showconn%%n:~0,50!
-echo.
-set usrinput=
-set /p usrinput=[] 
-if "%usrinput%"=="" set usrinput=1
-if "%usrinput%"=="x" set manualAdapter=All&set show_cur_ADAPTER=[Reset All Connections on Error]&goto :eof
-for /l %%n in (1,1,%adapters_arrLen%) do if "%usrinput%"=="%%n" set cur_ADAPTER=!adapters_%%n_name!
-if "%cur_ADAPTER%"=="" goto :ask4connection
-set manualadapter=%cur_ADAPTER%&set show_cur_ADAPTER=%cur_ADAPTER%
-echo.
 goto :eof
 
 :countTunnelAdapters
@@ -777,12 +736,10 @@ for /f "tokens=3*" %%i in ('reg query "%rkey%" /v "%rval%" ^| FINDSTR /I "%rval%
 :alert_2manyconnections_ask
 cls&set usrInput=&echo.
 echo    -- Warning: Excessive number of Network Connections --
-echo.
-echo  Network Connections: %totalAdapters%
+echo.&echo  Network Connections: %totalAdapters%
 echo  Tunnel Adapters: %totalTunnelAdapters%
 echo  Est. configure time: %est_min% min, %est_sec% sec
-echo.
-echo  Excessive network connections can cause performance and 
+echo.&echo  Excessive network connections can cause performance and 
 echo  stability issues, including long delays in connecting to 
 echo  a network and/or the internet.
 echo.&echo.
@@ -823,10 +780,8 @@ echo.&if %disableipv6_err% geq 1 echo.&echo %disableipv6_err% commands did not c
 if %disableipv6_err% leq 0 echo.&echo Commands completed successfully.
 call :countAdapters
 set /a removedadapters=oldnumtotal-totaladapters
-echo Removed %removedadapters% adapters
-echo.
-echo You may have to reboot your computer for some changes to 
-echo take effect.
+echo Removed %removedadapters% adapters&echo.
+echo You may have to reboot your computer for some changes to&echo take effect.
 ping 127.0.0.1>NUL&ping 127.0.0.1>NUL&goto :eof
 
 :testValidPATHS
@@ -878,72 +833,54 @@ echo REGEDIT4>"%TEMP%\qNET_quickedit2.reg"&echo [%qkey%]>>"%TEMP%\qNET_quickedit
 regedit /S "%TEMP%\qNET_quickedit2.reg"&DEL /F /Q "%TEMP%\qNET_quickedit2.reg"&start "" "cmd" /k "%~dpnx0"&exit
 
 :init
+@PROMPT=^>
 @if not "%pretty%"=="1" set debgn=::
 @call :init_settnSTR viewmode %viewmode%
-@call :SETMODECON
-%debgn%@echo off
-%debgn%cls
-@PROMPT=^>
-@echo.
-@echo .|set /p dummy=initializing...
+@echo " %viewmode% "|FINDSTR /C:" mini " /C:" normal " /C:" details ">NUL
+@if %errorlevel% geq 1 set viewmode=normal
+%debgn%@echo off&cls&call :SETMODECON
+@echo.&echo .|set /p dummy=initializing...
 @set ThisTitle=Lectrode's Quick Net Fix v%version%
 @TITLE %ThisTitle%
 @call :testCompatibility
 @call :detectIsAdmin
 @if "%isAdmin%"=="0" set use_admin=::
 %debgn%@call :disableQuickEdit
-@call :init_colors %theme%
-%debgn%COLOR %norm%
+%debgn%@call :init_colors %theme%&COLOR %norm%
 @call :getruntime
-@set numfixes=0
-@set up=0
-@set down=0
-@set timepassed=0
-@set dbl=0
-@set numAdapters=0
-@set checkconnects=0
-@set stbltySTR=
-@set ca_percent=5
-@set MN_crd=5
-@set MX_crd=120
-@set MX_avgca=5
-@set MX_avgtimeout=5
-@set MN_timeout=100
-@set MX_timeout=5000
+@set numfixes=0&set up=0&set down=0
+@set timepassed=0&set dbl=0&set numAdapters=0&@set checkconnects=0
+@set ca_percent=5&set MN_crd=5&set MX_crd=120&set MX_avgca=5
+@set MX_avgtimeout=5&set MN_timeout=100&set MX_timeout=5000
+@set MN_flukechecks=3&set MX_flukechecks=7
 @set statspacer=                                                               .
 @for /f "tokens=1,* DELIMS==" %%s in ('set INT_') do call :init_settn %%s %%t
-@set orig_checkdelay=%INT_checkdelay%
-@set INT_checkdelay=1
+@set INT_flukemaxtime*=1000
+@set orig_checkdelay=%INT_checkdelay%&set INT_checkdelay=1
 @if %INT_checkrouterdelay%==0 set AUTO_checkrouterdelay=1
 @if %INT_timeoutsecs%==0 set AUTO_timeoutsecs=1&call :update_avgtimeout 3000
 @if "%AUTO_timeoutsecs%"=="" set /a timeoutmilsecs=1000*INT_timeoutsecs
+if %INT_flukechecks%==0 set AUTO_flukechecks=1&set INT_flukechecks=7
 @set secondaryRouternum=0&call :setSecondaryRouter
 @call :init_manualRouter %manualRouter%
 @for /f "tokens=1 DELIMS=:" %%a in ("%manualAdapter%") do call :init_manualAdapter %%a
-@call :init_bar
-@call :countAdapters
-@call :countTunnelAdapters
+@call :init_bar&call :countAdapters&call :countTunnelAdapters
 @if %totalAdapters% geq 20 call :alert_2manyconnections
-@call :SETMODECON
-@call :update_avgca %ca_percent%
-@echo .|set /p dummy=..
-goto :eof
+@call :SETMODECON&call :update_avgca %ca_percent%&goto :eof
 
 :init_settn
-set /a %1=%2
-goto :eof
+set /a %1=%2&goto :eof
 
 :init_settnSTR
-set %1=%2
-goto :eof
+set %1=%2&goto :eof
 
 :init_manualRouter
+if "%1"=="Examples:" set manualRouter=&goto :eof
 set manualRouter=%1
 set manualRouter=%manualRouter:http:=%
 set manualRouter=%manualRouter:https:=%
 set manualRouter=%manualRouter:/=%
-if "%manualRouter%"=="Examples:" set manualRouter=
-if not "%manualRouter%"=="" set cur_ROUTER=%manualRouter%
+set cur_ROUTER=%manualRouter%
 if /I "%manualRouter%"=="none" set cur_ROUTER=%secondaryRouter%
 goto :eof
 
@@ -952,14 +889,13 @@ set manualAdapter=%*
 set manualAdapter=%manualAdapter:Examples=%
 if "%manualAdapter%"=="" goto :eof
 set manualAdapter=%manualAdapter:	=%
-if not "%manualAdapter%"=="" set cur_ADAPTER=%manualAdapter%
-if /I "%manualAdapter%"=="all" set cur_ADAPTER=
+set cur_ADAPTER=%manualAdapter%&set show_cur_ADAPTER=%manualAdapter%
+if /I "%manualAdapter%"=="all" set cur_ADAPTER=&set show_cur_ADAPTER=[Reset All Connections on Error]
 goto :eof
 
 :init_bar
 set /a colnum=cols-2
-set -=
-set aft-=
+set -=&set aft-=
 if %colnum% leq %INT_StabilityHistory% goto :eof
 set /a numhyp=(colnum/INT_StabilityHistory)
 set /a hypleft=(colnum-(numhyp*INT_StabilityHistory))
