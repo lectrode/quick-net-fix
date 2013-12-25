@@ -1,5 +1,5 @@
 ::Quick detect&fix
-@set version=4.1.324
+@set version=4.1.325
 ::Documentation and updated versions can be found at
 ::https://code.google.com/p/quick-net-fix/
 
@@ -45,8 +45,9 @@ set INT_checkrouterdelay=0	Default: 0  (auto) [wait x number of connects before 
 :: --------------------------------------
 :: -      DO NOT EDIT BELOW HERE!       -
 :: --------------------------------------
-setlocal enabledelayedexpansion&setlocal enableextensions
-set thisdir=%~dp0&call :testValidPATHS
+@PROMPT=^>&setlocal enabledelayedexpansion&setlocal enableextensions
+set thisdir=%~dp0
+call :testValidPATHS
 %startpretty%if "%pretty%"=="0" set startpretty=::&start /b "" "cmd" /k "%~dpnx0"&exit /b
 call :init&call :checkRouterAdapter
 
@@ -660,9 +661,9 @@ if %errorLevel%==0 set isAdmin=1&set useregadd=::&set usetypenul=::
 %no_reg%%useregadd%set usetypenul=::
 %no_reg%%useregadd%REG ADD HKLM /F>nul 2>&1
 %no_reg%%useregadd%if %errorLevel%==0 set isAdmin=1&set usetypenul=::
-%no_windir%%usetypenul%type nul>"%WINDIR%\testisadmin.txt"
-%no_windir%%usetypenul%del /f /q "%WINDIR%\testisadmin.txt">NUL 2>&1
-%no_windir%%usetypenul%if %errorLevel%==0 set isAdmin=1
+%no_SYSTEMROOT%%usetypenul%type nul>"%WINDIR%\testisadmin.txt"
+%no_SYSTEMROOT%%usetypenul%del /f /q "%WINDIR%\testisadmin.txt">NUL 2>&1
+%no_SYSTEMROOT%%usetypenul%if %errorLevel%==0 set isAdmin=1
 %no_taskkill%for /f "usebackq tokens=*" %%a in (`taskkill /F /FI "WINDOWTITLE eq Limited: %ThisTitle%" ^|FINDSTR /C:SUCCESS`) do set killresult=%%a
 %no_taskkill%if not "%killresult%"=="" goto :eof
 if %isAdmin%==1 goto :eof
@@ -785,27 +786,36 @@ echo You may have to reboot your computer for some changes to&echo take effect.
 ping 127.0.0.1>NUL&ping 127.0.0.1>NUL&goto :eof
 
 :testValidPATHS
-@set PATHEXT=.COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC;%PATHEXT%
-@if exist "%WINDIR%" set haswindir=::&set PATH=%WINDIR%\system32;%PATH%
-%haswindir%@if exist "%SYSTEMDRIVE%\Windows" set WINDIR="%SYSTEMDRIVE%\Windows"&set haswindir=::&set PATH=%WINDIR%\system32;%PATH%
-%haswindir%@if exist "%SYSTEMDRIVE%\WINNT" set WINDIR="%SYSTEMDRIVE%\WINNT"&set haswindir=::&set PATH=%WINDIR%\system32;%PATH%
-%haswindir%set use_windir=::
-@findstr /?>NUL 2>&1
-@if %errorlevel%==0 set hassys32=::
-%hassys32%@if exist "%comspec%" for /f "delims=" %%a in ("%comspec%") do set "PATH=%%~dpa;%PATH%"
-%hassys32%@if exist "%SYSTEMDRIVE%\Windows\system32" set "PATH=%SYSTEMDRIVE%\Windows\system32;%PATH%"
-%hassys32%@if exist "%SYSTEMDRIVE%\WINNT\system32" set "PATH=%SYSTEMDRIVE%\WINNT\system32;%PATH%"
-%hassys32%@findstr /?>NUL 2>&1
-%hassys32%@if not %errorlevel%==0 echo Could not find System32!&exit /b
-
-if exist "%TEMP%" set hastemp=::
-%hastemp%@if exist "%APPDATA%\TEMP" set TEMP=%APPDATA%\TEMP&set hastemp=::
-%hastemp%@if exist "%SYSTEMDRIVE%\Windows\Temp" set TEMP=%SYSTEMDRIVE%\Windows\Temp&set hastemp=::
-%hastemp%@if exist "%SYSTEMDRIVE%\WINNT\Temp" set TEMP=%SYSTEMDRIVE%\WINNT\Temp&set hastemp=::
-%hastemp%@if exist "%WINDIR%\Temp" set TEMP="%WINDIR%\Temp"&set hastemp=::
-%hastemp%@set TEMP=%thisdir%qNET_Temp&md %thisdir%qNET_Temp
-%hastemp%@if not exist "%thisdir%qNET_Temp" set TEMP=%thisdir:~0,-1%
+set PATHEXT=.COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC;%PATHEXT%
+call :testValidPATHS_verifySYSTEMROOT %SYSTEMROOT%
+%hassys32%call :testValidPATHS_verifySYSTEMROOT %SYSTEMDRIVE%\Windows
+%hassys32%call :testValidPATHS_verifySYSTEMROOT %SYSTEMDRIVE%\WINNT
+%hassys32%call :testValidPATHS_verifySYSTEMROOT %WINDIR%
+%hassys32%set set use_systemroot=::
+call :testValidPATHS_verifyTEMP %TEMP%
+%hastemp%call :testValidPATHS_verifyTEMP %LOCALAPPDATA%\TEMP
+%hastemp%call :testValidPATHS_verifyTEMP %USERPROFILE%\Local Settings\TEMP
+%hastemp%call :testValidPATHS_verifyTEMP %APPDATA%
+%hastemp%call :testValidPATHS_verifyTEMP %SYSTEMDRIVE%\Windows\Temp
+%hastemp%call :testValidPATHS_verifyTEMP %SYSTEMDRIVE%\WINNT\Temp
+%hastemp%call :testValidPATHS_verifyTEMP %WINDIR%\Temp
+%hastemp%set TEMP=%thisdir%qNET_Temp&md %thisdir%qNET_Temp
+%hastemp%call :testValidPATHS_verifyTEMP %thisdir%qNET_Temp
+%hastemp%set TEMP=%thisdir:~0,-1%
 goto :eof
+:testValidPATHS_verifySYSTEMROOT
+if "%*"=="" goto :eof
+if exist "%*" set PATH=%*\system32;%*;%PATH%
+findstr /?>NUL 2>&1
+if not %errorlevel%==0 goto :eof
+set SYSTEMROOT=%*&set WINDIR=%*
+set hassys32=::&goto :eof
+:testValidPATHS_verifyTEMP
+if "%*"=="" goto :eof
+type nul>"%*\testqNETWA.txt"&DEL /F /Q "%*\testqNETWA.txt">NUL 2>&1
+if not %errorlevel%==0 goto :eof
+set TEMP=%*
+set hastemp=::&goto :eof
 
 :testCompatibility
 taskkill /?>NUL 2>&1
@@ -826,14 +836,16 @@ set qval=QuickEdit
 %no_reg%for /f "tokens=3*" %%i in ('reg query "%qkey%" /v "%qval%" ^| FINDSTR /I "%qval%"') DO set qedit_dsbld=%%i
 %no_reg%if "%qedit_dsbld%"=="0x0" goto :eof
 %no_reg%echo y|reg add "%qkey%" /v "%qval%" /t REG_DWORD /d 0&cls&start "" "cmd" /k "%~dpnx0"&exit
-if exist "%TEMP%\qNET_quickedit.reg" regedit /S "%TEMP%\qNET_quickedit.reg"&DEL /F /Q "%TEMP%\qNET_quickedit.reg"&goto :eof
-regedit /S /e "%TEMP%\qNET_quickedit.reg" "%qkey%"
-echo REGEDIT4>"%TEMP%\qNET_quickedit2.reg"&echo [%qkey%]>>"%TEMP%\qNET_quickedit2.reg"
-(echo "%qval%"=dword:00000000)>>"%TEMP%\qNET_quickedit2.reg"
-regedit /S "%TEMP%\qNET_quickedit2.reg"&DEL /F /Q "%TEMP%\qNET_quickedit2.reg"&start "" "cmd" /k "%~dpnx0"&exit
+%no_regedit%echo REGEDIT4>"%TEMP%\qNET_quickedit3.reg"&regedit /S "%TEMP%\qNET_quickedit3.reg"
+%no_regedit%DEL /F /Q "%TEMP%\qNET_quickedit3.reg"&cls&if %errorlevel% geq 1 set no_regedit=::
+%no_regedit%if exist "%TEMP%\qNET_quickedit.reg" regedit /S "%TEMP%\qNET_quickedit.reg"&DEL /F /Q "%TEMP%\qNET_quickedit.reg"&goto :eof
+%no_regedit%regedit /S /e "%TEMP%\qNET_quickedit.reg" "%qkey%"
+%no_regedit%echo REGEDIT4>"%TEMP%\qNET_quickedit2.reg"&echo [%qkey%]>>"%TEMP%\qNET_quickedit2.reg"
+%no_regedit%(echo "%qval%"=dword:00000000)>>"%TEMP%\qNET_quickedit2.reg"
+%no_regedit%regedit /S "%TEMP%\qNET_quickedit2.reg"&DEL /F /Q "%TEMP%\qNET_quickedit2.reg"&start "" "cmd" /k "%~dpnx0"&exit
+goto :eof
 
 :init
-@PROMPT=^>
 @if not "%pretty%"=="1" set debgn=::
 @call :init_settnSTR viewmode %viewmode%
 @echo " %viewmode% "|FINDSTR /C:" mini " /C:" normal " /C:" details ">NUL
