@@ -1,5 +1,5 @@
 ::Quick detect&fix
-@set version=4.1.326
+@set version=4.1.327
 ::Documentation and updated versions can be found at
 ::https://code.google.com/p/quick-net-fix/
 
@@ -45,8 +45,8 @@
 :: --------------------------------------
 :: -      DO NOT EDIT BELOW HERE!       -
 :: --------------------------------------
-@PROMPT=^>&cls&setlocal enabledelayedexpansion&setlocal enableextensions
-%noclose%@set noclose=::&start /b "" "cmd" /k "%~dpnx0"&exit /b
+@PROMPT=^>&setlocal enabledelayedexpansion&setlocal enableextensions
+%noclose%@set noclose=::&start "" "cmd" /k "%~dpnx0"&exit
 @call :init
 call :checkRouterAdapter
 
@@ -283,8 +283,8 @@ goto :eof
 set checkconnects=0
 if not "%manualRouter%"=="" if not "%manualAdapter%"=="" goto :eof
 call :precisiontimer cRA start
-call :countAdapters
-set curstatus=Verify Router/Adapter [%est_secs%s]&call :header
+call :countAdapters&set curstatus=Verify Router/Adapter [%est_secs%s]
+%debgn%call :header
 call :getNETINFO
 set cur_ROUTER=&set cur_ADAPTER=&set show_cur_ADAPTER=
 if not "%manualAdapter%"=="" call :getRouter
@@ -450,49 +450,36 @@ goto :eof
 :getruntime
 %toolong%
 if "%GRT_TIME_start_year%"=="" goto :getruntime_init
-
 set GRT_TIME_curr_year=%DATE:~10,4%
 set GRT_TIME_curr_month=%DATE:~4,2%
 set GRT_TIME_curr_day=%DATE:~7,2%
 set GRT_TIME_curr_hour=%TIME:~0,2%
 set GRT_TIME_curr_min=%TIME:~3,2%
 set GRT_TIME_curr_sec=%TIME:~6,2%
-::set GRT_TIME_curr_mili=%TIME:~9,2%
-
 for /f "tokens=1 delims==" %%a in ('set GRT_TIME_curr_') do if "!%%a:~0,1!"=="0" set /a %%a=!%%a:~1,1!+0
-
 set GRT_MO_3=28&set /a GRT_leapyear=GRT_TIME_curr_year*10/4
 if %GRT_leapyear:~-1% equ 0 set GRT_MO_3=29
-
 set /a GRT_lastmonth=GRT_TIME_curr_month-1
-
 if %GRT_TIME_curr_month% lss %GRT_TIME_start_month% set /a GRT_TIME_curr_month+=12&set GRT_TIME_curr_year-=1
 if %GRT_TIME_curr_day% lss %GRT_TIME_start_day% set /a GRT_TIME_curr_day+=GRT_MO_%GRT_lastmonth%&set GRT_TIME_curr_month-=1
 if %GRT_TIME_curr_hour% lss %GRT_TIME_start_hour% set /a GRT_TIME_curr_hour+=24&set /a GRT_TIME_curr_day-=1
 if %GRT_TIME_curr_min% lss %GRT_TIME_start_min% set /a GRT_TIME_curr_min+=60&set /a GRT_TIME_curr_hour-=1
 if %GRT_TIME_curr_sec% lss %GRT_TIME_start_sec% set /a GRT_TIME_curr_sec+=60&set /a GRT_TIME_curr_min-=1
-::if %GRT_TIME_curr_mili% lss %GRT_TIME_start_mili% set /a GRT_TIME_curr_mili+=100&set GRT_TIME_curr_sec-=1
-
 set /a GRT_TIME_curr_year=GRT_TIME_curr_year-GRT_TIME_start_year
 set /a GRT_TIME_curr_month=GRT_TIME_curr_month-GRT_TIME_start_month
 set /a GRT_TIME_curr_day=GRT_TIME_curr_day-GRT_TIME_start_day
 set /a GRT_TIME_curr_hour=GRT_TIME_curr_hour-GRT_TIME_start_hour
 set /a GRT_TIME_curr_min=GRT_TIME_curr_min-GRT_TIME_start_min
 set /a GRT_TIME_curr_sec=GRT_TIME_curr_sec-GRT_TIME_start_sec
-::set /a GRT_TIME_curr_mili=GRT_TIME_curr_mili-GRT_TIME_start_mili
-
 for /f "tokens=1 delims==" %%a in ('set GRT_TIME_curr_') do if !%%a! leq 0 set /a %%a=0
-
 if %GRT_TIME_curr_min% leq 9 set GRT_TIME_curr_min=0%GRT_TIME_curr_min%
 if %GRT_TIME_curr_sec% leq 9 set GRT_TIME_curr_sec=0%GRT_TIME_curr_sec%
-
 if %GRT_TIME_curr_year% geq 10000 set GRT_TimeRan=Over 10,000 years&set toolong=goto :eof&goto :eof
 set GRT_TimeRan=%GRT_TIME_curr_hour%:%GRT_TIME_curr_min%:%GRT_TIME_curr_sec%
 if %GRT_TIME_curr_year% neq 0 set GRT_TimeRan=%GRT_TIME_curr_year%y %GRT_TIME_curr_month%m %GRT_TIME_curr_day%d %GRT_TimeRan%&goto :eof
 if %GRT_TIME_curr_month% neq 0 set GRT_TimeRan=m:%GRT_TIME_curr_month%m %GRT_TIME_curr_day%d %GRT_TimeRan%&goto :eof
 if %GRT_TIME_curr_day% neq 0 set GRT_TimeRan=%GRT_TIME_curr_day%d %GRT_TimeRan%
 goto :eof
-
 :getruntime_init
 set GRT_TIME_start_year=%DATE:~10,4%
 set GRT_TIME_start_month=%DATE:~4,2%
@@ -501,9 +488,7 @@ set GRT_TIME_start_hour=%TIME:~0,2%
 set GRT_TIME_start_min=%TIME:~3,2%
 set GRT_TIME_start_sec=%TIME:~6,2%
 set GRT_TIME_start_mili=%TIME:~9,2%
-
 for /f "tokens=1 delims==" %%a in ('set GRT_TIME_start_') do if "!%%a:~0,1!"=="0" set /a %%a=!%%a:~1,1!+0
-
 set GRT_MO_1=31
 REM February set seperately
 set GRT_MO_3=31
@@ -748,7 +733,7 @@ cls&echo.&echo.
 echo  This option can be disabled by editing this script's 
 echo  settings. Settings can be accessed by opening this
 echo  script with notepad.
-echo.&pause&goto :eof
+echo.&echo Press any key to continue...&pause&goto :eof
 
 :disable_IPv6
 set oldnumtotal=%totalAdapters%&cls&echo.
@@ -812,13 +797,13 @@ goto :eof
 :disableQuickEdit
 set qkey=HKEY_CURRENT_USER\Console
 set qval=QuickEdit
-%no_reg%if not "%qedit_dsbld%"=="" echo y|reg add "%qkey%" /v "%qval%" /t REG_DWORD /d %qedit_dsbld%&cls
+%no_reg%if not "%qedit_dsbld%"=="" (echo y|reg add "%qkey%" /v "%qval%" /t REG_DWORD /d %qedit_dsbld%&cls&echo.&echo Initializing.....)
 %no_reg%if not "%qedit_dsbld%"=="" goto :eof
 %no_reg%for /f "tokens=3*" %%i in ('reg query "%qkey%" /v "%qval%" ^| FINDSTR /I "%qval%"') DO set qedit_dsbld=%%i
 %no_reg%if "%qedit_dsbld%"=="0x0" goto :eof
 %no_reg%echo y|reg add "%qkey%" /v "%qval%" /t REG_DWORD /d 0&cls&start "" "cmd" /k "%~dpnx0"&exit
-%no_regedit%echo REGEDIT4>"%TEMP%\qNET_quickedit3.reg"&regedit /S "%TEMP%\qNET_quickedit3.reg" || set no_regedit=::
-%no_regedit%DEL /F /Q "%TEMP%\qNET_quickedit3.reg"&cls
+%no_regedit%echo REGEDIT4>"%TEMP%\qNET_quickedit3.reg"&(regedit /S "%TEMP%\qNET_quickedit3.reg" || set no_regedit=::)
+%no_regedit%DEL /F /Q "%TEMP%\qNET_quickedit3.reg"&cls&echo.&echo Initializing.....
 %no_regedit%if exist "%TEMP%\qNET_quickedit.reg" regedit /S "%TEMP%\qNET_quickedit.reg"&DEL /F /Q "%TEMP%\qNET_quickedit.reg"&goto :eof
 %no_regedit%regedit /S /e "%TEMP%\qNET_quickedit.reg" "%qkey%"
 %no_regedit%echo REGEDIT4>"%TEMP%\qNET_quickedit2.reg"&echo [%qkey%]>>"%TEMP%\qNET_quickedit2.reg"
