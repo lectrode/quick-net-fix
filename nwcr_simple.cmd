@@ -1,5 +1,5 @@
 ::Quick detect&fix
-@set version=4.1.325
+@set version=4.1.326
 ::Documentation and updated versions can be found at
 ::https://code.google.com/p/quick-net-fix/
 
@@ -7,49 +7,48 @@
 ::-       SETTINGS       -
 ::------------------------
 ::-Manual-
-set manualRouter=			Examples: 192.168.0.1 or www.google.com or NONE (optional)
-set manualAdapter=			Examples: Wireless Network Connection or ALL (optional)
+@set manualRouter=			Examples: 192.168.0.1 or www.google.com or NONE (optional)
+@set manualAdapter=			Examples: Wireless Network Connection or ALL (optional)
 
 ::-Filters- (Separate filter keywords with space. Matches are filtered OUT)
-set filterRouters=
-set filterAdapters=Tunnel VirtualBox VMnet VMware Loopback Pseudo Bluetooth Internal
+@set filterRouters=
+@set filterAdapters=Tunnel VirtualBox VMnet VMware Loopback Pseudo Bluetooth Internal
 
 ::-GUI-
-set pretty=1
-set theme=subtle			none,subtle,vibrant,fullsubtle,fullvibrant,crazy
-set viewmode=normal			mini,normal,details
+@set pretty=1
+@set theme=subtle			none,subtle,vibrant,fullsubtle,fullvibrant,crazy
+@set viewmode=normal			mini,normal,details
 
 ::-User Interaction-
 ::Setting fullAuto to 1 will omit all user input and best guess is made for each decision;
 ::if 'requestDisableIPv6' is set to '1', changes that to '0' (auto-reject)
-set fullAuto=0
+@set fullAuto=0
 
 ::Setting requestAdmin to 1 will request admin rights if it doesn't already have them.
 ::Admin rights are needed to enable/disable the Network Connection
-set requestAdmin=1
+@set requestAdmin=1
 
 ::This script can disable IPv6 if the computer has an excessive number of Tunnel adapters.
 ::Setting options: 0:auto-reject, 1:ask, 2:auto-accept
-set requestDisableIPv6=1
+@set requestDisableIPv6=1
 
 ::-Advanced-
-set INT_StabilityHistory=25	Default: 25 [number of last tests to determine stability]
-set INT_flukechecks=0		Default: 0  (auto) [test x times to verify result]
-set INT_flukemaxtime=25		Default: 25 [test for maximum of x seconds to verify result (requires INT_flukechecks=0)]
-set INT_checkdelay=5		Default: 5  [wait x seconds between connectivity tests]
-set INT_fixdelay=10			Default: 10 [wait x seconds after resetting connection]
-set INT_flukecheckdelay=1	Default: 1  [wait x seconds between fluke checks]
-set INT_timeoutsecs=0		Default: 0  (auto) [wait x seconds for timeout]
-set INT_checkrouterdelay=0	Default: 0  (auto) [wait x number of connects before verifying router and adapter]
+@set INT_StabilityHistory=25	Default: 25 [number of last tests to determine stability]
+@set INT_flukechecks=0		Default: 0  (auto) [test x times to verify result]
+@set INT_flukemaxtime=25		Default: 25 [test for maximum of x seconds to verify result (requires INT_flukechecks=0)]
+@set INT_checkdelay=5		Default: 5  [wait x seconds between connectivity tests]
+@set INT_fixdelay=10			Default: 10 [wait x seconds after resetting connection]
+@set INT_flukecheckdelay=1	Default: 1  [wait x seconds between fluke checks]
+@set INT_timeoutsecs=0		Default: 0  (auto) [wait x seconds for timeout]
+@set INT_checkrouterdelay=0	Default: 0  (auto) [wait x number of connects before verifying router and adapter]
 
 :: --------------------------------------
 :: -      DO NOT EDIT BELOW HERE!       -
 :: --------------------------------------
-@PROMPT=^>&setlocal enabledelayedexpansion&setlocal enableextensions
-set thisdir=%~dp0
-call :testValidPATHS
-%startpretty%if "%pretty%"=="0" set startpretty=::&start /b "" "cmd" /k "%~dpnx0"&exit /b
-call :init&call :checkRouterAdapter
+@PROMPT=^>&cls&setlocal enabledelayedexpansion&setlocal enableextensions
+%noclose%@set noclose=::&start /b "" "cmd" /k "%~dpnx0"&exit /b
+@call :init
+call :checkRouterAdapter
 
 :loop
 %debgn%call :SETMODECON
@@ -262,8 +261,7 @@ if %INT_flukechecks% gtr %MX_flukechecks% set INT_flukechecks=%MX_flukechecks%
 goto :eof
 
 :precisiontimer
-set id=%1
-set var=%2
+set id=%1&set var=%2
 if /i "%var%"=="start" set startmils%id%=%time:~9,2%&set startsecs%id%=%time:~6,2%&set startmins%id%=%time:~3,2%&goto :eof
 if /i "%var%"=="halt" set startsecs%id%=invalid&goto :eof
 if "!startsecs%id%!"=="invalid" set %var%=0&goto :eof
@@ -341,8 +339,7 @@ call :precisiontimer PING start
 for /f "tokens=* delims=" %%p in ('ping -w %timeoutmilsecs% -n 1 %testrouter%') do set ping_test=!ping_test! %%p
 call :precisiontimer PING pingtime
 set /a pingtime*=10
-echo "%ping_test%" |FINDSTR /C:"Reply from " >NUL
-if %errorlevel% equ 0 set result=Connected&set resultUpDown=Up
+echo "%ping_test%" |FINDSTR /C:"Reply from " >NUL && (set result=Connected&set resultUpDown=Up)
 echo "%ping_test%" |FINDSTR /C:"request could not find" /C:"Unknown host" /C:"unreachable" /C:"General failure" >NUL
 if %errorlevel% equ 0 set result=NotConnected&set resultUpDown=Down
 if "%result%"=="" set result=TimeOut&set resultUpDown=Down&set /a timeoutmilsecs_add=1
@@ -386,8 +383,7 @@ goto :eof
 :check_adapterenabled
 if "%isAdmin%"=="0" goto :eof
 if "%cur_ADAPTER%"=="" goto :eof
-ipconfig |FINDSTR /C:"adapter %cur_ADAPTER%:">NUL
-if %errorlevel% equ 0 goto :eof
+ipconfig |FINDSTR /C:"adapter %cur_ADAPTER%:">NUL && goto :eof
 @set curstatus=Enabling adapter...&set curcolor=%pend%
 %debgn%call :header
 set resetted=1
@@ -536,19 +532,16 @@ if "%*"=="NetConnectionID" goto :eof
 if "%1 %2"=="Admin State" goto :eof
 set line=%*
 if "%line:~0,4%"=="----" goto :eof
-if not "%filterAdapters%"=="" echo %line%|FINDSTR /I /L "%filterAdapters%">NUL
-if not "%filterAdapters%"=="" if %errorlevel% equ 0 goto :eof
+if not "%filterAdapters%"=="" echo %line%|FINDSTR /I /L "%filterAdapters%">NUL && goto :eof
 set /a adapters_arrLen+=1
 %no_wmic%set adapters_%adapters_arrLen%_name=%line%&goto :eof
 for /f "tokens=2* delims= " %%c in ("%line%") do set adapters_%adapters_arrLen%_name=%%d
 goto :eof
 
 :EnumerateAdapters_parseMBN
-echo x %*|FINDSTR /C:"Name">NUL
-if not %errorlevel%==0 goto :eof
+echo x %*|FINDSTR /C:"Name">NUL || goto :eof
 set line=%*
-if not "%filterAdapters%"=="" echo %line%|FINDSTR /I /L "%filterAdapters%">NUL
-if not "%filterAdapters%"=="" if %errorlevel%==0 goto :eof
+if not "%filterAdapters%"=="" echo %line%|FINDSTR /I /L "%filterAdapters%">NUL && goto :eof
 set /a adapters_arrLen+=1
 set adapters_%adapters_arrLen%_name=%line:*: =%&goto :eof
 
@@ -569,12 +562,10 @@ goto :eof
 ipconfig /release>NUL 2>&1
 ipconfig /flushdns>NUL 2>&1
 %use_admin%set use_netsh=::
-%use_admin%netsh interface set interface "%adapters_1_name%" admin=disable>NUL 2>&1
-%use_admin%if %errorlevel%==0 set use_netsh=&set use_wmic=::&set use_vbs=::
+%use_admin%netsh interface set interface "%adapters_1_name%" admin=disable>NUL 2>&1 && (set use_netsh=&set use_wmic=::&set use_vbs=::)
 %use_admin%%use_netsh%for /l %%n in (1,1,%adapters_arrLen%) do netsh interface set interface "!adapters_%%n_name!" admin=disable>NUL 2>&1
 %use_admin%%use_netsh%for /l %%n in (1,1,%adapters_arrLen%) do netsh interface set interface "!adapters_%%n_name!" admin=enable>NUL 2>&1
-%use_admin%%no_wmic%%use_wmic%wmic path win32_networkadapter where "NetConnectionID='%adapters_1_name%'" call disable>NUL 2>&1
-%use_admin%%no_wmic%%use_wmic%if %errorlevel%==0 set use_wmic=&set use_vbs=::
+%use_admin%%no_wmic%%use_wmic%wmic path win32_networkadapter where "NetConnectionID='%adapters_1_name%'" call disable>NUL 2>&1 && (set use_wmic=&set use_vbs=::)
 %use_admin%%no_wmic%%use_wmic%for /l %%n in (1,1,%adapters_arrLen%) do wmic path win32_networkadapter where "NetConnectionID='!adapters_%%n_name!'" call disable>NUL 2>&1
 %use_admin%%no_wmic%%use_wmic%for /l %%n in (1,1,%adapters_arrLen%) do wmic path win32_networkadapter where "NetConnectionID='!adapters_%%n_name!'" call enable>NUL 2>&1
 %use_admin%%use_vbs%for /l %%n in (1,1,%adapters_arrLen%) do call :resetAdapter_oldOS disable !adapters_%%n_name!
@@ -586,11 +577,9 @@ goto :eof
 ipconfig /release "%cur_ADAPTER%">NUL 2>&1
 ipconfig /flushdns "%cur_ADAPTER%">NUL 2>&1
 set use_netsh=::
-%use_admin%netsh interface set interface "%cur_Adapter%" admin=disable>NUL 2>&1
-%use_admin%if %errorlevel%==0 set use_netsh=&set use_wmic=::&set use_vbs=::
+%use_admin%netsh interface set interface "%cur_Adapter%" admin=disable>NUL 2>&1 && (set use_netsh=&set use_wmic=::&set use_vbs=::)
 %use_admin%%use_netsh%netsh interface set interface "%cur_ADAPTER%" admin=enable>NUL 2>&1
-%use_admin%%no_wmic%wmic path win32_networkadapter where "NetConnectionID='%cur_ADAPTER%'" call disable>NUL 2>&1
-%use_admin%%no_wmic%if %errorlevel%==0 set use_wmic=&set use_vbs=::
+%use_admin%%no_wmic%wmic path win32_networkadapter where "NetConnectionID='%cur_ADAPTER%'" call disable>NUL 2>&1 && (set use_wmic=&set use_vbs=::)
 %use_admin%%no_wmic%%use_wmic%wmic path win32_networkadapter where "NetConnectionID='%cur_ADAPTER%'" call enable>NUL 2>&1
 %use_admin%%use_vbs%call :resetAdapter_oldOS disable %cur_ADAPTER%
 %use_admin%%use_vbs%call :resetAdapter_oldOS enable %cur_ADAPTER%
@@ -661,7 +650,7 @@ if %errorLevel%==0 set isAdmin=1&set useregadd=::&set usetypenul=::
 %no_reg%%useregadd%set usetypenul=::
 %no_reg%%useregadd%REG ADD HKLM /F>nul 2>&1
 %no_reg%%useregadd%if %errorLevel%==0 set isAdmin=1&set usetypenul=::
-%no_SYSTEMROOT%%usetypenul%type nul>"%WINDIR%\testisadmin.txt"
+%no_SYSTEMROOT%%usetypenul%2>nul type nul>"%WINDIR%\testisadmin.txt"
 %no_SYSTEMROOT%%usetypenul%del /f /q "%WINDIR%\testisadmin.txt">NUL 2>&1
 %no_SYSTEMROOT%%usetypenul%if %errorLevel%==0 set isAdmin=1
 %no_taskkill%for /f "usebackq tokens=*" %%a in (`taskkill /F /FI "WINDOWTITLE eq Limited: %ThisTitle%" ^|FINDSTR /C:SUCCESS`) do set killresult=%%a
@@ -766,17 +755,13 @@ set oldnumtotal=%totalAdapters%&cls&echo.
 echo Disable IPv6:&set disableipv6_err=0
 echo. |set /p dummy=-add 'DisableComponents' to registry...
 :: the number '4294967295' is not random; it creates the hex value '0xffffffff'
-echo y|reg add "%rkey%" /v "%rval%" /t REG_DWORD /d 4294967295>NUL 2>&1
-if not %errorlevel% equ 0 echo Fail %errorlevel%&set disableipv6_err=1
+echo y|reg add "%rkey%" /v "%rval%" /t REG_DWORD /d 4294967295>NUL 2>&1 || (echo Fail %errorlevel%&set disableipv6_err=1)
 echo.&echo. |set /p dummy=-set netsh interface teredo state disable...
-netsh interface teredo set state disable>NUL 2>&1
-if not %errorlevel% equ 0 echo. |set /p dummy=Fail %errorlevel%&set /a disableipv6_err+=1
+netsh interface teredo set state disable>NUL 2>&1 || (echo. |set /p dummy=Fail %errorlevel%&set /a disableipv6_err+=1)
 echo.&echo. |set /p dummy=-set netsh interface 6to4 state disable...
-netsh interface 6to4 set state disabled>NUL 2>&1
-if not %errorlevel% equ 0 echo. |set /p dummy=Fail %errorlevel%&set /a disableipv6_err+=1
+netsh interface 6to4 set state disabled>NUL 2>&1 || (echo. |set /p dummy=Fail %errorlevel%&set /a disableipv6_err+=1)
 echo.&echo. |set /p dummy=-set netsh interface isatap state disable...
-netsh interface isatap set state disabled>NUL 2>&1
-if not %errorlevel% equ 0 echo. |set /p dummy=Fail %errorlevel%&set /a disableipv6_err+=1
+netsh interface isatap set state disabled>NUL 2>&1 || (echo. |set /p dummy=Fail %errorlevel%&set /a disableipv6_err+=1)
 echo.&if %disableipv6_err% geq 1 echo.&echo %disableipv6_err% commands did not complete successfully.
 if %disableipv6_err% leq 0 echo.&echo Commands completed successfully.
 call :countAdapters
@@ -791,7 +776,7 @@ call :testValidPATHS_verifySYSTEMROOT %SYSTEMROOT%
 %hassys32%call :testValidPATHS_verifySYSTEMROOT %SYSTEMDRIVE%\Windows
 %hassys32%call :testValidPATHS_verifySYSTEMROOT %SYSTEMDRIVE%\WINNT
 %hassys32%call :testValidPATHS_verifySYSTEMROOT %WINDIR%
-%hassys32%set set use_systemroot=::
+%hassys32%echo Required commands not found.&echo Press any key to exit...&pause>nul&exit
 call :testValidPATHS_verifyTEMP %TEMP%
 %hastemp%call :testValidPATHS_verifyTEMP %LOCALAPPDATA%\TEMP
 %hastemp%call :testValidPATHS_verifyTEMP %USERPROFILE%\Local Settings\TEMP
@@ -805,27 +790,23 @@ call :testValidPATHS_verifyTEMP %TEMP%
 goto :eof
 :testValidPATHS_verifySYSTEMROOT
 if "%*"=="" goto :eof
-if exist "%*" set PATH=%*\system32;%*;%PATH%
-findstr /?>NUL 2>&1
-if not %errorlevel%==0 goto :eof
+if exist "%*" set PATH=%*\system32;%*;%*\system32\wbem;%PATH%
+findstr /?>NUL 2>&1 || goto :eof
 set SYSTEMROOT=%*&set WINDIR=%*
 set hassys32=::&goto :eof
 :testValidPATHS_verifyTEMP
 if "%*"=="" goto :eof
-type nul>"%*\testqNETWA.txt"&DEL /F /Q "%*\testqNETWA.txt">NUL 2>&1
-if not %errorlevel%==0 goto :eof
+if exist "%*" type nul>"%*\testqNETWA.txt"
+DEL /F /Q "%*\testqNETWA.txt">NUL 2>&1 || goto :eof
 set TEMP=%*
 set hastemp=::&goto :eof
 
 :testCompatibility
-taskkill /?>NUL 2>&1
-if not %errorlevel%==0 set no_taskkill=::
-wmic /?>NUL 2>&1
-if not %errorlevel%==0 set no_wmic=::
-sc create /?>NUL
-if not %errorlevel%==0 set no_sc=::&cls
-reg /?>NUL 2>&1
-if not %errorlevel%==0 set no_reg=::
+for %%c in (framedyn.dll) do if "%%~$PATH:c"=="" set no_taskkill=::
+%no_taskkill%taskkill /?>NUL 2>&1 || set no_taskkill=::
+wmic /?>NUL 2>&1 || set no_wmic=::
+sc querylock>NUL || (set no_sc=::&cls)
+reg /?>NUL 2>&1 || set no_reg=::
 goto :eof
 
 :disableQuickEdit
@@ -836,8 +817,8 @@ set qval=QuickEdit
 %no_reg%for /f "tokens=3*" %%i in ('reg query "%qkey%" /v "%qval%" ^| FINDSTR /I "%qval%"') DO set qedit_dsbld=%%i
 %no_reg%if "%qedit_dsbld%"=="0x0" goto :eof
 %no_reg%echo y|reg add "%qkey%" /v "%qval%" /t REG_DWORD /d 0&cls&start "" "cmd" /k "%~dpnx0"&exit
-%no_regedit%echo REGEDIT4>"%TEMP%\qNET_quickedit3.reg"&regedit /S "%TEMP%\qNET_quickedit3.reg"
-%no_regedit%DEL /F /Q "%TEMP%\qNET_quickedit3.reg"&cls&if %errorlevel% geq 1 set no_regedit=::
+%no_regedit%echo REGEDIT4>"%TEMP%\qNET_quickedit3.reg"&regedit /S "%TEMP%\qNET_quickedit3.reg" || set no_regedit=::
+%no_regedit%DEL /F /Q "%TEMP%\qNET_quickedit3.reg"&cls
 %no_regedit%if exist "%TEMP%\qNET_quickedit.reg" regedit /S "%TEMP%\qNET_quickedit.reg"&DEL /F /Q "%TEMP%\qNET_quickedit.reg"&goto :eof
 %no_regedit%regedit /S /e "%TEMP%\qNET_quickedit.reg" "%qkey%"
 %no_regedit%echo REGEDIT4>"%TEMP%\qNET_quickedit2.reg"&echo [%qkey%]>>"%TEMP%\qNET_quickedit2.reg"
@@ -847,11 +828,13 @@ goto :eof
 
 :init
 @if not "%pretty%"=="1" set debgn=::
+%debgn%@echo off
+@set thisdir=%~dp0
+@call :testValidPATHS
 @call :init_settnSTR viewmode %viewmode%
-@echo " %viewmode% "|FINDSTR /C:" mini " /C:" normal " /C:" details ">NUL
-@if %errorlevel% geq 1 set viewmode=normal
-%debgn%@echo off&cls&call :SETMODECON
-@echo.&echo .|set /p dummy=initializing...
+@echo " %viewmode% "|FINDSTR /C:" mini " /C:" normal " /C:" details ">NUL || set viewmode=normal
+@call :SETMODECON
+@echo.&echo initializing...
 @set ThisTitle=Lectrode's Quick Net Fix v%version%
 @TITLE %ThisTitle%
 @call :testCompatibility
@@ -860,19 +843,18 @@ goto :eof
 %debgn%@call :disableQuickEdit
 %debgn%@call :init_colors %theme%&COLOR %norm%
 @call :getruntime
-@set numfixes=0&set up=0&set down=0
-@set timepassed=0&set dbl=0&set numAdapters=0&@set checkconnects=0
-@set ca_percent=5&set MN_crd=5&set MX_crd=120&set MX_avgca=5
-@set MX_avgtimeout=5&set MN_timeout=100&set MX_timeout=5000
-@set MN_flukechecks=3&set MX_flukechecks=7
 @set statspacer=                                                               .
 @for /f "tokens=1,* DELIMS==" %%s in ('set INT_') do call :init_settn %%s %%t
-@set INT_flukemaxtime*=1000
+@set numfixes=0&set up=0&set down=0
+@set timepassed=0&set dbl=0&set numAdapters=0&set checkconnects=0
+@set ca_percent=5&set MN_crd=5&set MX_crd=120&set MX_avgca=5
+@set MX_avgtimeout=5&set MN_timeout=100&set MX_timeout=5000
+@set MN_flukechecks=3&set MX_flukechecks=7&set INT_flukemaxtime*=1000
 @set orig_checkdelay=%INT_checkdelay%&set INT_checkdelay=1
 @if %INT_checkrouterdelay%==0 set AUTO_checkrouterdelay=1
 @if %INT_timeoutsecs%==0 set AUTO_timeoutsecs=1&call :update_avgtimeout 3000
 @if "%AUTO_timeoutsecs%"=="" set /a timeoutmilsecs=1000*INT_timeoutsecs
-if %INT_flukechecks%==0 set AUTO_flukechecks=1&set INT_flukechecks=7
+@if %INT_flukechecks%==0 set AUTO_flukechecks=1&set INT_flukechecks=7
 @set secondaryRouternum=0&call :setSecondaryRouter
 @call :init_manualRouter %manualRouter%
 @for /f "tokens=1 DELIMS=:" %%a in ("%manualAdapter%") do call :init_manualAdapter %%a
