@@ -1,5 +1,5 @@
 ::Quick detect&fix
-@set version=4.1.327
+@set version=4.1.328
 ::Documentation and updated versions can be found at
 ::https://code.google.com/p/quick-net-fix/
 
@@ -34,21 +34,20 @@
 
 ::-Advanced-
 @set INT_StabilityHistory=25	Default: 25 [number of last tests to determine stability]
-@set INT_flukechecks=0		Default: 0  (auto) [test x times to verify result]
+@set INT_flukechecks=0			Default: 0  (auto) [test x times to verify result]
 @set INT_flukemaxtime=25		Default: 25 [test for maximum of x seconds to verify result (requires INT_flukechecks=0)]
-@set INT_checkdelay=5		Default: 5  [wait x seconds between connectivity tests]
+@set INT_checkdelay=5			Default: 5  [wait x seconds between connectivity tests]
 @set INT_fixdelay=10			Default: 10 [wait x seconds after resetting connection]
-@set INT_flukecheckdelay=1	Default: 1  [wait x seconds between fluke checks]
-@set INT_timeoutsecs=0		Default: 0  (auto) [wait x seconds for timeout]
-@set INT_checkrouterdelay=0	Default: 0  (auto) [wait x number of connects before verifying router and adapter]
+@set INT_flukecheckdelay=1		Default: 1  [wait x seconds between fluke checks]
+@set INT_timeoutsecs=0			Default: 0  (auto) [wait x seconds for timeout]
+@set INT_checkrouterdelay=0		Default: 0  (auto) [wait x number of connects before verifying router and adapter]
 
 :: --------------------------------------
 :: -      DO NOT EDIT BELOW HERE!       -
 :: --------------------------------------
 @PROMPT=^>&setlocal enabledelayedexpansion&setlocal enableextensions
 %noclose%@set noclose=::&start "" "cmd" /k "%~dpnx0"&exit
-@call :init
-call :checkRouterAdapter
+@call :init&call :checkRouterAdapter
 
 :loop
 %debgn%call :SETMODECON
@@ -93,7 +92,7 @@ set show_stbtlySTR=%stbltySTR:0=-%
 set show_stbtlySTR=%show_stbtlySTR:1==%
 set show_stbtlySTR=%show_stbtlySTR:2=*%
 set show_stbtlySTR=%aft-%!show_stbtlySTR: =%-%!
-if "%stbltySTR%"=="" set show_stbtlySTR=                                                   -
+if "%stbltySTR%"=="" set show_stbtlySTR=------------------------------------------------------------------------------
 goto :header_%viewmode%
 
 :header_mini
@@ -116,7 +115,6 @@ cls&COLOR %curcolor%
 echo  --------------------------------------------------
 echo  ^|     -%ThisTitle%-        ^|
 echo  ^|       http://electrodexs.net/scripts           ^|
-if "!show_stbtlySTR:~-%colnum%!"=="" echo  --------------------------------------------------
 if not "!show_stbtlySTR:~-%colnum%!"=="" echo. !show_stbtlySTR:~-%colnum%!
 echo.
 if not "%show_cur_ADAPTER%"=="" echo  Connection: %show_cur_ADAPTER%
@@ -826,7 +824,7 @@ goto :eof
 @call :detectIsAdmin
 @if "%isAdmin%"=="0" set use_admin=::
 %debgn%@call :disableQuickEdit
-%debgn%@call :init_colors %theme%&COLOR %norm%
+%debgn%@call :init_colors %theme%
 @call :getruntime
 @set statspacer=                                                               .
 @for /f "tokens=1,* DELIMS==" %%s in ('set INT_') do call :init_settn %%s %%t
@@ -887,7 +885,9 @@ if %bar_loop_tot% gtr 0 goto :init_bar_loop
 goto :eof
 
 :init_colors
-set theme=%1&call :init_colors_%theme%&goto :eof
+set theme=%1&call :init_colors_%1
+set curcolor=%norm%
+COLOR %curcolor%&goto :eof
 
 :init_colors_none
 set norm=&set warn=&set alrt=&goto :eof
@@ -905,4 +905,4 @@ set norm=20&set warn=60&set alrt=40&set pend=30&goto :eof
 set norm=a0&set warn=e0&set alrt=c0&set pend=b0&goto :eof
 
 :init_colors_crazy
-set norm=^&call :crazy&set warn=^&call :crazy&set alrt=^&call :crazy&set crazystr=0123456789ABCDEF&goto :eof
+set "norm=>nul ^&call :crazy"&set "warn=^&call :crazy"&set "alrt=^&call :crazy"&set "pend=^&call :crazy"&set crazystr=0123456789ABCDEF&goto :eof
