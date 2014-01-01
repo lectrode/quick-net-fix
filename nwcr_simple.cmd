@@ -1,5 +1,5 @@
-::Quick detect&fix
-@set version=4.1.329
+::Quick detect&fix v4.1.330
+
 ::Documentation and updated versions can be found at
 ::https://code.google.com/p/quick-net-fix/
 
@@ -46,7 +46,7 @@
 :: -      DO NOT EDIT BELOW HERE!       -
 :: --------------------------------------
 @PROMPT=^>&setlocal enabledelayedexpansion&setlocal enableextensions
-%noclose%@set noclose=::&start "" "cmd" /k "%~dpnx0"&exit
+%noclose%@set noclose=::&start "" "cmd" /u /k "%~dpnx0"&exit
 @call :init&call :checkRouterAdapter
 
 :loop
@@ -206,10 +206,10 @@ set stblty_firstval=
 goto :eof
 
 :countAdapters
-set totalAdapters=0
+set totalAdapters=0&set tA_plus=0
 for /f %%n in ('ipconfig ^|FINDSTR /C:"adapter"') do set /a totalAdapters+=1
-set /a est_secs=(totalAdapters*ca_percent)/100
-goto :eof
+if "%totalAdapters%"=="0" set tA_plus=1
+set /a est_secs=((totalAdapters+%tA_plus%)*ca_percent)/100&goto :eof
 
 :Update_avgca
 set /a last_ca_percent+=0
@@ -294,7 +294,7 @@ if "%cur_ROUTER%"=="" if "%cur_ADAPTER%"=="" call :EnumerateAdapters
 call :precisiontimer cRA tot
 set /a tot/=100
 set /a timepassed+=tot
-if not %tot%==0 set /a new_ca_percent=(tot*100)/totalAdapters
+if not %tot%==0 set /a new_ca_percent=(tot*100)/(totalAdapters+%tA_plus%)
 if not %tot%==0 call :Update_avgca %new_ca_percent% %STR_ca_percent%
 goto :eof
 
@@ -387,9 +387,10 @@ ipconfig |FINDSTR /C:"adapter %cur_ADAPTER%:">nul && goto :eof
 set resetted=1
 netsh interface set interface "%cur_ADAPTER%" admin=enable>nul 2>&1
 if %errorlevel%==0 set stbltySTR=%stbltySTR% 2&call :sleep %INT_fixdelay%&goto :eof
-%no_wmic%wmic path win32_networkadapter where "NetConnectionID='%cur_ADAPTER%'" call enable>nul 2>&1
+%no_wmic%call :antihang 11 wmic.exe path win32_networkadapter where "NetConnectionID='%cur_ADAPTER%'" call enable
 %no_wmic%if %errorlevel%==0 set stbltySTR=%stbltySTR% 2&call :sleep %INT_fixdelay%&goto :eof
-call :resetAdapter_oldOS enable %cur_ADAPTER%&set stbltySTR=%stbltySTR% 2&goto :eof
+%no_temp%call :resetAdapter_oldOS enable %cur_ADAPTER%&set stbltySTR=%stbltySTR% 2
+goto :eof
 
 :setSecondaryRouter
 if %secondaryRouternum%==0 set secondaryRouter=www.google.com
@@ -503,7 +504,19 @@ goto :eof
 
 :EnumerateAdapters
 set adapters_arrLen=0
-%no_wmic%for /f "tokens=* delims=" %%n in ('wmic nic get NetConnectionID') do call :EnumerateAdapters_parse %%n
+%no_wmic%%no_temp%%startedwmic%start /b "" cmd /c wmic.exe nic get NetConnectionID ^|more ^>"%temp%\qNET_wmicnetadapters"
+%no_wmic%%no_temp%set /a waitproc+=1&set startedwmic=::
+%no_wmic%%no_temp%%no_tasklist%tasklist /fo:csv|FINDSTR /C:"wmic.exe">nul || goto :EnumerateAdapters_success
+%no_wmic%%no_temp%%no_temp%if exist "%temp%\qNET_wmicerrlvl.tmp" goto :EnumerateAdapters_success
+%no_wmic%%no_temp%if not "%no_tasklist%%no_temp%"=="::::" if %waitproc% geq 20 (%kill% wmic.exe)>nul 2>&1&goto :EnumerateAdapters_fail
+%no_wmic%%no_temp%if not "%no_tasklist%%no_temp%"=="::::" ping -n 2 127.0.0.1>nul&goto :EnumerateAdapters
+:EnumerateAdapters_success
+%no_wmic%%no_temp%set /a waitread+=1&for /f "usebackq tokens=* delims=" %%n in ("%temp%\qNET_wmicnetadapters") do call :EnumerateAdapters_parse %%n
+%no_wmic%%no_temp%if %errorlevel% geq 1 if %waitread% lss 20 ping -n 2 127.0.0.1>nul&goto :EnumerateAdapters_success
+:EnumerateAdapters_fail
+%no_wmic%%no_temp%set waitproc=0&set waitread=0&set startedwmic=&%kill% wmic.exe>nul 2>&1
+%no_wmic%%no_temp%DEL /F /Q "%temp%"\qNET_wmicnetadapters* >nul 2>&1
+%no_wmic%if "%no_temp%"=="::" for /f "tokens=* delims=" %%n in ('wmic.exe nic get NetConnectionID') do call :EnumerateAdapters_parse %%n
 %no_wmic%goto :eof
 for /f "tokens=* delims=" %%n in ('netsh int show int') do call :EnumerateAdapters_parse %%n
 for /f "tokens=* delims=" %%n in ('netsh mbn show int') do call :EnumerateAdapters_parseMBN %%n
@@ -548,26 +561,45 @@ ipconfig /flushdns>nul 2>&1
 %use_admin%netsh interface set interface "%adapters_1_name%" admin=disable>nul 2>&1 && (set use_netsh=&set use_wmic=::&set use_vbs=::)
 %use_admin%%use_netsh%for /l %%n in (1,1,%adapters_arrLen%) do netsh interface set interface "!adapters_%%n_name!" admin=disable>nul 2>&1
 %use_admin%%use_netsh%for /l %%n in (1,1,%adapters_arrLen%) do netsh interface set interface "!adapters_%%n_name!" admin=enable>nul 2>&1
-%use_admin%%no_wmic%%use_wmic%wmic path win32_networkadapter where "NetConnectionID='%adapters_1_name%'" call disable>nul 2>&1 && (set use_wmic=&set use_vbs=::)
-%use_admin%%no_wmic%%use_wmic%for /l %%n in (1,1,%adapters_arrLen%) do wmic path win32_networkadapter where "NetConnectionID='!adapters_%%n_name!'" call disable>nul 2>&1
-%use_admin%%no_wmic%%use_wmic%for /l %%n in (1,1,%adapters_arrLen%) do wmic path win32_networkadapter where "NetConnectionID='!adapters_%%n_name!'" call enable>nul 2>&1
-%use_admin%%use_vbs%for /l %%n in (1,1,%adapters_arrLen%) do call :resetAdapter_oldOS disable !adapters_%%n_name!
-%use_admin%%use_vbs%for /l %%n in (1,1,%adapters_arrLen%) do call :resetAdapter_oldOS enable !adapters_%%n_name!
+%use_admin%%no_wmic%%use_wmic%call :antihang 11 wmic.exe path win32_networkadapter where "NetConnectionID='%adapters_1_name%'" call disable && (set use_wmic=&set use_vbs=::)
+%use_admin%%no_wmic%%use_wmic%for /l %%n in (1,1,%adapters_arrLen%) do call :antihang 11 wmic.exe path win32_networkadapter where "NetConnectionID='!adapters_%%n_name!'" call disable
+%use_admin%%no_wmic%%use_wmic%for /l %%n in (1,1,%adapters_arrLen%) do call :antihang 11 wmic.exe path win32_networkadapter where "NetConnectionID='!adapters_%%n_name!'" call enable
+%use_admin%%use_vbs%%no_temp%for /l %%n in (1,1,%adapters_arrLen%) do call :resetAdapter_oldOS disable !adapters_%%n_name!
+%use_admin%%use_vbs%%no_temp%for /l %%n in (1,1,%adapters_arrLen%) do call :resetAdapter_oldOS enable !adapters_%%n_name!
 ipconfig /renew>nul 2>&1
 goto :eof
 
 :resetConnection_one
 ipconfig /release "%cur_ADAPTER%">nul 2>&1
 ipconfig /flushdns "%cur_ADAPTER%">nul 2>&1
-set use_netsh=::
-%use_admin%netsh interface set interface "%cur_Adapter%" admin=disable>nul 2>&1 && (set use_netsh=&set use_wmic=::&set use_vbs=::)
+%use_admin%set use_netsh=::&(netsh interface set interface "%cur_Adapter%" admin=disable>nul 2>&1 && (set use_netsh=&set use_wmic=::&set use_vbs=::))
 %use_admin%%use_netsh%netsh interface set interface "%cur_ADAPTER%" admin=enable>nul 2>&1
-%use_admin%%no_wmic%wmic path win32_networkadapter where "NetConnectionID='%cur_ADAPTER%'" call disable>nul 2>&1 && (set use_wmic=&set use_vbs=::)
-%use_admin%%no_wmic%%use_wmic%wmic path win32_networkadapter where "NetConnectionID='%cur_ADAPTER%'" call enable>nul 2>&1
-%use_admin%%use_vbs%call :resetAdapter_oldOS disable %cur_ADAPTER%
-%use_admin%%use_vbs%call :resetAdapter_oldOS enable %cur_ADAPTER%
+%use_admin%%no_wmic%call :antihang 11 wmic.exe path win32_networkadapter where "NetConnectionID='%cur_ADAPTER%'" call disable && (set use_wmic=&set use_vbs=::)
+%use_admin%%no_wmic%%use_wmic%call :antihang 11 wmic.exe path win32_networkadapter where "NetConnectionID='%cur_ADAPTER%'" call enable
+%use_admin%%use_vbs%%no_temp%call :resetAdapter_oldOS disable %cur_ADAPTER%
+%use_admin%%use_vbs%%no_temp%call :resetAdapter_oldOS enable %cur_ADAPTER%
 ipconfig /renew "%cur_ADAPTER%">nul 2>&1
 goto :eof
+
+:antihang
+set proc=%*
+set proc=!proc:%1 =!
+%no_temp%set tempfile=%temp%\qNET_procerrlvl&set procerr=
+%no_temp%set geterrlvl=^^^|^^^|(echo 1)^^^>"%tempfile%"
+%startedproc%start /b "" cmd /c %proc%^>nul 2^>^&1%geterrlvl%&set startedproc=::
+set /a waitproc+=1
+%no_tasklist%tasklist /fo:csv|FINDSTR /C:"%2">nul || goto :antihang_success
+%no_temp%if exist "%temp%\qNET_wmicerrlvl" goto :antihang_success
+if not "%no_tasklist%%no_temp%"=="::::" if %waitproc% geq %1 (%kill% %2)>nul 2>&1&goto :antihang_fail
+if not "%no_tasklist%%no_temp%"=="::::" ping -n 2 127.0.0.1>nul&goto :antihang
+ping -n %1 127.0.0.1>nul&(%kill% wmic.exe>nul 2>&1 && goto :antihang_fail)
+:antihang_success
+%no_temp%if exist "%tempfile%" <"%tempfile%" set /p procerr=
+%no_temp%DEL /F /Q "%tempfile%">nul 2>&1&if "%procerr%"=="1" goto :antihang_fail
+set startedproc=&set waitproc=0&cmd /c exit /b 0&goto :eof
+:antihang_fail
+%no_temp%DEL /F /Q "%tempfile%">nul 2>&1
+set startedproc=&set waitproc=0&cmd /c exit /b 1&goto :eof
 
 :resetAdapter_oldOS
 if /I "%1"=="enable" set disoren=Enable&set trufalse=false
@@ -621,12 +653,12 @@ set resetfile=%temp%\NetworkResetNWCR.vbs
 @echo end if '>>"%resetfile%"
 @echo wscript.sleep 2000 '>>"%resetfile%"
 %debgn%@echo off
-start /B /WAIT cmd /C cscript //B //NoLogo "%resetfile%"
+call :antihang 21 cscript.exe //B //NoLogo "%resetfile%"
 DEL /F /Q "%resetfile%">nul 2>&1
 goto :eof
 
 :detectIsAdmin
-DEL /F /Q "%temp%\getadminNWCR.vbs">nul 2>&1
+%no_temp%DEL /F /Q "%temp%\getadminNWCR.vbs">nul 2>&1
 set isAdmin=0
 net session >nul 2>&1
 if %errorLevel%==0 set isAdmin=1&set useregadd=::&set usetypenul=::
@@ -641,11 +673,11 @@ if %errorLevel%==0 set isAdmin=1&set useregadd=::&set usetypenul=::
 if %isAdmin%==1 goto :eof
 title Limited: %ThisTitle%
 if not "%requestAdmin%"=="1" goto :eof
-%no_taskkill%echo Set StartAdmin = CreateObject^("Shell.Application"^) > "%temp%\getadminNWCR.vbs"
-%no_taskkill%echo StartAdmin.ShellExecute "%~s0", "", "", "runas", 1 >> "%temp%\getadminNWCR.vbs"
-%no_taskkill%echo Requesting admin rights...&echo (This will close upon successful request)
-%no_taskkill%cscript //E:VBScript //B //T:1 "%temp%\getadminNWCR.vbs" //nologo>nul 2>&1
-%no_taskkill%ping 127.0.0.1>nul&ping 127.0.0.1>nul&DEL /F /Q "%temp%\getadminNWCR.vbs">nul 2>&1
+%no_taskkill%%no_temp%echo Set StartAdmin = CreateObject^("Shell.Application"^) > "%temp%\getadminNWCR.vbs"
+%no_taskkill%%no_temp%echo StartAdmin.ShellExecute "%~s0", "", "", "runas", 1 >> "%temp%\getadminNWCR.vbs"
+%no_taskkill%%no_temp%echo Requesting admin rights...&echo (This will close upon successful request)
+%no_taskkill%%no_temp%call :antihang 16 cscript.exe //E:VBScript //B //T:1 "%temp%\getadminNWCR.vbs" //nologo
+%no_taskkill%%no_temp%ping 127.0.0.1>nul&ping 127.0.0.1>nul&DEL /F /Q "%temp%\getadminNWCR.vbs">nul 2>&1
 goto :eof
 
 :Ask4NET
@@ -770,7 +802,8 @@ call :testValidPATHS_TEMP %TEMP%
 %hastemp%call :testValidPATHS_TEMP %WINDIR%\Temp
 %hastemp%set TEMP=%thisdir%qNET_Temp&md %thisdir%qNET_Temp
 %hastemp%call :testValidPATHS_TEMP %thisdir%qNET_Temp
-%hastemp%set TEMP=%thisdir:~0,-1%
+%hastemp%call :testValidPATHS_TEMP %thisdir:~0,-1%
+%hastemp%set no_temp=::
 goto :eof
 :testValidPATHS_SYSTEMROOT
 if "%*"=="" goto :eof
@@ -788,10 +821,15 @@ set hastemp=::&goto :eof
 :testCompatibility
 ping /?>nul 2>&1 || (echo Critical error: PING error.&echo press any key to exit...&pause>nul&exit) 
 for %%c in (framedyn.dll) do if "%%~$PATH:c"=="" set no_taskkill=::
-%no_taskkill%taskkill /?>nul 2>&1 || set no_taskkill=::
-wmic /?>nul 2>&1 || set no_wmic=::
+for %%c in (wmic.exe) do if "%%~$PATH:c"=="" set no_wmic=::
+%no_taskkill%set no_tskill=::&set kill=taskkill /im&(taskkill /?>nul 2>&1 || (set no_taskkill=::&set no_tskill=))
+%no_tskill%set kill=tskill&(tskill /?>nul 2>&1 || set no_wmic=::)
+%no_wmic%start /b "" cmd /c wmic /?^>nul 2^>^&1
 sc querylock>nul || (set no_sc=::&cls)
 reg /?>nul 2>&1 || set no_reg=::
+tasklist /?>nul 2>&1 || set no_tasklist=::
+%no_wmic%call :antihang 11 wmic.exe os get status || set no_wmic=::
+%no_wmic%if "%no_temp%"=="::" wmic os get status>nul 2>&1 || set no_wmic=::
 goto :eof
 
 :disableQuickEdit
@@ -801,13 +839,13 @@ set qkey=HKEY_CURRENT_USER\Console&set qval=QuickEdit
 %no_reg%for /f "tokens=3*" %%i in ('reg query "%qkey%" /v "%qval%" ^| FINDSTR /I "%qval%"') DO set qedit_dsbld=%%i
 %no_reg%if "%qedit_dsbld%"=="0x0" goto :eof
 %no_reg%echo y|reg add "%qkey%" /v "%qval%" /t REG_DWORD /d 0&cls&start "" "cmd" /k "%~dpnx0"&exit
-%no_regedit%echo REGEDIT4>"%TEMP%\qNET_quickedit3.reg"&(regedit /S "%TEMP%\qNET_quickedit3.reg" || set no_regedit=::)
-%no_regedit%DEL /F /Q "%TEMP%\qNET_quickedit3.reg"&cls&echo.&echo Initializing.....
-%no_regedit%if exist "%TEMP%\qNET_quickedit.reg" regedit /S "%TEMP%\qNET_quickedit.reg"&DEL /F /Q "%TEMP%\qNET_quickedit.reg"&goto :eof
-%no_regedit%regedit /S /e "%TEMP%\qNET_quickedit.reg" "%qkey%"
-%no_regedit%echo REGEDIT4>"%TEMP%\qNET_quickedit2.reg"&echo [%qkey%]>>"%TEMP%\qNET_quickedit2.reg"
-%no_regedit%(echo "%qval%"=dword:00000000)>>"%TEMP%\qNET_quickedit2.reg"
-%no_regedit%regedit /S "%TEMP%\qNET_quickedit2.reg"&DEL /F /Q "%TEMP%\qNET_quickedit2.reg"&start "" "cmd" /k "%~dpnx0"&exit
+%no_regedit%%no_temp%echo REGEDIT4>"%TEMP%\qNET_quickedit3.reg"&(regedit /S "%TEMP%\qNET_quickedit3.reg" || set no_regedit=::)
+%no_regedit%%no_temp%DEL /F /Q "%TEMP%\qNET_quickedit3.reg"&cls&echo.&echo Initializing.....
+%no_regedit%%no_temp%if exist "%TEMP%\qNET_quickedit.reg" regedit /S "%TEMP%\qNET_quickedit.reg"&DEL /F /Q "%TEMP%\qNET_quickedit.reg"&goto :eof
+%no_regedit%%no_temp%regedit /S /e "%TEMP%\qNET_quickedit.reg" "%qkey%"
+%no_regedit%%no_temp%echo REGEDIT4>"%TEMP%\qNET_quickedit2.reg"&echo [%qkey%]>>"%TEMP%\qNET_quickedit2.reg"
+%no_regedit%%no_temp%(echo "%qval%"=dword:00000000)>>"%TEMP%\qNET_quickedit2.reg"
+%no_regedit%%no_temp%regedit /S "%TEMP%\qNET_quickedit2.reg"&DEL /F /Q "%TEMP%\qNET_quickedit2.reg"&start "" "cmd" /k "%~dpnx0"&exit
 goto :eof
 
 :init
@@ -817,7 +855,7 @@ goto :eof
 %debgn%@echo off
 call :init_settnSTR viewmode %viewmode%
 echo " %viewmode% "|FINDSTR /C:" mini " /C:" normal " /C:" details ">nul || set viewmode=%D_viewmode%
-call :SETMODECON&echo.&echo initializing...&if "%version%"=="" set version=4.1.329
+call :SETMODECON&echo.&echo initializing...&set version=4.1.330
 set ThisTitle=Lectrode's Quick Net Fix v%version%
 TITLE %ThisTitle%&call :init_settnINT %settingsINT%
 call :testValidPATHS&call :testCompatibility&call :detectIsAdmin
@@ -841,7 +879,7 @@ set secondaryRouternum=0&call :setSecondaryRouter
 call :init_manualRouter %manualRouter%
 for /f "tokens=1 DELIMS=:" %%a in ("%manualAdapter%") do call :init_manualAdapter %%a
 call :init_bar&call :countAdapters&call :countTunnelAdapters
-if %totalAdapters% geq 20 call :alert_2manyconnections&call :SETMODECON
+if %totalAdapters% geq 20 (call :alert_2manyconnections&call :SETMODECON)
 call :update_avgca %ca_percent%&goto :eof
 
 :init_settnINT
