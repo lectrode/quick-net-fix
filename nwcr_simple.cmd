@@ -1,4 +1,4 @@
-::Quick detect&fix v4.2.332
+::Quick detect&fix v4.2.333
 
 ::Documentation and updated versions can be found at
 ::https://code.google.com/p/quick-net-fix/
@@ -51,8 +51,8 @@
 
 :loop
 %debgn%call :SETMODECON
-%no_tasklist%if "%isAdmin%"=="0" (tasklist /FI "WINDOWTITLE eq Administrator:  %ThisTitle%"|FINDSTR /C:"Image">nul && exit)
-%no_tasklist%if "%isAdmin%"=="0" (tasklist /FI "WINDOWTITLE eq %ThisTitle%"|FINDSTR /C:"Image">nul && exit)
+%no_tasklist%call :detectMultiInst
+%no_temp%set /a cleanTMPPnum+=1&(if !cleanTMPPnum! geq 200 (call :cleanTMPP&set cleanTMPPnum=0))
 call :check&call :sleep %INT_checkdelay%&goto :loop
 
 :getNETINFO
@@ -202,6 +202,11 @@ if %stblty_tests% gtr %INT_StabilityHistory% set INT_checkdelay=%orig_checkdelay
 set stblty_tests=0
 set stblty_val=0
 set stblty_firstval=
+goto :eof
+
+:detectMultiInst
+if "%isAdmin%"=="0" (tasklist /FI "WINDOWTITLE eq Administrator:  %ThisTitle%"|FINDSTR /C:"Image">nul && exit)
+if "%isAdmin%"=="0" (tasklist /FI "WINDOWTITLE eq %ThisTitle%"|FINDSTR /C:"Image">nul && exit)
 goto :eof
 
 :countAdapters
@@ -378,9 +383,8 @@ goto :eof
 if "%isAdmin%"=="0" goto :eof
 if "%cur_ADAPTER%"=="" goto :eof
 ipconfig |FINDSTR /C:"adapter %cur_ADAPTER%:">nul && goto :eof
-@set curstatus=Enabling adapter...&set curcolor=%pend%
+@set curstatus=Enabling adapter...&set curcolor=%pend%&set resetted=1
 %debgn%call :header
-set resetted=1
 netsh interface set interface "%cur_ADAPTER%" admin=enable>nul 2>&1
 if %errorlevel%==0 set stbltySTR=%stbltySTR% 2&call :sleep %INT_fixdelay%&goto :eof
 %no_wmic%call :antihang 11 null wmic.exe path win32_networkadapter where "NetConnectionID='%cur_ADAPTER%'" call enable
@@ -518,11 +522,10 @@ goto :eof
 
 :EnumerateAdapters
 set adapters_arrLen=0
-%no_wmic%%no_temp%%startedwmic%call :antihang 20 wmicnetadapt wmic.exe nic get NetConnectionID
-%no_wmic%%no_temp%if %errorlevel% geq 1 goto :EnumerateAdapters_alt
-%no_wmic%%no_temp%for /f "usebackq tokens=* delims=" %%n in ("%TMPP%\wmicnetadapt%CID%") do call :EnumerateAdapters_parse %%n
-%no_wmic%%no_temp%set waitproc=0&set waitread=0&set startedwmic=&%kill% wmic.exe>nul 2>&1
-%no_wmic%if "%no_temp%"=="::" for /f "tokens=* delims=" %%n in ('wmic.exe nic get NetConnectionID') do call :EnumerateAdapters_parse %%n
+%no_wmic%call :antihang 20 wmicnetadapt wmic.exe nic get NetConnectionID || goto :EnumerateAdapters_alt
+%no_wmic%%no_temp%for /f "usebackq tokens=* delims=" %%n in ("%TMPP%\wmicnetadapt%CID%") do set "line=%%n"&call :EnumerateAdapters_parse
+%no_wmic%if "%no_temp%"=="::" for /f "tokens=1* delims==" %%n in ('set wmicnetadapt') do do set "line=%%m"&call :EnumerateAdapters_parse
+%no_wmic%if "%no_temp%"=="::" for /f "tokens=1 delims==" %%n in ('set wmicnetadapt') do set %%n=
 %no_wmic%DEL /F /Q "%TMPP%"\wmicnetadapt%CID% >nul 2>&1&goto :eof
 :EnumerateAdapters_alt
 %no_wmic%%no_temp%DEL /F /Q "%TMPP%"\wmicnetadapt%CID% >nul 2>&1
@@ -531,15 +534,15 @@ for /f "tokens=* delims=" %%n in ('netsh mbn show int') do call :EnumerateAdapte
 goto :eof
 
 :EnumerateAdapters_parse
-if "%*"=="" goto :eof
-if "%*"=="NetConnectionID" goto :eof
-if "%1 %2"=="Admin State" goto :eof
-set line=%*
+if "%line%"=="" goto :eof
+echo "%line%"|FINDSTR /L "& ! % ^">nul && goto :eof
+if "%line%"=="NetConnectionID" goto :eof
+if "%line:~0,11%"=="Admin State" goto :eof
 if "%line:~0,4%"=="----" goto :eof
-if not "%filterAdapters%"=="" echo %line%|FINDSTR /I /L "%filterAdapters%">nul && goto :eof
+if not "%filterAdapters%"=="" echo "%line%"|FINDSTR /I /L "%filterAdapters%">nul && goto :eof
 set /a adapters_arrLen+=1
-%no_wmic%set adapters_%adapters_arrLen%_name=%line%&goto :eof
-for /f "tokens=2* delims= " %%c in ("%line%") do set adapters_%adapters_arrLen%_name=%%d
+%no_wmic%set "adapters_%adapters_arrLen%_name=%line%"&goto :eof
+for /f "tokens=3* delims= " %%c in ("%line%") do set adapters_%adapters_arrLen%_name=%%d
 goto :eof
 
 :EnumerateAdapters_parseMBN
@@ -589,29 +592,32 @@ ipconfig /renew "%cur_ADAPTER%">nul 2>&1
 goto :eof
 
 :antihang
-%startedproc%setlocal
-%startedproc%set proc=%*
-%startedproc%set proc=!proc:%1 %2 =!&set procsuccess=1
-%startedproc%%no_temp%set temperrfile=%TMPP%\procerrlvl%CID%
-%startedproc%%no_temp%set tempoutput= 1^^^>"%TMPP%\%2%CID%.tmp" 2^^^>^^^>"%temperrfile%.tmp"
-%startedproc%%no_temp%set geterrlvl= ^^^& (echo .^^^>^^^>"%temperrfile%.tmp")
-%startedproc%start /b "" cmd /c %proc%%tempoutput%%geterrlvl%&set startedproc=::
+setlocal
+set proc=%*&set proc=!proc:%1 %2 =!&set procsuccess=1
+%no_temp%set temperrfile=%TMPP%\procerrlvl%CID%
+%no_temp%set tempoutput= 1^^^>"%TMPP%\%2%CID%.tmp" 2^^^>^^^>"%temperrfile%.tmp"
+%no_temp%set geterrlvl= ^^^& (echo .^^^>^^^>"%temperrfile%.tmp")
+%no_temp%start /b "" cmd /c %proc%%tempoutput%%geterrlvl%&set startedproc=::
+if "%2"=="null" start /b "" cmd /c %proc%>nul 2>&1&set startedproc=::
+%startedproc%for /f "tokens=* delims=" %%n in ('%proc%^&^&set procsuccess=0') do (set "%2!num!=%%n"&set /a num+=1)&goto :antihang_reset
+:antihang_wait
 set /a waitproc+=1
-call :findprocess %3 && (if %waitproc% leq %1 (ping -n 2 127.0.0.1>nul&goto :antihang))
-%no_temp%if not exist "%temperrfile%.tmp" if %waitproc% leq %1 (ping -n 2 127.0.0.1>nul&goto :antihang)
-if "%no_tasklist%%no_temp%"=="::::" ping -n %1 127.0.0.1>nul&((%kill% %3)>nul 2>&1 && goto :antihang_reset)
-:antihang_waitread
-set /a waitproc+=1&cmd /c exit /b 0
+%procfinished%call :findprocess %3 && (if %waitproc% leq %1 (ping -n 2 127.0.0.1>nul&goto :antihang_wait))
+%procfinished%set procfinished=::&if "%no_temp%"=="::" set procsuccess=0
+%no_temp%if not exist "%temperrfile%.tmp" if %waitproc% leq %1 (ping -n 2 127.0.0.1>nul&goto :antihang_wait)
 %no_temp%TYPE "%temperrfile%.tmp" > "%temperrfile%"
 %no_temp%for /f "usebackq tokens=* delims=" %%t in ("%temperrfile%") do if not "%%t"=="" set "procerr=!procerr!%%t"
-%no_temp%if "%procerr%"=="" if %waitproc% leq %1 (ping -n 2 127.0.0.1>nul&goto :antihang_waitread)
+%no_temp%if "%procerr%"=="" if %waitproc% leq %1 (ping -n 2 127.0.0.1>nul&goto :antihang_wait)
 %no_temp%if "%procerr%"=="." set procsuccess=0
+if "%no_temp%%no_tasklist%"=="::::" ping -n %1 127.0.0.1>nul
+%no_prockill%if "%no_temp%%no_tasklist%"=="::::" (%prockill% %3)>nul 2>&1 || set procsuccess=0
 :antihang_reset
-(%kill% %3)>nul 2>&1
+%no_prockill%(%prockill% %3)>nul 2>&1
 %no_temp%DEL /F /Q "%temperrfile%*">nul 2>&1
 %no_temp%TYPE "%TMPP%\%2%CID%.tmp">"%TMPP%\%2%CID%"&DEL /F /Q "%TMPP%\%2%CID%.tmp">nul 2>&1
 %no_temp%DEL /F /Q "%TMPP%\null%CID%">nul 2>&1
-endlocal&cmd /c exit /b %procsuccess%&goto :eof
+for /f "tokens=1 delims==" %%n in ('set null 2^>nul') do set %%n=
+endlocal&cmd /c exit /b %procsuccess%&set %2=!%2!&goto :eof
 
 :resetAdapter_oldOS
 if /I "%1"=="enable" set disoren=Enable&set trufalse=false
@@ -631,38 +637,27 @@ set resetfile=%TMPP%\resetadapter%CID%.vbs
 @echo         set oNetConnections = folderitem.getfolder: exit for '>>"%resetfile%"
 @echo   elseif folderitem.name = "Network and Dial-up Connections" then '>>"%resetfile%"
 @echo         set oNetConnections = folderitem.getfolder: exit for '>>"%resetfile%"
-@echo end if '>>"%resetfile%"
-@echo next '>>"%resetfile%"
+@echo end if '>>"%resetfile%"&echo next '>>"%resetfile%"
 @echo if oNetConnections is nothing then '>>"%resetfile%"
-@echo wscript.quit '>>"%resetfile%"
-@echo end if '>>"%resetfile%"
+@echo wscript.quit '>>"%resetfile%"&echo end if '>>"%resetfile%"
 @echo set oLanConnection = nothing '>>"%resetfile%"
 @echo for each folderitem in oNetConnections.items '>>"%resetfile%"
 @echo if lcase(folderitem.name) = lcase("%reset_adaptername%") then '>>"%resetfile%"
 @echo set oLanConnection = folderitem: exit for '>>"%resetfile%"
-@echo end if '>>"%resetfile%"
-@echo next '>>"%resetfile%"
-@echo Dim objFSO '>>"%resetfile%"
-@echo if oLanConnection is nothing then '>>"%resetfile%"
-@echo wscript.quit '>>"%resetfile%"
-@echo end if '>>"%resetfile%"
-@echo bEnabled = true '>>"%resetfile%"
-@echo set oEnableVerb = nothing '>>"%resetfile%"
+@echo end if '>>"%resetfile%"&echo next '>>"%resetfile%"
+@echo Dim objFSO '>>"%resetfile%"&echo if oLanConnection is nothing then '>>"%resetfile%"
+@echo wscript.quit '>>"%resetfile%"&echo end if '>>"%resetfile%"
+@echo bEnabled = true '>>"%resetfile%"&echo set oEnableVerb = nothing '>>"%resetfile%"
 @echo set oDisableVerb = nothing '>>"%resetfile%"
 @echo s = "Verbs: " ^& vbcrlf '>>"%resetfile%"
 @echo for each verb in oLanConnection.verbs '>>"%resetfile%"
 @echo s = s ^& vbcrlf ^& verb.name '>>"%resetfile%"
 @echo if verb.name = sEnableVerb then '>>"%resetfile%"
-@echo set oEnableVerb = verb '>>"%resetfile%"
-@echo bEnabled = false '>>"%resetfile%"
-@echo end if '>>"%resetfile%"
-@echo if verb.name = sDisableVerb then '>>"%resetfile%"
-@echo set oDisableVerb = verb '>>"%resetfile%"
-@echo end if '>>"%resetfile%"
-@echo next '>>"%resetfile%"
-@echo if bEnabled = %trufalse% then '>>"%resetfile%"
-@echo o%disOrEn%Verb.DoIt '>>"%resetfile%"
-@echo end if '>>"%resetfile%"
+@echo set oEnableVerb = verb '>>"%resetfile%"&echo bEnabled = false '>>"%resetfile%"
+@echo end if '>>"%resetfile%"&echo if verb.name = sDisableVerb then '>>"%resetfile%"
+@echo set oDisableVerb = verb '>>"%resetfile%"&echo end if '>>"%resetfile%"
+@echo next '>>"%resetfile%"&echo if bEnabled = %trufalse% then '>>"%resetfile%"
+@echo o%disOrEn%Verb.DoIt '>>"%resetfile%"&echo end if '>>"%resetfile%"
 @echo wscript.sleep 2000 '>>"%resetfile%"
 %debgn%@echo off
 call :antihang 25 null cscript.exe //E:VBScript //T:1 //B //NoLogo "%resetfile%"
@@ -674,14 +669,10 @@ goto :eof
 set isAdmin=0
 net session >nul 2>&1
 if %errorLevel%==0 set isAdmin=1&set useregadd=::&set usetypenul=::
-%no_reg%%useregadd%set usetypenul=::
-%no_reg%%useregadd%REG ADD HKLM /F>nul 2>&1
-%no_reg%%useregadd%if %errorLevel%==0 set isAdmin=1&set usetypenul=::
+%no_reg%%useregadd%set usetypenul=::&(REG ADD HKLM /F>nul 2>&1 && (set isAdmin=1&set usetypenul=::))
 %no_SYSTEMROOT%%usetypenul%2>nul type nul>"%WINDIR%\testisadmin.txt"
-%no_SYSTEMROOT%%usetypenul%del /f /q "%WINDIR%\testisadmin.txt">nul 2>&1
-%no_SYSTEMROOT%%usetypenul%if %errorLevel%==0 set isAdmin=1
-%no_taskkill%for /f "usebackq tokens=*" %%a in (`taskkill /F /FI "WINDOWTITLE eq Limited: %ThisTitle%" ^|FINDSTR /C:SUCCESS`) do set killresult=%%a
-%no_taskkill%if not "%killresult%"=="" goto :eof
+%no_SYSTEMROOT%%usetypenul%del /f /q "%WINDIR%\testisadmin.txt">nul 2>&1 && set isAdmin=1
+%no_taskkill%taskkill /F /FI "WINDOWTITLE eq Limited: %ThisTitle%" ^|FINDSTR /C:"SUCCESS">nul 2>&1 && goto :eof
 if %isAdmin%==1 goto :eof
 title Limited: %ThisTitle%
 if not "%requestAdmin%"=="1" goto :eof
@@ -700,10 +691,8 @@ call :precisiontimer cRA halt
 if "%1"=="adapter" call :EnumerateAdapters
 %debgn%set /a lines=%gNI_arrLen%+11
 %debgn%call :SETMODECON 70 %lines%
-echo.
-echo Which one would you like to monitor?
-echo.
-echo Choose by the selection number below.
+echo.&echo Which one would you like to monitor?
+echo.&echo Choose by the selection number below.
 if not "%1"=="router" echo You may also enter x to cancel.
 if "%1"=="router" echo You may also type in a router address to use, or x to cancel.
 echo.
@@ -819,10 +808,14 @@ call :testValidPATHS_TEMP %TEMP%
 goto :eof
 :testValidPATHS_SYSTEMROOT
 if "%*"=="" goto :eof
-if exist "%*" set PATH=%*\system32;%*;%*\system32\wbem;%PATH%
-findstr /?>nul 2>&1 || goto :eof
+set origPATH=%PATH%
+if exist "%*\system32\wbem" set PATH=%*\system32\wbem;%PATH%
+if exist "%*\system32" set PATH=%*\system32;%PATH%
+if exist "%*\wbem" set PATH=%*\wbem;%PATH%
+if exist "%*" set PATH=%*;%PATH%
+findstr /?>nul 2>&1 || (set "PATH=%origPATH%"&goto :eof)
 set SYSTEMROOT=%*&set WINDIR=%*
-set hassys32=::&goto :eof
+set hassys32=::&set origPATH=&goto :eof
 :testValidPATHS_TEMP
 if "%*"=="" goto :eof
 set TMPP=%*\EXSqNET
@@ -835,14 +828,13 @@ set hastemp=::&goto :eof
 :testCompatibility
 ping /?>nul 2>&1 || (echo Critical error: PING error.&echo press any key to exit...&pause>nul&exit) 
 for %%c in (framedyn.dll) do if "%%~$PATH:c"=="" set no_taskkill=::
-for %%c in (wmic.exe) do if "%%~$PATH:c"=="" set no_wmic=::
-%no_taskkill%set no_tskill=::&set kill=taskkill /im&(taskkill /?>nul 2>&1 || (set no_taskkill=::&set no_tskill=))
-%no_tskill%set kill=tskill&(tskill /?>nul 2>&1 || set no_wmic=::)
+set no_tskill=::&(tskill /?>nul 2>&1 && (set no_tskill=&set prockill=tskill))
+%no_taskkill%set no_taskkill=::&(taskkill /?>nul 2>&1 && (set no_taskkill=&set prockill=taskkill /im))
+if "%prockill%"=="" set no_prockill=::
+tasklist /?>nul 2>&1 || set no_tasklist=::
 sc querylock>nul || (set no_sc=::&cls)
 reg /?>nul 2>&1 || set no_reg=::
-tasklist /?>nul 2>&1 || set no_tasklist=::
-%no_wmic%call :antihang 11 null wmic.exe os get status || set no_wmic=::
-%no_wmic%if "%no_temp%"=="::" wmic os get status>nul 2>&1 || set no_wmic=::
+call :antihang 11 null wmic.exe os get status || set no_wmic=::
 goto :eof
 
 :disableQuickEdit
@@ -862,11 +854,8 @@ set qkey=HKEY_CURRENT_USER\Console&set qval=QuickEdit
 goto :eof
 
 :crashAlert
-@start /b /wait "Limited: %ThisTitle%" "cmd" /c set CID=%CID%^&call "%~dpnx0"
-%no_tasklist%@if "%isAdmin%"=="0" (tasklist /FI "WINDOWTITLE eq Administrator:  %ThisTitle%"|FINDSTR /C:"Image">nul && exit)
-%no_tasklist%@if "%isAdmin%"=="0" (tasklist /FI "WINDOWTITLE eq %ThisTitle%"|FINDSTR /C:"Image">nul && exit)
-@echo.&echo Script crashed. Please contact electrodexsNET@gmail.com with the above error.
-@pause>nul&exit
+@start /b /wait "" "cmd" /c set CID=%CID%^&call "%~dpnx0"
+@call :detectMultiInst&echo.&echo Script crashed. Please contact ElectrodeXSnet@gmail.com with the above error.&@pause>nul&exit
 
 :init
 @call :setn_defaults
@@ -875,7 +864,7 @@ goto :eof
 %debgn%@echo off
 call :init_settnSTR viewmode %viewmode%
 echo " %viewmode% "|FINDSTR /C:" mini " /C:" normal " /C:" details ">nul || set viewmode=%D_viewmode%
-call :SETMODECON&echo.&echo initializing...&set version=4.2.332
+call :SETMODECON&echo.&echo Initializing...&set version=4.2.333
 set ThisTitle=Lectrode's Quick Net Fix v%version%&call :init_settnINT %settingsINT%
 %alertoncrash%TITLE %ThisTitle%
 if "%CID%"=="" call :init_CID
@@ -887,7 +876,7 @@ if "%isAdmin%"=="0" set use_admin=::&title Limited: %thistitle%
 set statspacer=                                                               .
 call :getruntime
 echo ,%requestDisableIPv6%,|FINDSTR /L ",0, ,1, ,2,">nul || set reqeustDisableIPv6=%D_requestDisableIPv6%
-set numfixes=0&set up=0&set down=0
+set numfixes=0&set up=0&set down=0&set NL=^
 set timepassed=0&set dbl=0&set numAdapters=0&set checkconnects=0
 set ca_percent=5&set MN_crd=5&set MX_crd=120&set MX_avgca=5
 set MX_avgtimeout=5&set MN_timeout=100&set MX_timeout=5000
@@ -913,10 +902,10 @@ if %CIDchars% lss 3 goto :init_CID
 endlocal&set CID=%CID:~0,5%&goto :eof
 
 :cleanTMPP
-set day=%DATE:/=-%&cd "%TMPP%"
-for /f "tokens=*" %%a IN ('xcopy *.* /d:%day:~4% /L /I null') do @if exist "%%~nxa" set "excludefiles=!excludefiles!;;%%~nxa"
-for /f "tokens=*" %%a IN ('dir /b 2^>nul') do @(@echo ";;%excludefiles%;;"|FINDSTR /C:";;%%a;;">nul || if exist "%%a" DEL /F /Q "%%a">nul 2>&1)
-cd "%thisdir%"&goto :eof
+set day=%DATE:/=-%
+for /f "tokens=*" %%a IN ('xcopy "%TMPP%"\*.* /d:%day:~4% /L /I null') do @if exist "%%~nxa" set "excludefiles=!excludefiles!;;%%~nxa"
+for /f "tokens=*" %%a IN ('dir "%TMPP%" /b 2^>nul') do @(@echo ";;%excludefiles%;;"|FINDSTR /C:";;%%a;;">nul || if exist "%TMPP%\%%a" DEL /F /Q "%TMPP%\%%a">nul 2>&1)
+goto :eof
 
 :init_settnINT
 if "%1"=="" goto :eof
