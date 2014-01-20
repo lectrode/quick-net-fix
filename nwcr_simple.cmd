@@ -1,4 +1,4 @@
-::Quick detect&fix v4.2.335
+::Quick detect&fix v4.2.336
 
 ::Documentation and updated versions can be found at
 ::https://code.google.com/p/quick-net-fix/
@@ -59,31 +59,30 @@ call :check&call :sleep %INT_checkdelay%&goto :loop
 set /a gNI_arrLen+=0
 if not %gNI_arrLen% equ 0 for /l %%n in (1,1,%gNI_arrLen%) do set net_%%n_cn=&set net_%%n_gw=
 set gNI_arrLen=0&set gNI_needAdapter=1
-for /f "tokens=1 delims=%%" %%r in ('ipconfig') do set "line=%%r"&call :getNETINFO_parse
+for /f "tokens=1 delims=%%" %%r in ('ipconfig') do echo "%%r" |FINDSTR /L "^& ^^ ^^! %%">nul || call :getNETINFO_parse %%r
 goto :eof
 
 :getNETINFO_parse
-echo "%line%" |FINDSTR /C:"adapter">nul && goto :getNETINFO_parseAdapter
+echo "%*" |FINDSTR /C:"adapter">nul && (set "line=%*"&goto :getNETINFO_parseAdapter)
 if %gNI_needAdapter%==1 goto :eof
-echo "%line%" |FINDSTR /C:"disconnected">nul
-if %errorlevel%==0 set net_%gNI_arrLen%_cn=&set net_%gNI_arrLen%_gw=&set /a gNI_arrLen-=1&set gNI_needAdapter=1&goto :eof
-echo "%line%" |FINDSTR /C:"Default Gateway">nul && goto :getNETINFO_parseRouter
+echo "%*" |FINDSTR /C:"disconnected">nul && goto :getNETINFO_reset
+echo "%*" |FINDSTR /C:"Default Gateway">nul && (set "line=%*"&goto :getNETINFO_parseRouter)
 goto :eof
 
 :getNETINFO_parseAdapter
-echo "%line%" |FINDSTR /L "^& ^^ ^^! %%">nul && goto :eof
 if not "%filterAdapters%"=="" echo "%line%" |FINDSTR /I /L "%filterAdapters%">nul && (set gNI_needAdapter=1&goto :eof)
 set gNI_needAdapter=0&set /a gNI_arrLen+=1&set line=%line:adapter =:%
 for /f "tokens=2 delims=:" %%a in ("%line%") do set net_%gNI_arrLen%_cn=%%a
 goto :eof
 
 :getNETINFO_parseRouter
-if not "%filterRouters%"=="" echo %line%|FINDSTR /I /L "%filterRouters%">nul
-if not "%filterRouters%"=="" if %errorlevel%==0 set net_%gNI_arrLen%_cn=&set net_%gNI_arrLen%_gw=&set /a gNI_arrLen-=1&set gNI_needAdapter=1&goto :eof
-set line=%line: .=%
-set line=%line:Default Gateway :=%
-if "%line%"=="" set net_%gNI_arrLen%_cn=&set net_%gNI_arrLen%_gw=&set /a gNI_arrLen-=1&set gNI_needAdapter=1&goto :eof
+if not "%filterRouters%"=="" echo %line%|FINDSTR /I /L "%filterRouters%">nul && goto :getNETINFO_reset
+set line=%line: .=%&set line=!line:Default Gateway :=!
+if "%line%"=="" goto :getNETINFO_reset
 set net_%gNI_arrLen%_gw=%line: =%&goto :eof
+
+:getNETINFO_reset
+set net_%gNI_arrLen%_cn=&set net_%gNI_arrLen%_gw=&set /a gNI_arrLen-=1&set gNI_needAdapter=1&goto :eof
 
 :header
 set show_stbtlySTR=%stbltySTR:0=-%
@@ -883,7 +882,7 @@ goto :eof
 %debgn%@echo off
 call :init_settnSTR viewmode %viewmode%
 echo " %viewmode% "|FINDSTR /C:" mini " /C:" normal " /C:" details ">nul || set viewmode=%D_viewmode%
-call :SETMODECON&echo.&echo Initializing...&set version=4.2.335
+call :SETMODECON&echo.&echo Initializing...&set version=4.2.336
 set ThisTitle=Lectrode's Quick Net Fix v%version%&call :init_settnINT %settingsINT%
 %alertoncrash%TITLE %ThisTitle%
 if "%CID%"=="" call :init_CID
