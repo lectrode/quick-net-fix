@@ -1,4 +1,4 @@
-::Quick detect&fix v4.2.334
+::Quick detect&fix v4.2.335
 
 ::Documentation and updated versions can be found at
 ::https://code.google.com/p/quick-net-fix/
@@ -59,22 +59,20 @@ call :check&call :sleep %INT_checkdelay%&goto :loop
 set /a gNI_arrLen+=0
 if not %gNI_arrLen% equ 0 for /l %%n in (1,1,%gNI_arrLen%) do set net_%%n_cn=&set net_%%n_gw=
 set gNI_arrLen=0&set gNI_needAdapter=1
-for /f "tokens=1 delims=%%" %%r in ('ipconfig') do call :getNETINFO_parse %%r
+for /f "tokens=1 delims=%%" %%r in ('ipconfig') do set "line=%%r"&call :getNETINFO_parse
 goto :eof
 
 :getNETINFO_parse
-echo %* |FINDSTR /C:"adapter">nul
-if %errorlevel%==0 set line=%*&goto :getNETINFO_parseAdapter
+echo "%line%" |FINDSTR /C:"adapter">nul && goto :getNETINFO_parseAdapter
 if %gNI_needAdapter%==1 goto :eof
-echo %* |FINDSTR /C:"disconnected">nul
+echo "%line%" |FINDSTR /C:"disconnected">nul
 if %errorlevel%==0 set net_%gNI_arrLen%_cn=&set net_%gNI_arrLen%_gw=&set /a gNI_arrLen-=1&set gNI_needAdapter=1&goto :eof
-echo %* |FINDSTR /C:"Default Gateway">nul
-if %errorlevel%==0 set line=%*&goto :getNETINFO_parseRouter
+echo "%line%" |FINDSTR /C:"Default Gateway">nul && goto :getNETINFO_parseRouter
 goto :eof
 
 :getNETINFO_parseAdapter
-if not "%filterAdapters%"=="" echo %line%|FINDSTR /I /L "%filterAdapters%">nul
-if not "%filterAdapters%"=="" if %errorlevel%==0 set gNI_needAdapter=1&goto :eof
+echo "%line%" |FINDSTR /L "^& ^^ ^^! %%">nul && goto :eof
+if not "%filterAdapters%"=="" echo "%line%" |FINDSTR /I /L "%filterAdapters%">nul && (set gNI_needAdapter=1&goto :eof)
 set gNI_needAdapter=0&set /a gNI_arrLen+=1&set line=%line:adapter =:%
 for /f "tokens=2 delims=:" %%a in ("%line%") do set net_%gNI_arrLen%_cn=%%a
 goto :eof
@@ -212,18 +210,19 @@ set instnum=0&goto :eof
 
 :countAdapters
 set totalAdapters=0&set tA_plus=0
-for /f %%n in ('ipconfig ^|FINDSTR /C:"adapter"') do set /a totalAdapters+=1
+for /f "tokens=*" %%n in ('ipconfig ^|FINDSTR /C:"adapter"') do set /a totalAdapters+=1&(echo "%%n"|FINDSTR /L "& ^ %%">nul && set /a badnm+=1)
+setlocal disabledelayedexpansion
+for /f "tokens=*" %%n in ('ipconfig ^|FINDSTR /C:"adapter"') do @echo "%%n"|FINDSTR /L "!">nul && set /a badnm+=1
+if not "%badnm%"=="0" if not "%badnm%"=="%oldbadnm%" (cls&echo.&echo Error: %badnm% or more adapter names have invalid symbols.&echo This script may not parse them correctly.&ping -n 11 127.0.0.1>nul)
+endlocal&set badnm=0&set oldbadnm=%badnm%
 if "%totalAdapters%"=="0" set tA_plus=1
 set /a est_secs=((totalAdapters+%tA_plus%)*ca_percent)/100&goto :eof
 
 :Update_avgca
-set /a last_ca_percent+=0
-set /a last_checkca+=0
+set /a last_ca_percent+=0&set /a last_checkca+=0
 set /a checkca=(%1*100)/ca_percent
 if %checkca% geq 300 if not %last_checkca% geq 300 goto :eof
-set num=0
-set avg_ca_percent=0
-set STR_ca_percent=
+set num=0&set avg_ca_percent=0&set STR_ca_percent=
 if %checkca% geq 300 set STR_ca_percent=%last_ca_percent%&set num=1
 set last_checkca=%checkca%&set last_ca_percent=%1
 :Update_avgca_loop
@@ -524,14 +523,13 @@ goto :eof
 %no_temp%%no_cscript%cmd /c exit /b %foundproc%
 %no_tlist%tlist|FINDSTR /I /C:"%*">nul && (cmd /c exit /b 0&goto :eof)
 %no_tlist%cmd /c exit /b 1&goto :eof
-set no_proclist=::&cmd /c exit /b 1&goto :eof
+set no_proclist=::&cmd /c exit /b 2&goto :eof
 
 :EnumerateAdapters
 set adapters_arrLen=0
 %no_wmic%call :antihang 20 wmicnetadapt wmic.exe nic get NetConnectionID || goto :EnumerateAdapters_alt
 %no_wmic%%no_temp%for /f "usebackq tokens=* delims=" %%n in ("%TMPP%\wmicnetadapt%CID%") do set "line=%%n"&call :EnumerateAdapters_parse
-%no_wmic%if "%no_temp%"=="::" for /f "tokens=1* delims==" %%n in ('set wmicnetadapt') do do set "line=%%m"&call :EnumerateAdapters_parse
-%no_wmic%if "%no_temp%"=="::" for /f "tokens=1 delims==" %%n in ('set wmicnetadapt') do set %%n=
+%no_wmic%if "%no_temp%"=="::" for /f "tokens=1* delims==" %%n in ('set wmicnetadapt') do (set %%n=&set "line=%%m"&call :EnumerateAdapters_parse)
 %no_wmic%DEL /F /Q "%TMPP%"\wmicnetadapt%CID% >nul 2>&1&goto :eof
 :EnumerateAdapters_alt
 %no_wmic%%no_temp%DEL /F /Q "%TMPP%"\wmicnetadapt%CID% >nul 2>&1
@@ -541,13 +539,13 @@ goto :eof
 
 :EnumerateAdapters_parse
 if "%line%"=="" goto :eof
-echo "%line%"|FINDSTR /L "& ! % ^">nul && goto :eof
+echo "%line%" |FINDSTR /L "^& ^^! %% ^^">nul && goto :eof
 if "%line%"=="NetConnectionID" goto :eof
 if "%line:~0,11%"=="Admin State" goto :eof
 if "%line:~0,4%"=="----" goto :eof
-if not "%filterAdapters%"=="" echo "%line%"|FINDSTR /I /L "%filterAdapters%">nul && goto :eof
+if not "%filterAdapters%"=="" echo %line%|FINDSTR /I /L "%filterAdapters%">nul && goto :eof
 set /a adapters_arrLen+=1
-%no_wmic%set "adapters_%adapters_arrLen%_name=%line%"&goto :eof
+%no_wmic%set adapters_%adapters_arrLen%_name=%line%&goto :eof
 for /f "tokens=3* delims= " %%c in ("%line%") do set adapters_%adapters_arrLen%_name=%%d
 goto :eof
 
@@ -885,7 +883,7 @@ goto :eof
 %debgn%@echo off
 call :init_settnSTR viewmode %viewmode%
 echo " %viewmode% "|FINDSTR /C:" mini " /C:" normal " /C:" details ">nul || set viewmode=%D_viewmode%
-call :SETMODECON&echo.&echo Initializing...&set version=4.2.334
+call :SETMODECON&echo.&echo Initializing...&set version=4.2.335
 set ThisTitle=Lectrode's Quick Net Fix v%version%&call :init_settnINT %settingsINT%
 %alertoncrash%TITLE %ThisTitle%
 if "%CID%"=="" call :init_CID
