@@ -1,4 +1,4 @@
-::Quick detect&fix v4.2.337
+::Quick detect&fix v4.2.338
 
 ::Documentation and updated versions can be found at
 ::https://code.google.com/p/quick-net-fix/
@@ -527,8 +527,8 @@ set no_proclist=::&cmd /c exit /b 2&goto :eof
 :EnumerateAdapters
 set adapters_arrLen=0
 %no_wmic%call :antihang 20 wmicnetadapt wmic.exe nic get NetConnectionID || goto :EnumerateAdapters_alt
-%no_wmic%%no_temp%for /f "usebackq tokens=* delims=" %%n in ("%TMPP%\wmicnetadapt%CID%") do set "line=%%n"&call :EnumerateAdapters_parse
-%no_wmic%if "%no_temp%"=="::" for /f "tokens=1* delims==" %%n in ('set wmicnetadapt') do (set %%n=&set "line=%%m"&call :EnumerateAdapters_parse)
+%no_wmic%%no_temp%for /f "usebackq tokens=* delims=" %%n in ("%TMPP%\wmicnetadapt%CID%") do echo "%%n" |FINDSTR /L "^& ^^! %% ^^">nul || call :EnumerateAdapters_parse %%n
+%no_wmic%if "%no_temp%"=="::" for /f "tokens=1* delims==" %%n in ('set wmicnetadapt') do (set %%n=&echo "%%m" |FINDSTR /L "^& ^^! %% ^^">nul || call :EnumerateAdapters_parse %%m)
 %no_wmic%DEL /F /Q "%TMPP%"\wmicnetadapt%CID% >nul 2>&1&goto :eof
 :EnumerateAdapters_alt
 %no_wmic%%no_temp%DEL /F /Q "%TMPP%"\wmicnetadapt%CID% >nul 2>&1
@@ -544,7 +544,7 @@ if "%line:~0,4%"=="----" goto :eof
 if not "%filterAdapters%"=="" echo %line%|FINDSTR /I /L "%filterAdapters%">nul && goto :eof
 set /a adapters_arrLen+=1
 %no_wmic%set adapters_%adapters_arrLen%_name=%line%&goto :eof
-set EA_tokens=3&echo "%2"|FINDSTR /I /C:"connected">nul || set EA_tokens=2
+set EA_tokens=3&(echo "%2"|FINDSTR /I /C:"connected" /C:"Unreachable">nul || set EA_tokens=2)
 for /f "tokens=%EA_tokens%* delims= " %%c in ("%line%") do set adapters_%adapters_arrLen%_name=%%d
 goto :eof
 
@@ -881,7 +881,7 @@ goto :eof
 %debgn%@echo off
 call :init_settnSTR viewmode %viewmode%
 echo " %viewmode% "|FINDSTR /C:" mini " /C:" normal " /C:" details ">nul || set viewmode=%D_viewmode%
-call :SETMODECON&echo.&echo Initializing...&set version=4.2.337
+call :SETMODECON&echo.&echo Initializing...&set version=4.2.338
 set ThisTitle=Lectrode's Quick Net Fix v%version%&call :init_settnINT %settingsINT%
 %alertoncrash%TITLE %ThisTitle%
 if "%CID%"=="" call :init_CID
