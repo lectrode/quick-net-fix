@@ -1,4 +1,4 @@
-::Quick detect&fix v4.2.336
+::Quick detect&fix v4.2.337
 
 ::Documentation and updated versions can be found at
 ::https://code.google.com/p/quick-net-fix/
@@ -532,24 +532,24 @@ set adapters_arrLen=0
 %no_wmic%DEL /F /Q "%TMPP%"\wmicnetadapt%CID% >nul 2>&1&goto :eof
 :EnumerateAdapters_alt
 %no_wmic%%no_temp%DEL /F /Q "%TMPP%"\wmicnetadapt%CID% >nul 2>&1
-%no_netsh%for /f "tokens=* delims=" %%n in ('netsh int show int') do call :EnumerateAdapters_parse %%n
-%no_netsh%for /f "tokens=* delims=" %%n in ('netsh mbn show int') do call :EnumerateAdapters_parseMBN %%n
+%no_netsh%for /f "tokens=* delims=" %%n in ('netsh int show int') do echo "%%n" |FINDSTR /L "^& ^^! %% ^^">nul || call :EnumerateAdapters_parse %%n
+%no_netsh%for /f "tokens=* delims=" %%n in ('netsh mbn show int') do echo "%%n" |FINDSTR /L "^& ^^! %% ^^">nul || call :EnumerateAdapters_parseMBN %%n
 goto :eof
 
 :EnumerateAdapters_parse
-if "%line%"=="" goto :eof
-echo "%line%" |FINDSTR /L "^& ^^! %% ^^">nul && goto :eof
-if "%line%"=="NetConnectionID" goto :eof
+if "%*"=="" goto :eof
+set line=%*&if "!line!"=="NetConnectionID" goto :eof
 if "%line:~0,11%"=="Admin State" goto :eof
 if "%line:~0,4%"=="----" goto :eof
 if not "%filterAdapters%"=="" echo %line%|FINDSTR /I /L "%filterAdapters%">nul && goto :eof
 set /a adapters_arrLen+=1
 %no_wmic%set adapters_%adapters_arrLen%_name=%line%&goto :eof
-for /f "tokens=3* delims= " %%c in ("%line%") do set adapters_%adapters_arrLen%_name=%%d
+set EA_tokens=3&echo "%2"|FINDSTR /I /C:"connected">nul || set EA_tokens=2
+for /f "tokens=%EA_tokens%* delims= " %%c in ("%line%") do set adapters_%adapters_arrLen%_name=%%d
 goto :eof
 
 :EnumerateAdapters_parseMBN
-echo x %*|FINDSTR /C:"Name">nul || goto :eof
+echo "%*"|FINDSTR /C:"Name">nul || goto :eof
 set line=%*
 if not "%filterAdapters%"=="" echo %line%|FINDSTR /I /L "%filterAdapters%">nul && goto :eof
 set /a adapters_arrLen+=1
@@ -601,7 +601,7 @@ set proc=%*&set proc=!proc:%1 %2 =!&set procsuccess=1
 %no_temp%set tempoutput= 1^^^>"%TMPP%\%2%CID%.tmp" 2^^^>^^^>"%temperrfile%.tmp"
 %no_temp%set geterrlvl= ^^^& (echo .^^^>^^^>"%temperrfile%.tmp")
 %no_temp%start /b "" cmd /c %proc%%tempoutput%%geterrlvl%&set startedproc=::
-if "%2"=="null" start /b "" cmd /c %proc%>nul 2>&1&set startedproc=::
+%startedproc%if "%2"=="null" start /b "" cmd /c %proc%>nul 2>&1&set startedproc=::
 %startedproc%for /f "tokens=* delims=" %%n in ('%proc%^&^&set procsuccess=0') do (set "%2!num!=%%n"&set /a num+=1)&goto :antihang_reset
 :antihang_wait
 set /a waitproc+=1
@@ -663,15 +663,14 @@ set resetfile=%TMPP%\resetadapter%CID%.vbs
 @echo o%disOrEn%Verb.DoIt '>>"%resetfile%"&echo end if '>>"%resetfile%"
 @echo wscript.sleep 2000 '>>"%resetfile%"
 %debgn%@echo off
-call :antihang 25 null cscript.exe //E:VBScript //T:1 //B //NoLogo "%resetfile%"
+call :antihang 25 null cscript.exe //E:VBScript //T:25 //NoLogo "%resetfile%"
 DEL /F /Q "%resetfile%">nul 2>&1
 goto :eof
 
 :detectIsAdmin
 %no_temp%DEL /F /Q "%TMPP%\getadmin*.vbs">nul 2>&1
 set isAdmin=0
-%no_net%net session >nul 2>&1
-%no_net%if %errorLevel%==0 set isAdmin=1&set useregadd=::&set usetypenul=::
+%no_net%net session >nul 2>&1 && (set isAdmin=1&set useregadd=::&set usetypenul=::)
 %no_reg%%useregadd%set usetypenul=::&(REG ADD HKLM /F>nul 2>&1 && (set isAdmin=1&set usetypenul=::))
 %no_SYSTEMROOT%%usetypenul%2>nul type nul>"%WINDIR%\testisadmin.txt"
 %no_SYSTEMROOT%%usetypenul%del /f /q "%WINDIR%\testisadmin.txt">nul 2>&1 && set isAdmin=1
@@ -845,10 +844,8 @@ tlist /?>nul 2>&1 || set no_tlist=::
 tasklist /?>nul 2>&1 || set no_tasklist=::
 pslist >nul 2>&1 || set no_pslist=::
 if "%no_tlist%%no_tasklist%%no_pslist%"=="::::::" set no_proclist=::
-set no_reg=::&(reg /?>nul 2>&1 && set no_reg=)&if !errorlevel!==5005 set no_reg=
+set no_reg=::&set reg1=::&set reg2=::&(reg /?>nul 2>&1 && set no_reg=&set reg1=)&if !errorlevel!==5005 set no_reg=&set reg2=
 (net helpmsg 1)>nul 2>&1 || set no_net=::
-set no_sc=::&(sc querylock>nul && set no_sc=)
-sc getdisplayname>nul && set no_sc=&@cls&echo.&echo Initializing...
 cscript /?>nul 2>&1 || set no_cscript=::
 netsh help >nul 2>&1 || set no_netsh=::
 call :antihang 11 null wmic.exe os get status || set no_wmic=::
@@ -857,13 +854,15 @@ goto :eof
 
 :disableQuickEdit
 set qkey=HKEY_CURRENT_USER\Console&set qval=QuickEdit
-%no_reg%if not "%qedit_dsbld%"=="" (echo y|reg add "%qkey%" /v "%qval%" /t REG_DWORD /d %qedit_dsbld%&cls&echo.&echo Initializing.....)
-%no_reg%if not "%qedit_dsbld%"=="" goto :eof
-%no_reg%for /f "tokens=3*" %%i in ('reg query "%qkey%" /v "%qval%" ^| FINDSTR /I "%qval%"') DO set qedit_dsbld=%%i
-%no_reg%if "%qedit_dsbld%"=="0x0" goto :eof
-%no_reg%echo y|reg add "%qkey%" /v "%qval%" /t REG_DWORD /d 0&cls&start "" "cmd" /k set CID=%CID%^& call "%~dpnx0"&exit
+%no_reg%%reg1%if not "%qedit_dsbld%"=="" (echo y|reg add "%qkey%" /v "%qval%" /t REG_DWORD /d %qedit_dsbld%&cls&echo.&echo Initializing...&goto :eof)
+%no_reg%%reg1%for /f "tokens=3*" %%i in ('reg query "%qkey%" /v "%qval%" ^| FINDSTR /I "%qval%"') DO (set qedit_dsbld=%%i)&if "!qedit_dsbld!"=="0x0" goto :eof
+%no_reg%%reg1%echo y|reg add "%qkey%" /v "%qval%" /t REG_DWORD /d 0&cls&start "" "cmd" /k set CID=%CID%^&set qedit_dsbld=%qedit_dsbld% ^& call "%~dpnx0"&exit
+%no_reg%%reg2%if not "%qedit_dsbld%"=="" (reg update "%qkey%\%qval%"=%qedit_dsbld%&cls&echo.&echo Initializing...&goto :eof)
+%no_reg%%reg2%for /f "tokens=3*" %%i in ('reg query "%qkey%\%qval%"') DO (set qedit_dsbld=%%i)&if "!qedit_dsbld!"=="0" goto :eof
+%no_reg%%reg2%if "%qedit_dsbld%"=="" (reg add "%qkey%\%qval%"=0 REG_DWORD&start "" "cmd" /k set CID=%CID%^&set qedit_dsbld=%qedit_dsbld% ^&call "%~dpnx0"&exit)
+%no_reg%%reg2%if "%qedit_dsbld%"=="1" (reg update "%qkey%\%qval%"=0&start "" "cmd" /k set CID=%CID%^& call "%~dpnx0"&exit)
 %no_regedit%%no_temp%echo REGEDIT4>"%TMPP%\quickedit3%CID%.reg"&(regedit /S "%TMPP%\quickedit3%CID%.reg" || set no_regedit=::)
-%no_regedit%%no_temp%DEL /F /Q "%TMPP%\quickedit3%CID%.reg"&cls&echo.&echo Initializing.....
+%no_regedit%%no_temp%DEL /F /Q "%TMPP%\quickedit3%CID%.reg"&cls&echo.&echo Initializing...
 %no_regedit%%no_temp%if exist "%TMPP%\quickedit%CID%.reg" regedit /S "%TMPP%\quickedit%CID%.reg"&DEL /F /Q "%TMPP%\quickedit%CID%.reg"&goto :eof
 %no_regedit%%no_temp%regedit /S /e "%TMPP%\quickedit%CID%.reg" "%qkey%"
 %no_regedit%%no_temp%echo REGEDIT4>"%TMPP%\quickedit2%CID%.reg"&echo [%qkey%]>>"%TMPP%\quickedit2%CID%.reg"
@@ -882,7 +881,7 @@ goto :eof
 %debgn%@echo off
 call :init_settnSTR viewmode %viewmode%
 echo " %viewmode% "|FINDSTR /C:" mini " /C:" normal " /C:" details ">nul || set viewmode=%D_viewmode%
-call :SETMODECON&echo.&echo Initializing...&set version=4.2.336
+call :SETMODECON&echo.&echo Initializing...&set version=4.2.337
 set ThisTitle=Lectrode's Quick Net Fix v%version%&call :init_settnINT %settingsINT%
 %alertoncrash%TITLE %ThisTitle%
 if "%CID%"=="" call :init_CID
