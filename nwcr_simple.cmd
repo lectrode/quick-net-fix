@@ -1,4 +1,4 @@
-::Quick detect&fix v4.2.339
+::Quick detect&fix v4.2.340
 
 ::Documentation and updated versions can be found at
 ::https://code.google.com/p/quick-net-fix/
@@ -51,7 +51,6 @@
 
 :loop
 %debgn%call :SETMODECON
-%no_proclist%call :detectMultiInst
 %no_temp%set /a cleanTMPPnum+=1&(if !cleanTMPPnum! geq 200 (call :cleanTMPP&set cleanTMPPnum=0))
 call :check&call :sleep %INT_checkdelay%&goto :loop
 
@@ -187,11 +186,6 @@ if %stblty_result% equ 100 set stability=High [1]
 if %stblty_tests% leq %INT_StabilityHistory% set stability=Calculating...(%stblty_tests%/%INT_StabilityHistory%)
 if %stblty_tests% gtr %INT_StabilityHistory% set INT_checkdelay=%orig_checkdelay%
 set stblty_firstval=&set stblty_tests=&set stblty_val=&goto :eof
-
-:detectMultiInst
-%no_tasklist%if "%isadmin%"=="0" set instnum=0&for /f %%i in ('tasklist /V /FO:CSV ^|FINDSTR /C:"%ThisTitle%"') do set /a instnum+=1&if !instnum! gtr 1 exit
-%no_tlist%if "%isadmin%"=="0" set instnum=0&for /f %%c in ('tlist ^|FINDSTR /C:"%ThisTitle%" 2^>nul') do set /a instnum+=1&if !instnum! gtr 1 exit
-goto :eof
 
 :countAdapters
 set totalAdapters=0&set tA_plus=0
@@ -588,16 +582,17 @@ set isAdmin=0
 %no_reg%%useregadd%set usetypenul=::&(REG ADD HKLM /F>nul 2>&1 && (set isAdmin=1&set usetypenul=::))
 %no_SYSTEMROOT%%usetypenul%2>nul type nul>"%WINDIR%\testisadmin.txt"
 %no_SYSTEMROOT%%usetypenul%del /f /q "%WINDIR%\testisadmin.txt">nul 2>&1 && set isAdmin=1
+:dIA_kill
+%no_prockill%%no_tasklist%for /f "tokens=2 delims=," %%p in ('tasklist /V /FO:CSV ^|FINDSTR /C:"Limited: %ThisTitle%" 2^>nul') do (%killPID% %%p>nul 2>&1 && goto :dIA_kill)
+%no_prockill%%no_tlist%for /f %%p in ('tlist ^|FINDSTR /C:"Limited: %ThisTitle%" 2^>nul') do (%killPID% %%p>nul 2>&1 && goto :dIA_kill)
 if %isAdmin%==1 goto :eof
 title Limited: %ThisTitle%
 if not "%requestAdmin%"=="1" goto :eof
-%no_winkill%%no_temp%%no_cscript%echo Set StartAdmin = CreateObject^("Shell.Application"^) > "%TMPP%\getadmin%CID%.vbs"
-%no_winkill%%no_temp%%no_cscript%echo StartAdmin.ShellExecute "%~s0", "", "", "runas", 1 >> "%TMPP%\getadmin%CID%.vbs"
-%no_winkill%%no_temp%%no_cscript%echo Requesting admin rights...&echo (This will close upon successful request)
-%no_winkill%%no_temp%%no_cscript%start /b "" cscript //E:VBScript //B //T:1 "%TMPP%\getadmin%CID%.vbs" //nologo
-:dIA_wait
-%no_winkill%%no_temp%%no_cscript%set /a dIA_waitn+=1&call :detectMultiInst&if !dIA_waitn! leq 100 goto :dIA_wait
-%no_winkill%%no_temp%%no_cscript%DEL /F /Q "%TMPP%\qNET_getadmin.vbs">nul 2>&1
+%no_winfind%%no_prockill%%no_temp%%no_cscript%echo Set StartAdmin = CreateObject^("Shell.Application"^) > "%TMPP%\getadmin%CID%.vbs"
+%no_winfind%%no_prockill%%no_temp%%no_cscript%echo StartAdmin.ShellExecute "%~s0", "", "", "runas", 1 >> "%TMPP%\getadmin%CID%.vbs"
+%no_winfind%%no_prockill%%no_temp%%no_cscript%cls&echo.&echo Requesting admin rights...&echo (This will close upon successful request)
+%no_winfind%%no_prockill%%no_temp%%no_cscript%start /b "" cscript //E:VBScript //B //T:1 "%TMPP%\getadmin%CID%.vbs" //nologo
+%no_winfind%%no_prockill%%no_temp%%no_cscript%ping -n 11 127.0.0.1>nul&DEL /F /Q "%TMPP%\qNET_getadmin.vbs">nul 2>&1
 goto :eof
 
 :Ask4NET
@@ -734,15 +729,15 @@ set hastemp=::&goto :eof
 ping /?>nul 2>&1 || (echo Critical error: PING error.&echo Press any key to exit...&pause>nul&exit)
 ipconfig >nul 2>&1 || (echo Critical error: IPCONFIG error.&echo Press any key to exit...&pause>nul&exit)
 for %%c in (framedyn.dll) do if "%%~$PATH:c"=="" set no_taskkill=::
-set no_kill=::&(kill /?>nul 2>&1 && (set prockill=kill&set no_kill=))
-set no_pskill=::&pskill /?>nul 2>&1& if !errorlevel! leq 0 set prockill=pskill&set no_pskill=& REM Normal returns -1
-set no_tskill=::&(tskill /?>nul 2>&1 && (set no_tskill=&set prockill=tskill))
-%no_taskkill%set no_taskkill=::&(taskkill /?>nul 2>&1 && (set no_taskkill=&set prockill=taskkill /im))
+set no_kill=::&(kill /?>nul 2>&1 && (set prockill=kill&set no_kill=&set killPID=kill /f))
+set no_pskill=::&pskill /?>nul 2>&1& if !errorlevel! leq 0 set prockill=pskill&set no_pskill=&set killPID=pskill& REM Normal returns -1
+set no_tskill=::&(tskill /?>nul 2>&1 && (set no_tskill=&set prockill=tskill&set killPID=tskill))
+%no_taskkill%set no_taskkill=::&(taskkill /?>nul 2>&1 && (set no_taskkill=&set prockill=taskkill /im&set killPID=taskkill /f /pid))
 if "%prockill%"=="" set no_prockill=::
-if "%no_kill%%no_taskkill%"=="::::" set no_winkill=::
 tlist /?>nul 2>&1 || set no_tlist=::
 tasklist /?>nul 2>&1 || set no_tasklist=::
 pslist >nul 2>&1 || set no_pslist=::
+if "%no_tlist%%no_tasklist%"=="::::" set no_winfind=::
 if "%no_tlist%%no_tasklist%%no_pslist%"=="::::::" set no_proclist=::
 set no_reg=::&set reg1=::&set reg2=::&(reg /?>nul 2>&1 && set no_reg=&set reg1=)&if !errorlevel!==5005 set no_reg=&set reg2=
 (net helpmsg 1)>nul 2>&1 || set no_net=::
@@ -772,7 +767,7 @@ goto :eof
 
 :crashAlert
 @start /b /wait "" "cmd" /c set CID=%CID%^&call "%~dpnx0"
-@call :detectMultiInst&echo.&echo Script crashed. Please contact ElectrodeXSnet@gmail.com with the above error.&@pause>nul&exit
+@echo.&echo Script crashed. Please contact ElectrodeXSnet@gmail.com with the above error.&@pause>nul&exit
 
 :init
 @call :setn_defaults
@@ -781,7 +776,7 @@ goto :eof
 %debgn%@echo off
 call :init_settnSTR viewmode %viewmode%&set initializing=echo.^&echo Please wait while qNET starts...
 echo " %viewmode% "|FINDSTR /C:" mini " /C:" normal " /C:" details ">nul || set viewmode=%D_viewmode%
-call :SETMODECON&%initializing%&set version=4.2.339
+call :SETMODECON&%initializing%&set version=4.2.340
 set ThisTitle=Lectrode's Quick Net Fix v%version%&call :init_settnINT %settingsINT%
 %alertoncrash%TITLE %ThisTitle%
 if "%CID%"=="" call :init_CID
