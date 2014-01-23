@@ -1,4 +1,4 @@
-::Quick detect&fix v4.2.341
+::Quick detect&fix v4.2.342
 
 ::Documentation and updated versions can be found at
 ::https://code.google.com/p/quick-net-fix/
@@ -577,8 +577,8 @@ DEL /F /Q "%resetfile%">nul 2>&1&goto :eof
 
 :detectIsAdmin
 %no_temp%DEL /F /Q "%TMPP%\getadmin*.vbs">nul 2>&1
-set isAdmin=0
-%no_net%sfc |FINDSTR /I /C:"/SCANNOW" >nul 2>&1 && set isAdmin=1
+%no_sfc%for /f "tokens=* delims=" %%s in ('sfc 2^>^&1^|MORE') do @set "output=!output!%%s"
+set isAdmin=0&echo "%output%"|findstr /I /C:"/scannow">nul 2>&1 && set isAdmin=1
 :dIA_kill
 %no_prockill%%no_tasklist%for /f "tokens=2 delims=," %%p in ('tasklist /V /FO:CSV ^|FINDSTR /C:"Limited: %ThisTitle%" 2^>nul') do (%killPID% %%p>nul 2>&1 && goto :dIA_kill)
 %no_prockill%%no_tlist%for /f %%p in ('tlist ^|FINDSTR /C:"Limited: %ThisTitle%" 2^>nul') do (%killPID% %%p>nul 2>&1 && goto :dIA_kill)
@@ -726,6 +726,7 @@ set hastemp=::&goto :eof
 ping /?>nul 2>&1 || (echo Critical error: PING error.&echo Press any key to exit...&pause>nul&exit)
 ipconfig >nul 2>&1 || (echo Critical error: IPCONFIG error.&echo Press any key to exit...&pause>nul&exit)
 for %%c in (framedyn.dll) do if "%%~$PATH:c"=="" set no_taskkill=::
+for %%c in (sfc.exe) do if "%%~$PATH:c"=="" set no_sfc=::
 set no_kill=::&(kill /?>nul 2>&1 && (set prockill=kill&set no_kill=&set killPID=kill /f))
 set no_pskill=::&pskill /?>nul 2>&1& if !errorlevel! leq 0 set prockill=pskill&set no_pskill=&set killPID=pskill& REM Normal returns -1
 set no_tskill=::&(tskill /?>nul 2>&1 && (set no_tskill=&set prockill=tskill&set killPID=tskill))
@@ -772,7 +773,7 @@ goto :eof
 %debgn%@echo off
 call :init_settnSTR viewmode %viewmode%&set initializing=echo.^&echo Please wait while qNET starts...
 echo " %viewmode% "|FINDSTR /C:" mini " /C:" normal " /C:" details ">nul || set viewmode=%D_viewmode%
-call :SETMODECON&%initializing%&set version=4.2.341
+call :SETMODECON&%initializing%&set version=4.2.342
 set ThisTitle=Lectrode's Quick Net Fix v%version%&call :init_settnINT %settingsINT%
 %alertoncrash%TITLE %ThisTitle%
 if "%CID%"=="" call :init_CID
