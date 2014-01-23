@@ -1,4 +1,4 @@
-::Quick detect&fix v4.2.340
+::Quick detect&fix v4.2.341
 
 ::Documentation and updated versions can be found at
 ::https://code.google.com/p/quick-net-fix/
@@ -578,10 +578,7 @@ DEL /F /Q "%resetfile%">nul 2>&1&goto :eof
 :detectIsAdmin
 %no_temp%DEL /F /Q "%TMPP%\getadmin*.vbs">nul 2>&1
 set isAdmin=0
-%no_net%net session >nul 2>&1 && (set isAdmin=1&set useregadd=::&set usetypenul=::)
-%no_reg%%useregadd%set usetypenul=::&(REG ADD HKLM /F>nul 2>&1 && (set isAdmin=1&set usetypenul=::))
-%no_SYSTEMROOT%%usetypenul%2>nul type nul>"%WINDIR%\testisadmin.txt"
-%no_SYSTEMROOT%%usetypenul%del /f /q "%WINDIR%\testisadmin.txt">nul 2>&1 && set isAdmin=1
+%no_net%sfc |FINDSTR /I /C:"/SCANNOW" >nul 2>&1 && set isAdmin=1
 :dIA_kill
 %no_prockill%%no_tasklist%for /f "tokens=2 delims=," %%p in ('tasklist /V /FO:CSV ^|FINDSTR /C:"Limited: %ThisTitle%" 2^>nul') do (%killPID% %%p>nul 2>&1 && goto :dIA_kill)
 %no_prockill%%no_tlist%for /f %%p in ('tlist ^|FINDSTR /C:"Limited: %ThisTitle%" 2^>nul') do (%killPID% %%p>nul 2>&1 && goto :dIA_kill)
@@ -592,7 +589,7 @@ if not "%requestAdmin%"=="1" goto :eof
 %no_winfind%%no_prockill%%no_temp%%no_cscript%echo StartAdmin.ShellExecute "%~s0", "", "", "runas", 1 >> "%TMPP%\getadmin%CID%.vbs"
 %no_winfind%%no_prockill%%no_temp%%no_cscript%cls&echo.&echo Requesting admin rights...&echo (This will close upon successful request)
 %no_winfind%%no_prockill%%no_temp%%no_cscript%start /b "" cscript //E:VBScript //B //T:1 "%TMPP%\getadmin%CID%.vbs" //nologo
-%no_winfind%%no_prockill%%no_temp%%no_cscript%ping -n 11 127.0.0.1>nul&DEL /F /Q "%TMPP%\qNET_getadmin.vbs">nul 2>&1
+%no_winfind%%no_prockill%%no_temp%%no_cscript%ping -n 11 127.0.0.1>nul&DEL /F /Q "%TMPP%\getadmin%CID%.vbs">nul 2>&1
 goto :eof
 
 :Ask4NET
@@ -740,7 +737,6 @@ pslist >nul 2>&1 || set no_pslist=::
 if "%no_tlist%%no_tasklist%"=="::::" set no_winfind=::
 if "%no_tlist%%no_tasklist%%no_pslist%"=="::::::" set no_proclist=::
 set no_reg=::&set reg1=::&set reg2=::&(reg /?>nul 2>&1 && set no_reg=&set reg1=)&if !errorlevel!==5005 set no_reg=&set reg2=
-(net helpmsg 1)>nul 2>&1 || set no_net=::
 cscript /?>nul 2>&1 || set no_cscript=::
 netsh help >nul 2>&1 || set no_netsh=::
 call :antihang 11 null wmic.exe os get status || set no_wmic=::
@@ -776,7 +772,7 @@ goto :eof
 %debgn%@echo off
 call :init_settnSTR viewmode %viewmode%&set initializing=echo.^&echo Please wait while qNET starts...
 echo " %viewmode% "|FINDSTR /C:" mini " /C:" normal " /C:" details ">nul || set viewmode=%D_viewmode%
-call :SETMODECON&%initializing%&set version=4.2.340
+call :SETMODECON&%initializing%&set version=4.2.341
 set ThisTitle=Lectrode's Quick Net Fix v%version%&call :init_settnINT %settingsINT%
 %alertoncrash%TITLE %ThisTitle%
 if "%CID%"=="" call :init_CID
