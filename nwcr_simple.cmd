@@ -1,4 +1,4 @@
-::Quick detect&fix 4.2.343 (DEV)
+::Quick detect&fix 4.2.344 (DEV)
 
 ::Documentation and updated versions can be found at
 ::https://code.google.com/p/quick-net-fix/
@@ -755,10 +755,10 @@ ping /?>nul 2>&1 || (echo Critical error: PING error.&echo Press any key to exit
 ipconfig >nul 2>&1 || (echo Critical error: IPCONFIG error.&echo Press any key to exit...&pause>nul&exit)
 for %%c in (framedyn.dll) do if "%%~$PATH:c"=="" set no_taskkill=::
 for %%c in (sfc.exe) do if "%%~$PATH:c"=="" set no_sfc=::
-set no_kill=::&(kill /?>nul 2>&1 && (set prockill=kill&set no_kill=&set killPID=kill /f))
+set no_kill=::&(kill /?>nul 2>&1 && (set prockill=kill&set no_kill=&set killPID=kill))
 set no_pskill=::&pskill /?>nul 2>&1& if !errorlevel! leq 0 set prockill=pskill&set no_pskill=&set killPID=pskill& REM Normal returns -1
 set no_tskill=::&(tskill /?>nul 2>&1 && (set no_tskill=&set prockill=tskill&set killPID=tskill))
-%no_taskkill%set no_taskkill=::&(taskkill /?>nul 2>&1 && (set no_taskkill=&set prockill=taskkill /im&set killPID=taskkill /f /pid))
+%no_taskkill%set no_taskkill=::&(taskkill /?>nul 2>&1 && (set no_taskkill=&set prockill=taskkill /im&set killPID=taskkill /pid))
 if "%prockill%"=="" set no_prockill=::
 tlist /?>nul 2>&1 || set no_tlist=::
 tasklist /?>nul 2>&1 || set no_tasklist=::
@@ -766,9 +766,12 @@ pslist >nul 2>&1 || set no_pslist=::
 if "%no_tlist%%no_tasklist%"=="::::" set no_winfind=::
 if "%no_tlist%%no_tasklist%%no_pslist%"=="::::::" set no_proclist=::
 set no_reg=::&set reg1=::&set reg2=::&(reg /?>nul 2>&1 && set no_reg=&set reg1=)&if !errorlevel!==5005 set no_reg=&set reg2=
-powershell /?>nul 2>&1 || set no_ps=:: & title %ThisTitle%
-bitsadmin /?>nul 2>&1 || set no_bits=::
 cscript /?>nul 2>&1 || set no_cscript=::
+goto :eof
+:testCompatibility2
+for %%c in (powershell.exe) do if "%%~$PATH:c"=="" set no_ps=::
+::powershell -?>nul 2>&1 || set no_ps=:: & title %ThisTitle%
+bitsadmin /?>nul 2>&1 || set no_bits=::
 netsh help >nul 2>&1 || set no_netsh=::
 call :antihang 11 null wmic.exe os get status || set no_wmic=::
 if "%no_netsh%%no_wmic%"=="::::" (echo Critical error: This script requires either NETSH or WMIC.&echo Press any key to exit...&pause>nul&exit)
@@ -802,14 +805,13 @@ goto :eof
 %debgn%@echo off
 call :init_settnSTR viewmode %viewmode%&set initializing=echo.^&echo Please wait while qNET starts...
 echo " %viewmode% "|FINDSTR /C:" mini " /C:" normal " /C:" details ">nul || set viewmode=%D_viewmode%
-call :SETMODECON&%initializing%&set version=4.2.343&set channel=d
+call :SETMODECON&%initializing%&set version=4.2.344&set channel=d
 set ThisTitle=Lectrode's Quick Net Fix %channel%%version%&call :init_settnINT %settingsINT%
 TITLE %ThisTitle%&if "%CID%"=="" call :init_CID
-%pathcompatinit%call :testValidPATHS&call :testCompatibility&set pathcompatinit=::
-%alertoncrash%call :detectIsAdmin&call :disableQuickEdit
+%alertoncrash%call :testValidPATHS&call :testCompatibility&call :detectIsAdmin&call :disableQuickEdit
 %alertoncrash%@set alertoncrash=::&goto :crashAlert
 if "%isAdmin%"=="0" set use_admin=::&set thistitle=Limited: %thistitle%&title !thistitle!
-call :getruntime&%no_temp%call :cleanTMPP
+call :getruntime&call :testCompatibility2&%no_temp%call :cleanTMPP
 %debgn%@call :init_colors %theme%
 set statspacer=                                                               .
 set plainbar=------------------------------------------------------------------------------
