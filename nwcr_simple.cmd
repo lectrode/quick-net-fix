@@ -1,4 +1,4 @@
-::Quick detect&fix 4.2.344 (DEV)
+::Quick detect&fix 4.2.345 (DEV)
 
 ::Documentation and updated versions can be found at
 ::https://code.google.com/p/quick-net-fix/
@@ -224,12 +224,11 @@ goto :eof
 
 :Update_avgtimeout
 if "%AUTO_timeoutsecs%"=="" goto :eof
-set num=0
-set avg_timeout=0
-set STR_timeout=
+set num=0&set high_timeout=%1&set STR_timeout=
 :Update_avgtimeout_loop
-if not "%1"=="" if %num% lss %MX_avgtimeout% set /a avg_timeout+=%1&set STR_timeout=%STR_timeout% %1&set /a num+=1&shift&goto :Update_avgtimeout_loop
-set /a timeoutmilsecs=(avg_timeout/num)+((avg_timeout/num)/2)
+if not "%1"=="" if %num% lss %MX_avgtimeout% set STR_timeout=%STR_timeout% %1&set /a num+=1&if %10 gtr %high_timeout%0 set high_timeout=%1
+if not "%1"=="" shift&goto :Update_avgtimeout_loop
+set /a timeoutmilsecs=high_timeout+(high_timeout/2)
 if %timeoutmilsecs% lss %MN_timeout% set timeoutmilsecs=%MN_timeout%
 if %timeoutmilsecs% gtr %MX_timeout% set timeoutmilsecs=%MX_timeout%
 goto :eof
@@ -589,18 +588,21 @@ set curstatus=Checking for updates...&%debgn%call :header
 set use_ps=&set use_bits=::&set use_vbs=::
 set vurl=http://electrodexs.net/scripts/qNET/cur&set c4u_local=%version:.=%
 %no_ps%set pscmd=powershell -c "echo (New-Object System.Text.ASCIIEncoding).GetString((New-Object Net.WebClient).DownloadData('%vurl%'));"
-%no_ps%for /f "usebackq tokens=2 delims==" %%v in (`%pscmd%^|FINDSTR "SET %channel%"`) do set "c4u_remote=%%v"&title %ThisTitle%
-if "%c4u_remote%"=="" set use_bits=&set c4u_file=%TMPP%\c4u%CID%.cmd
-%no_bits%%no_temp%%use_bits%call :antihang 25 null bitsadmin /transfer "qNET_updatecheck" "%vurl%" "%c4u_file%" && (call "%c4u_file%"&set c4u_remote=!%channel%!&del /f /q "%c4u_file%">nul 2>&1)
-if "%c4u_remote%"=="" set use_vbs=&set c4u_vbs=%TMPP%\c4u%CID%.vbs
+%no_ps%for /f "usebackq tokens=2 delims==" %%v in (`%pscmd%^|FINDSTR "SET %channel%="`) do set "c4u_remote=%%v"&title %ThisTitle%
+set /a c4u_remote+=0&if !c4u_remote!==0 set use_bits=&set c4u_file=%TMPP%\c4u%CID%
+%no_bits%%no_temp%%use_bits%call :antihang 25 null bitsadmin /transfer "qNET_updatecheck" "%vurl%" "%c4u_file%" && (call :c4u_runfile %c4u_file%&set c4u_remote=!%channel%!&del /f /q "%c4u_file%">nul 2>&1)
+set /a c4u_remote+=0&if !c4u_remote!==0 set use_vbs=&set c4u_vbs=%TMPP%\c4u%CID%.vbs
 %no_cscript%%no_temp%%use_vbs%echo Set mX = CreateObject("Microsoft.XmlHTTP")>"%c4u_vbs%"
 %no_cscript%%no_temp%%use_vbs%echo mX.Open "GET", "%vurl%", False>>"%c4u_vbs%"&echo mX.Send "">>"%c4u_vbs%"
 %no_cscript%%no_temp%%use_vbs%echo Set objFile = CreateObject("Scripting.FileSystemObject").CreateTextFile("%c4u_file%", True)>>"%c4u_vbs%"
 %no_cscript%%no_temp%%use_vbs%echo objFile.Write mX.responseText>>"%c4u_vbs%"
 %no_cscript%%no_temp%%use_vbs%call :antihang 25 null cscript.exe //E:VBScript //T:25 //NoLogo "%c4u_vbs%"
-%no_cscript%%no_temp%%use_vbs%call "%c4u_file%"&del /f /q "%c4u_file%">nul 2>&1&set c4u_remote=!%channel%!&del /f /q "%c4u_vbs%">nul 2>&1
+%no_cscript%%no_temp%%use_vbs%call :c4u_runfile %c4u_file%&del /f /q "%c4u_file%*">nul 2>&1&set "c4u_remote=!%channel%!"
 set /a c4u_remote+=0&if !c4u_remote!==0 goto :eof
 if %c4u_remote% gtr %c4u_local% set hasupdate=1
+goto :eof
+:c4u_runfile
+if exist "%*" for /f "usebackq tokens=2 delims==" %%v in (`FINDSTR /C:"SET %channel%=" "%*"^>nul 2^>^&1`) do set "%channel%=%%v"
 goto :eof
 
 :detectIsAdmin
@@ -797,7 +799,7 @@ goto :eof
 
 :crashAlert
 @start /b /wait "" "cmd" /c set CID=%CID%^&call "%~dpnx0"
-@echo.&echo Script crashed. Please contact ElectrodeXSnet@gmail.com with the above error.&@pause>nul&exit
+@echo.&echo Script crashed. Please contact ElectrodeXSnet@gmail.com with the information above.&@pause>nul&exit
 
 :init
 @call :setn_defaults&call :init_settnBOOL !settingsBOOL!
@@ -805,7 +807,7 @@ goto :eof
 %debgn%@echo off
 call :init_settnSTR viewmode %viewmode%&set initializing=echo.^&echo Please wait while qNET starts...
 echo " %viewmode% "|FINDSTR /C:" mini " /C:" normal " /C:" details ">nul || set viewmode=%D_viewmode%
-call :SETMODECON&%initializing%&set version=4.2.344&set channel=d
+call :SETMODECON&%initializing%&set version=4.2.345&set channel=d
 set ThisTitle=Lectrode's Quick Net Fix %channel%%version%&call :init_settnINT %settingsINT%
 TITLE %ThisTitle%&if "%CID%"=="" call :init_CID
 %alertoncrash%call :testValidPATHS&call :testCompatibility&call :detectIsAdmin&call :disableQuickEdit
@@ -821,7 +823,7 @@ set numfixes=0&set up=0&set down=0&set lastResult=up&set /a c4u_max=24*60*60/(IN
 set /a c4u=c4u_max-(INT_StabilityHistory+(6*60-INT_StabilityHistory)/(INT_checkdelay+1))
 set timepassed=0&set dbl=0&set numAdapters=0&set checkconnects=0
 set ca_percent=5&set MN_crd=5&set MX_crd=120&set MX_avgca=5
-set MX_avgtimeout=5&set MN_timeout=100&set MX_timeout=5000
+set MX_avgtimeout=20&set MN_timeout=100&set MX_timeout=5000
 set MN_flukechecks=3&set MX_flukechecks=7&set INT_flukemaxtime*=1000
 set orig_checkdelay=%INT_checkdelay%&set INT_checkdelay=1
 if %INT_checkrouterdelay%==0 set AUTO_checkrouterdelay=1
@@ -844,10 +846,10 @@ if %CIDchars% lss 3 goto :init_CID
 endlocal&set CID=%CID:~0,5%&goto :eof
 
 :cleanTMPP
-set day=%DATE:/=-%
-for /f "tokens=*" %%a IN ('xcopy "%TMPP%"\*.* /d:%day:~4% /L /I null') do @if exist "%%~nxa" set "excludefiles=!excludefiles!;;%%~nxa"
-for /f "tokens=*" %%a IN ('dir "%TMPP%" /b 2^>nul') do @(@echo ";;%excludefiles%;;"|FINDSTR /C:";;%%a;;">nul || if exist "%TMPP%\%%a" DEL /F /Q "%TMPP%\%%a">nul 2>&1)
-goto :eof
+set day=%DATE:/=-%&cd "%TMPP%"
+for /f "tokens=*" %%a IN ('xcopy *.* /d:%day:~4% /L /I null') do @if exist "%%~nxa" set "excludefiles=!excludefiles!;;%%~nxa"
+for /f "tokens=*" %%a IN ('dir /b 2^>nul') do @(@echo ";;%excludefiles%;;"|FINDSTR /C:";;%%a;;">nul || if exist "%TMPP%\%%a" DEL /F /Q "%TMPP%\%%a">nul 2>&1)
+cd "%~dp0"&goto :eof
 
 :init_settnINT
 if "%1"=="" goto :eof
