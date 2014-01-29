@@ -1,4 +1,4 @@
-::Quick detect&fix 4.2.345 (DEV)
+::Quick detect&fix 4.3.346 (DEV)
 
 ::Documentation and updated versions can be found at
 ::https://code.google.com/p/quick-net-fix/
@@ -57,8 +57,7 @@
 :loop
 %debgn%call :SETMODECON
 %no_temp%set /a cleanTMPPnum+=1&(if !cleanTMPPnum! geq 200 (call :cleanTMPP&set cleanTMPPnum=0))
-call :check&if not "%check4update%"=="0" set /a c4u+=1&if !c4u! geq %c4u_max% call :check4update
-call :sleep %INT_checkdelay%&goto :loop
+call :check&set /a c4u+=1&call :sleep %INT_checkdelay%&goto :loop
 
 :getNETINFO
 set /a gNI_arrLen+=0
@@ -361,6 +360,7 @@ set /a sSR_num+=1&goto :eof
 :sleep
 if "%1"=="" set pn=3
 if not "%1"=="" set pn=%1&if !pn! equ 0 goto :eof
+if not "%checkconnects%"=="force" if %c4u% geq %c4u_max% call :check4update&set /a pn-=tot
 if "%checkconnects%"=="force" call :checkRouterAdapter&set /a pn-=tot
 if not "%stability:~0,4%"=="Calc" if "%lastResult%"=="Connected" if %checkconnects% geq %INT_checkrouterdelay% call :checkRouterAdapter&set /a pn-=tot
 if %pn% leq 0 goto :eof
@@ -582,8 +582,10 @@ call :antihang 25 null cscript.exe //E:VBScript //T:25 //NoLogo "%resetfile%"
 DEL /F /Q "%resetfile%">nul 2>&1&goto :eof
 
 :check4update
-set c4u=%c4u_max%&if not "%result%"=="Connected" goto :eof
+set c4u=%c4u_max%&set tot=0&if not "%result%"=="Connected" goto :eof
+echo "%stbltySTR:~-50%"|FINDSTR /C:"2">nul && goto :eof
 set c4u=0&if "%hasupdate%"=="1" goto :eof
+call :precisiontimer c4u start
 set curstatus=Checking for updates...&%debgn%call :header
 set use_ps=&set use_bits=::&set use_vbs=::
 set vurl=http://electrodexs.net/scripts/qNET/cur&set c4u_local=%version:.=%
@@ -598,9 +600,9 @@ set /a c4u_remote+=0&if !c4u_remote!==0 set use_vbs=&set c4u_vbs=%TMPP%\c4u%CID%
 %no_cscript%%no_temp%%use_vbs%echo objFile.Write mX.responseText>>"%c4u_vbs%"
 %no_cscript%%no_temp%%use_vbs%call :antihang 25 null cscript.exe //E:VBScript //T:25 //NoLogo "%c4u_vbs%"
 %no_cscript%%no_temp%%use_vbs%call :c4u_runfile %c4u_file%&del /f /q "%c4u_file%*">nul 2>&1&set "c4u_remote=!%channel%!"
-set /a c4u_remote+=0&if !c4u_remote!==0 goto :eof
-if %c4u_remote% gtr %c4u_local% set hasupdate=1
-goto :eof
+set /a c4u_remote+=0&if !c4u_remote! gtr %c4u_local% set hasupdate=1
+call :precisiontimer c4u tot
+set /a tot/=100&set /a timepassed+=!tot!&goto :eof
 :c4u_runfile
 if exist "%*" for /f "usebackq tokens=2 delims==" %%v in (`FINDSTR /C:"SET %channel%=" "%*"^>nul 2^>^&1`) do set "%channel%=%%v"
 goto :eof
@@ -807,7 +809,7 @@ goto :eof
 %debgn%@echo off
 call :init_settnSTR viewmode %viewmode%&set initializing=echo.^&echo Please wait while qNET starts...
 echo " %viewmode% "|FINDSTR /C:" mini " /C:" normal " /C:" details ">nul || set viewmode=%D_viewmode%
-call :SETMODECON&%initializing%&set version=4.2.345&set channel=d
+call :SETMODECON&%initializing%&set version=4.3.346&set channel=d
 set ThisTitle=Lectrode's Quick Net Fix %channel%%version%&call :init_settnINT %settingsINT%
 TITLE %ThisTitle%&if "%CID%"=="" call :init_CID
 %alertoncrash%call :testValidPATHS&call :testCompatibility&call :detectIsAdmin&call :disableQuickEdit
