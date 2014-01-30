@@ -1,4 +1,4 @@
-::Quick detect&fix 4.3.346 (DEV)
+::Quick detect&fix 4.3.347 (DEV)
 
 ::Documentation and updated versions can be found at
 ::https://code.google.com/p/quick-net-fix/
@@ -306,16 +306,14 @@ goto :eof
 set ping_test=&set result=&set testrouter=%secondaryRouter%
 if not "%cur_ROUTER%"=="" if %dbl% equ 0 set testrouter=%cur_ROUTER%
 if not "%manualRouter%"=="" set testrouter=%cur_ROUTER%
-if "%timeoutmilsecs_add%"=="1" set /a timeoutmilsecs+=1000&set timeoutmilsecs_add=0
 
 call :precisiontimer PING start
 for /f "tokens=* delims=" %%p in ('ping -w %timeoutmilsecs% -n 1 %testrouter%') do set ping_test=!ping_test! %%p
 call :precisiontimer PING pingtime
-set /a pingtime*=10
 echo "%ping_test%" |FINDSTR /C:"Reply from " >nul && (set result=Connected&set chkresup=&set chkresdn=::)
 echo "%ping_test%" |FINDSTR /C:"request could not find" /C:"Unknown host" /C:"unreachable" /C:"General failure" >nul
 if %errorlevel% equ 0 set result=NotConnected&set chkresup=::&set chkresdn=
-if "%result%"=="" set result=TimeOut&set chkresup=::&set chkresdn=&set /a timeoutmilsecs_add=1
+set /a pingtime*=10&if "%result%"=="" set result=TimeOut&set chkresup=::&set chkresdn=&set /a MN_timeout+=1000
 
 %chkresup%set /a checkconnects+=1
 %chkresup%if %lastresult%==dn set /a timepassed/=2&if not "%resetted%"=="1" set checkconnects=force
@@ -336,7 +334,7 @@ set lastresult=dn&if "%result%"=="Connected" (set resetted=0&set lastresult=up)
 if "%result%"=="NotConnected" call :check_adapterenabled
 if not "%result%"=="Connected" if not %dbl% gtr %INT_flukechecks% call :sleep %INT_flukecheckdelay%&goto :check
 if not "%result%"=="Connected" if %dbl% gtr %INT_flukechecks% call :resetConnection
-set dbl=0&set showdbl=&set STR_downtestNotConnected=&set STR_downtestTimeOut=&goto :eof
+set dbl=0&set MN_timeout=100&set showdbl=&set STR_downtestNotConnected=&set STR_downtestTimeOut=&goto :eof
 
 :check_adapterenabled
 if "%isAdmin%"=="0" goto :eof
@@ -809,7 +807,7 @@ goto :eof
 %debgn%@echo off
 call :init_settnSTR viewmode %viewmode%&set initializing=echo.^&echo Please wait while qNET starts...
 echo " %viewmode% "|FINDSTR /C:" mini " /C:" normal " /C:" details ">nul || set viewmode=%D_viewmode%
-call :SETMODECON&%initializing%&set version=4.3.346&set channel=d
+call :SETMODECON&%initializing%&set version=4.3.347&set channel=d
 set ThisTitle=Lectrode's Quick Net Fix %channel%%version%&call :init_settnINT %settingsINT%
 TITLE %ThisTitle%&if "%CID%"=="" call :init_CID
 %alertoncrash%call :testValidPATHS&call :testCompatibility&call :detectIsAdmin&call :disableQuickEdit
