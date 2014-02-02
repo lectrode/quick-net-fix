@@ -1,4 +1,4 @@
-::Quick detect&fix 4.3.347 (DEV)
+::Quick detect&fix 4.3.348 (DEV)
 
 ::Documentation and updated versions can be found at
 ::https://code.google.com/p/quick-net-fix/
@@ -400,8 +400,8 @@ for /f "tokens=1 delims==" %%a in ('set GRT_c_') do if "!%%a:~0,1!"=="0" set /a 
 set GRT_MO_2=28&set /a GRT_leapyear=GRT_c_year*10/4
 if %GRT_leapyear:~-1% equ 0 set GRT_MO_2=29
 set /a GRT_lastmonth=GRT_c_month-1
-if %GRT_c_month% lss %GRT_s_month% set /a GRT_c_month+=12&set GRT_c_year-=1
-if %GRT_c_day% lss %GRT_s_day% set /a GRT_c_day+=GRT_MO_%GRT_lastmonth%&set GRT_c_month-=1
+if %GRT_c_month% lss %GRT_s_month% set /a GRT_c_month+=12&set /a GRT_c_year-=1
+if %GRT_c_day% lss %GRT_s_day% set /a GRT_c_day+=GRT_MO_%GRT_lastmonth%&set /a GRT_c_month-=1
 if %GRT_c_hour% lss %GRT_s_hour% set /a GRT_c_hour+=24&set /a GRT_c_day-=1
 if %GRT_c_min% lss %GRT_s_min% set /a GRT_c_min+=60&set /a GRT_c_hour-=1
 if %GRT_c_sec% lss %GRT_s_sec% set /a GRT_c_sec+=60&set /a GRT_c_min-=1
@@ -417,7 +417,7 @@ if %GRT_c_sec% leq 9 set GRT_c_sec=0%GRT_c_sec%
 if %GRT_c_year% geq 10000 set GRT_TimeRan=Over 10,000 years&set toolong=goto :eof&goto :eof
 set GRT_TimeRan=%GRT_c_hour%:%GRT_c_min%:%GRT_c_sec%
 if %GRT_c_year% neq 0 set GRT_TimeRan=%GRT_c_year%y %GRT_c_month%m %GRT_c_day%d %GRT_TimeRan%&goto :eof
-if %GRT_c_month% neq 0 set GRT_TimeRan=m:%GRT_c_month%m %GRT_c_day%d %GRT_TimeRan%&goto :eof
+if %GRT_c_month% neq 0 set GRT_TimeRan=%GRT_c_month%m %GRT_c_day%d %GRT_TimeRan%&goto :eof
 if %GRT_c_day% neq 0 set GRT_TimeRan=%GRT_c_day%d %GRT_TimeRan%
 goto :eof
 :getruntime_init
@@ -758,7 +758,7 @@ ipconfig >nul 2>&1 || (echo Critical error: IPCONFIG error.&echo Press any key t
 for %%c in (framedyn.dll) do if "%%~$PATH:c"=="" set no_taskkill=::
 for %%c in (sfc.exe) do if "%%~$PATH:c"=="" set no_sfc=::
 set no_kill=::&(kill /?>nul 2>&1 && (set prockill=kill&set no_kill=&set killPID=kill))
-set no_pskill=::&pskill /?>nul 2>&1& if !errorlevel! leq 0 set prockill=pskill&set no_pskill=&set killPID=pskill& REM Normal returns -1
+set no_pskill=::&pskill /?>nul 2>&1& if !errorlevel! equ -1 set prockill=pskill&set no_pskill=&set killPID=pskill
 set no_tskill=::&(tskill /?>nul 2>&1 && (set no_tskill=&set prockill=tskill&set killPID=tskill))
 %no_taskkill%set no_taskkill=::&(taskkill /?>nul 2>&1 && (set no_taskkill=&set prockill=taskkill /im&set killPID=taskkill /pid))
 if "%prockill%"=="" set no_prockill=::
@@ -807,7 +807,7 @@ goto :eof
 %debgn%@echo off
 call :init_settnSTR viewmode %viewmode%&set initializing=echo.^&echo Please wait while qNET starts...
 echo " %viewmode% "|FINDSTR /C:" mini " /C:" normal " /C:" details ">nul || set viewmode=%D_viewmode%
-call :SETMODECON&%initializing%&set version=4.3.347&set channel=d
+call :SETMODECON&%initializing%&set version=4.3.348&set channel=d
 set ThisTitle=Lectrode's Quick Net Fix %channel%%version%&call :init_settnINT %settingsINT%
 TITLE %ThisTitle%&if "%CID%"=="" call :init_CID
 %alertoncrash%call :testValidPATHS&call :testCompatibility&call :detectIsAdmin&call :disableQuickEdit
