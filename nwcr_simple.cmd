@@ -1,4 +1,4 @@
-::Quick detect&fix 4.3.348 (DEV)
+::Quick detect&fix 4.3.349 (DEV)
 
 ::Documentation and updated versions can be found at
 ::https://code.google.com/p/quick-net-fix/
@@ -606,6 +606,7 @@ if exist "%*" for /f "usebackq tokens=2 delims==" %%v in (`FINDSTR /C:"SET %chan
 goto :eof
 
 :detectIsAdmin
+call :iecho Detect Admin rights...
 %no_temp%DEL /F /Q "%TMPP%\getadmin*.vbs">nul 2>&1
 %no_sfc%for /f "tokens=* delims=" %%s in ('sfc 2^>^&1^|MORE') do @set "output=!output!%%s"
 set isAdmin=0&echo "%output%"|findstr /I /C:"/scannow">nul 2>&1 && set isAdmin=1
@@ -617,7 +618,7 @@ set ThisTitle=Limited: %ThisTitle%&title !ThisTitle!
 if not "%requestAdmin%"=="1" goto :eof
 %no_winfind%%no_prockill%%no_temp%%no_cscript%echo Set StartAdmin = CreateObject^("Shell.Application"^) > "%TMPP%\getadmin%CID%.vbs"
 %no_winfind%%no_prockill%%no_temp%%no_cscript%echo StartAdmin.ShellExecute "%~s0", "", "", "runas", 1 >> "%TMPP%\getadmin%CID%.vbs"
-%no_winfind%%no_prockill%%no_temp%%no_cscript%cls&echo.&echo Requesting admin rights...&echo (This will close upon successful request)
+%no_winfind%%no_prockill%%no_temp%%no_cscript%set "ie_last=Requesting admin rights...&echo (This will close upon successful request)"&call :iecho
 %no_winfind%%no_prockill%%no_temp%%no_cscript%start /b "" cscript //E:VBScript //B //T:1 "%TMPP%\getadmin%CID%.vbs" //nologo
 %no_winfind%%no_prockill%%no_temp%%no_cscript%ping -n 11 127.0.0.1>nul&DEL /F /Q "%TMPP%\getadmin%CID%.vbs">nul 2>&1
 goto :eof
@@ -713,7 +714,7 @@ echo You may have to reboot your computer for some changes to&echo take effect.
 ping 127.0.0.1>nul&ping 127.0.0.1>nul&goto :eof
 
 :testValidPATHS
-set thisdir=%~dp0
+set thisdir=%~dp0&call :iecho Verify Environment Variables...
 set tVPS=call :testValidPATHS_SYSTEMROOT &set tVPT=call :testValidPATHS_TEMP 
 set PATHEXT=.COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC;%PATHEXT%
 %tVPS%%SYSTEMROOT%
@@ -753,8 +754,9 @@ DEL /F /Q "%TMPP%\RWA%CID%.txt">nul 2>&1 || goto :eof
 set hastemp=::&goto :eof
 
 :testCompatibility
-ping /?>nul 2>&1 || (echo Critical error: PING error.&echo Press any key to exit...&pause>nul&exit)
-ipconfig >nul 2>&1 || (echo Critical error: IPCONFIG error.&echo Press any key to exit...&pause>nul&exit)
+call :iecho Testing basic commands...
+ping /?>nul 2>&1 || (echo.&echo Critical error: PING error.&echo Press any key to exit...&pause>nul&exit)
+ipconfig >nul 2>&1 || (echo.&echo Critical error: IPCONFIG error.&echo Press any key to exit...&pause>nul&exit)
 for %%c in (framedyn.dll) do if "%%~$PATH:c"=="" set no_taskkill=::
 for %%c in (sfc.exe) do if "%%~$PATH:c"=="" set no_sfc=::
 set no_kill=::&(kill /?>nul 2>&1 && (set prockill=kill&set no_kill=&set killPID=kill))
@@ -771,25 +773,26 @@ set no_reg=::&set reg1=::&set reg2=::&(reg /?>nul 2>&1 && set no_reg=&set reg1=)
 cscript /?>nul 2>&1 || set no_cscript=::
 goto :eof
 :testCompatibility2
-for %%c in (powershell.exe) do if "%%~$PATH:c"=="" set no_ps=::
-::powershell -?>nul 2>&1 || set no_ps=:: & title %ThisTitle%
+call :iecho Testing powershell...
+powershell -?>nul 2>&1 || set no_ps=:: & title %ThisTitle%
 bitsadmin /?>nul 2>&1 || set no_bits=::
 netsh help >nul 2>&1 || set no_netsh=::
+call :iecho Testing wmic...
 call :antihang 11 null wmic.exe os get status || set no_wmic=::
-if "%no_netsh%%no_wmic%"=="::::" (echo Critical error: This script requires either NETSH or WMIC.&echo Press any key to exit...&pause>nul&exit)
+if "%no_netsh%%no_wmic%"=="::::" (echo.&echo Critical error: This script requires either NETSH or WMIC.&echo Press any key to exit...&pause>nul&exit)
 goto :eof
 
 :disableQuickEdit
-set qkey=HKEY_CURRENT_USER\Console&set qval=QuickEdit
-%no_reg%%reg1%if not "%qedit_dsbld%"=="" (echo y|reg add "%qkey%" /v "%qval%" /t REG_DWORD /d %qedit_dsbld%&cls&%initializing%&goto :eof)
+set qkey=HKEY_CURRENT_USER\Console&set qval=QuickEdit&call :iecho Check Console settings...
+%no_reg%%reg1%if not "%qedit_dsbld%"=="" (echo y|reg add "%qkey%" /v "%qval%" /t REG_DWORD /d %qedit_dsbld%&call :iecho&goto :eof)
 %no_reg%%reg1%for /f "tokens=3*" %%i in ('reg query "%qkey%" /v "%qval%" ^| FINDSTR /I "%qval%"') DO (set qedit_dsbld=%%i)&if "!qedit_dsbld!"=="0x0" goto :eof
-%no_reg%%reg1%echo y|reg add "%qkey%" /v "%qval%" /t REG_DWORD /d 0&cls&start "" "cmd" /k set CID=%CID%^&set qedit_dsbld=%qedit_dsbld% ^& call "%~dpnx0"&exit
-%no_reg%%reg2%if not "%qedit_dsbld%"=="" (reg update "%qkey%\%qval%"=%qedit_dsbld%&cls&%initializing%&goto :eof)
+%no_reg%%reg1%echo y|reg add "%qkey%" /v "%qval%" /t REG_DWORD /d 0&start "" "cmd" /k set CID=%CID%^&set qedit_dsbld=%qedit_dsbld% ^& call "%~dpnx0"&exit
+%no_reg%%reg2%if not "%qedit_dsbld%"=="" (reg update "%qkey%\%qval%"=%qedit_dsbld%&call :iecho&goto :eof)
 %no_reg%%reg2%for /f "tokens=3*" %%i in ('reg query "%qkey%\%qval%"') DO (set qedit_dsbld=%%i)&if "!qedit_dsbld!"=="0" goto :eof
 %no_reg%%reg2%if "%qedit_dsbld%"=="" (reg add "%qkey%\%qval%"=0 REG_DWORD&start "" "cmd" /k set CID=%CID%^&set qedit_dsbld=%qedit_dsbld% ^&call "%~dpnx0"&exit)
 %no_reg%%reg2%if "%qedit_dsbld%"=="1" (reg update "%qkey%\%qval%"=0&start "" "cmd" /k set CID=%CID%^& call "%~dpnx0"&exit)
 %no_regedit%%no_temp%echo REGEDIT4>"%TMPP%\quickedit3%CID%.reg"&(regedit /S "%TMPP%\quickedit3%CID%.reg" || set no_regedit=::)
-%no_regedit%%no_temp%DEL /F /Q "%TMPP%\quickedit3%CID%.reg"&cls&%initializing%
+%no_regedit%%no_temp%DEL /F /Q "%TMPP%\quickedit3%CID%.reg"&call :iecho
 %no_regedit%%no_temp%if exist "%TMPP%\quickedit%CID%.reg" regedit /S "%TMPP%\quickedit%CID%.reg"&DEL /F /Q "%TMPP%\quickedit%CID%.reg"&goto :eof
 %no_regedit%%no_temp%regedit /S /e "%TMPP%\quickedit%CID%.reg" "%qkey%"
 %no_regedit%%no_temp%echo REGEDIT4>"%TMPP%\quickedit2%CID%.reg"&echo [%qkey%]>>"%TMPP%\quickedit2%CID%.reg"
@@ -802,12 +805,12 @@ goto :eof
 @echo.&echo Script crashed. Please contact ElectrodeXSnet@gmail.com with the information above.&@pause>nul&exit
 
 :init
-@call :setn_defaults&call :init_settnBOOL !settingsBOOL!
+@call :iecho Initializing Settings...&call :setn_defaults&call :init_settnBOOL !settingsBOOL!
 @if "%pretty%"=="0" set debgn=::
 %debgn%@echo off
-call :init_settnSTR viewmode %viewmode%&set initializing=echo.^&echo Please wait while qNET starts...
+call :init_settnSTR viewmode %viewmode%
 echo " %viewmode% "|FINDSTR /C:" mini " /C:" normal " /C:" details ">nul || set viewmode=%D_viewmode%
-call :SETMODECON&%initializing%&set version=4.3.348&set channel=d
+call :SETMODECON&call :iecho&set version=4.3.349&set channel=d
 set ThisTitle=Lectrode's Quick Net Fix %channel%%version%&call :init_settnINT %settingsINT%
 TITLE %ThisTitle%&if "%CID%"=="" call :init_CID
 %alertoncrash%call :testValidPATHS&call :testCompatibility&call :detectIsAdmin&call :disableQuickEdit
@@ -837,6 +840,11 @@ if %totalAdapters% geq 20 (call :alert_2manyconnections&call :SETMODECON)
 %no_wmic%set rsetwmic=call :antihang 11 null wmic.exe path win32_networkadapter where "NetConnectionID='
 %no_netsh%set rsetnetsh=netsh interface set interface 
 call :update_avgca %ca_percent%&goto :eof
+
+:iecho
+%debgn%@if not "%*"=="" set "ie_last=%*"
+%debgn%@cls&echo.&echo Please wait while qNET starts...&echo.&echo.%ie_last%
+@goto :eof
 
 :init_CID
 %init_CID%setlocal&set charSTR=000000000abcdefghijklmnopqrstuvwxyz1234567890&set CIDchars=0&set init_CID=::
