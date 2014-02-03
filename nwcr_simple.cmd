@@ -1,4 +1,4 @@
-::Quick detect&fix 4.3.350 (DEV)
+::Quick detect&fix 4.3.351 (DEV)
 
 ::Documentation and updated versions can be found at
 ::https://code.google.com/p/quick-net-fix/
@@ -50,7 +50,7 @@
 :: --------------------------------------
 :: -      DO NOT EDIT BELOW HERE!       -
 :: --------------------------------------
-@PROMPT=^>&setlocal enabledelayedexpansion&setlocal enableextensions
+@PROMPT=^>&setlocal enabledelayedexpansion enableextensions
 %noclose%@set noclose=::&start "" "cmd" /k set CID=%CID%^&call "%~dpnx0"&exit
 @call :init&call :checkRouterAdapter
 
@@ -510,8 +510,8 @@ ipconfig /renew "%cur_ADAPTER%">nul 2>&1&goto :eof
 
 :antihang
 set proc=%*&set proc=!proc:%1 %2 =!&set procsuccess=1&set /a ah_maxwait=(%1*10)/4
-%no_temp%set temperrfile=%TMPP%\procerrlvl%CID%
-%no_temp%set tempoutput= 1^^^>"%TMPP%\%2%CID%.tmp" 2^^^>^^^>"%temperrfile%.tmp"
+%no_temp%set temperrfile=%TMPP%\procerrlvl%CID%%RANDOM%&set tempoutfile=%TMPP%\tempoutput%CID%%RANDOM%
+%no_temp%set tempoutput= 1^^^>"%tempoutfile%.tmp" 2^^^>^^^>"%temperrfile%.tmp"
 %no_temp%set geterrlvl= ^^^& (echo .^^^>^^^>"%temperrfile%.tmp")
 %no_temp%start /b "" cmd /c %proc%%tempoutput%%geterrlvl%&set startedproc=::
 %startedproc%if "%2"=="null" start /b "" cmd /c %proc%>nul 2>&1&set startedproc=::
@@ -522,7 +522,7 @@ set /a waitproc+=1
 %procfinished%%no_proclist%call :findprocess %3 && (if %waitproc% leq %ah_maxwait% goto :antihang_wait)
 %procfinished%%no_proclist%set procfinished=::&if "%no_temp%"=="::" set procsuccess=0
 %no_temp%if not exist "%temperrfile%.tmp" if %waitproc% leq %ah_maxwait% goto :antihang_wait
-%no_temp%TYPE "%temperrfile%.tmp" > "%temperrfile%"
+%no_temp%2>nul TYPE "%temperrfile%.tmp" > "%temperrfile%" || if %waitproc% leq %ah_maxwait% goto :antihang_wait
 %no_temp%for /f "usebackq tokens=* delims=" %%t in ("%temperrfile%") do if not "%%t"=="" set "procerr=!procerr!%%t"
 %no_temp%if "%procerr%"=="" if %waitproc% leq %ah_maxwait% goto :antihang_wait
 %no_temp%if "%procerr%"=="." set procsuccess=0
@@ -530,9 +530,12 @@ if "%no_temp%%no_proclist%"=="::::" ping -n %1 127.0.0.1>nul
 %no_prockill%if "%no_temp%%no_proclist%"=="::::" (%prockill% %3)>nul 2>&1 || set procsuccess=0
 :antihang_reset
 %no_prockill%(%prockill% %3)>nul 2>&1
-%no_temp%DEL /F /Q "%temperrfile%*">nul 2>&1
-%no_temp%TYPE "%TMPP%\%2%CID%.tmp">"%TMPP%\%2%CID%"&DEL /F /Q "%TMPP%\%2%CID%.tmp">nul 2>&1
-%no_temp%DEL /F /Q "%TMPP%\null%CID%">nul 2>&1
+%no_temp%2>nul TYPE "%tempoutfile%.tmp">"%TMPP%\%2%CID%" || if %waitproc% leq %ah_maxwait% goto :antihang_reset
+:antihang_cleanup
+%no_temp%DEL /F /Q "%TMPP%\procerrlvl%CID%*">nul 2>&1
+%no_temp%DEL /F /Q "%TMPP%\null%CID%*">nul 2>&1
+%no_temp%DEL /F /Q "%TMPP%\tempoutput%CID%*">nul 2>&1
+%no_temp%DIR /B "%TMPP%" 2>nul|FINDSTR /C:"null%CID%" /C:"procerrlvl%CID%" /C:"tempoutput%CID%" >nul 2>&1 && goto :antihang_cleanup
 for /f "tokens=1 delims==" %%n in ('set null 2^>nul') do set %%n=
 set waitproc=0&set procfinished=&set procerr=&set proc=&set startedproc=&set ah_num=0&exit /b %procsuccess%
 
@@ -540,7 +543,7 @@ set waitproc=0&set procfinished=&set procerr=&set proc=&set startedproc=&set ah_
 if /I "%1"=="enable" set disoren=Enable&set trufalse=false
 if /I "%1"=="disable" set disoren=Disable&set trufalse=true
 set reset_adaptername=%*&set reset_adaptername=!reset_adaptername:%1 =!
-set resetfile=%TMPP%\resetadapter%CID%.vbs
+set resetfile=%TMPP%\%disoren%adapter%CID%.vbs
 @echo on
 @echo Const ssfCONTROLS = 3 '>"%resetfile%"
 @echo sEnableVerb = "En&able" '>>"%resetfile%"
@@ -606,7 +609,7 @@ if exist "%*" for /f "usebackq tokens=2 delims==" %%v in (`FINDSTR /C:"SET %chan
 goto :eof
 
 :detectIsAdmin
-call :iecho Detect Admin rights...
+call :iecho Detect Admin Rights...
 %no_temp%DEL /F /Q "%TMPP%\getadmin*.vbs">nul 2>&1
 %no_sfc%for /f "tokens=* delims=" %%s in ('sfc 2^>^&1^|MORE') do @set "output=!output!%%s"
 set isAdmin=0&echo "%output%"|findstr /I /C:"/scannow">nul 2>&1 && set isAdmin=1
@@ -618,7 +621,7 @@ set ThisTitle=Limited: %ThisTitle%&title !ThisTitle!
 if not "%requestAdmin%"=="1" goto :eof
 %no_winfind%%no_prockill%%no_temp%%no_cscript%echo Set StartAdmin = CreateObject^("Shell.Application"^) > "%TMPP%\getadmin%CID%.vbs"
 %no_winfind%%no_prockill%%no_temp%%no_cscript%echo StartAdmin.ShellExecute "%~s0", "", "", "runas", 1 >> "%TMPP%\getadmin%CID%.vbs"
-%no_winfind%%no_prockill%%no_temp%%no_cscript%set "ie_last=Requesting admin rights...&echo (This will close upon successful request)"&call :iecho
+%no_winfind%%no_prockill%%no_temp%%no_cscript%set "ie_last=Requesting Admin Rights...&echo (This will close upon successful request)"&call :iecho
 %no_winfind%%no_prockill%%no_temp%%no_cscript%start /b "" cscript //E:VBScript //B //T:1 "%TMPP%\getadmin%CID%.vbs" //nologo
 %no_winfind%%no_prockill%%no_temp%%no_cscript%ping -n 11 127.0.0.1>nul&DEL /F /Q "%TMPP%\getadmin%CID%.vbs">nul 2>&1
 goto :eof
@@ -754,7 +757,7 @@ DEL /F /Q "%TMPP%\RWA%CID%.txt">nul 2>&1 || goto :eof
 set hastemp=::&goto :eof
 
 :testCompatibility
-call :iecho Testing basic commands...
+call :iecho Test Basic Commands...
 ping /?>nul 2>&1 || (echo.&echo Critical error: PING error.&echo Press any key to exit...&pause>nul&exit)
 ipconfig >nul 2>&1 || (echo.&echo Critical error: IPCONFIG error.&echo Press any key to exit...&pause>nul&exit)
 for %%c in (framedyn.dll) do if "%%~$PATH:c"=="" set no_taskkill=::
@@ -775,22 +778,22 @@ goto :eof
 :testCompatibility2
 bitsadmin /?>nul 2>&1 || set no_bits=::
 netsh help >nul 2>&1 || set no_netsh=::
-call :iecho Testing powershell...&powershell -?>nul 2>&1 || set no_ps=:: & title %ThisTitle%
-call :iecho Testing wmic...&call :antihang 11 null wmic.exe os get status || set no_wmic=::
+call :iecho Test POWERSHELL...&powershell -?>nul 2>&1 || set no_ps=:: & title %ThisTitle%
+call :iecho Test WMIC...&call :antihang 11 null wmic.exe os get status || set no_wmic=::
 if "%no_netsh%%no_wmic%"=="::::" (echo.&echo Critical error: This script requires either NETSH or WMIC.&echo Press any key to exit...&pause>nul&exit)
 goto :eof
 
 :disableQuickEdit
-set qkey=HKEY_CURRENT_USER\Console&set qval=QuickEdit&call :iecho Check Console settings...
-%no_reg%%reg1%if not "%qedit_dsbld%"=="" (echo y|reg add "%qkey%" /v "%qval%" /t REG_DWORD /d %qedit_dsbld%&call :iecho&goto :eof)
+set qkey=HKEY_CURRENT_USER\Console&set qval=QuickEdit&call :iecho Check Console Properties...
+%no_reg%%reg1%if not "%qedit_dsbld%"=="" ((echo y|reg add "%qkey%" /v "%qval%" /t REG_DWORD /d %qedit_dsbld%)>nul&goto :eof)
 %no_reg%%reg1%for /f "tokens=3*" %%i in ('reg query "%qkey%" /v "%qval%" ^| FINDSTR /I "%qval%"') DO (set qedit_dsbld=%%i)&if "!qedit_dsbld!"=="0x0" goto :eof
-%no_reg%%reg1%echo y|reg add "%qkey%" /v "%qval%" /t REG_DWORD /d 0&start "" "cmd" /k set CID=%CID%^&set qedit_dsbld=%qedit_dsbld% ^& call "%~dpnx0"&exit
-%no_reg%%reg2%if not "%qedit_dsbld%"=="" (reg update "%qkey%\%qval%"=%qedit_dsbld%&call :iecho&goto :eof)
-%no_reg%%reg2%for /f "tokens=3*" %%i in ('reg query "%qkey%\%qval%"') DO (set qedit_dsbld=%%i)&if "!qedit_dsbld!"=="0" goto :eof
-%no_reg%%reg2%if "%qedit_dsbld%"=="" (reg add "%qkey%\%qval%"=0 REG_DWORD&start "" "cmd" /k set CID=%CID%^&set qedit_dsbld=%qedit_dsbld% ^&call "%~dpnx0"&exit)
-%no_reg%%reg2%if "%qedit_dsbld%"=="1" (reg update "%qkey%\%qval%"=0&start "" "cmd" /k set CID=%CID%^& call "%~dpnx0"&exit)
+%no_reg%%reg1%(echo y|reg add "%qkey%" /v "%qval%" /t REG_DWORD /d 0)>nul&start "" "cmd" /k set CID=%CID%^&set qedit_dsbld=%qedit_dsbld% ^& call "%~dpnx0"&exit
+%no_reg%%reg2%if not "%qedit_dsbld%"=="" ((reg update "%qkey%\%qval%"=%qedit_dsbld%)>nul&goto :eof)
+%no_reg%%reg2%for /f "tokens=3*" %%i in ('reg query "%qkey%\%qval%"') DO (set qedit_dsbld=%%i)&if "!qedit_dsbld!"=="0" pause&goto :eof
+%no_reg%%reg2%if "%qedit_dsbld%"=="" (reg add "%qkey%\%qval%"=0 REG_DWORD>nul&start "" "cmd" /k set CID=%CID%^&set qedit_dsbld=%qedit_dsbld% ^&call "%~dpnx0"&exit)
+%no_reg%%reg2%if "%qedit_dsbld%"=="1" ((reg update "%qkey%\%qval%"=0)>nul&start "" "cmd" /k set CID=%CID%^& call "%~dpnx0"&exit)
 %no_regedit%%no_temp%echo REGEDIT4>"%TMPP%\quickedit3%CID%.reg"&(regedit /S "%TMPP%\quickedit3%CID%.reg" || set no_regedit=::)
-%no_regedit%%no_temp%DEL /F /Q "%TMPP%\quickedit3%CID%.reg"&call :iecho
+%no_regedit%%no_temp%DEL /F /Q "%TMPP%\quickedit3%CID%.reg">nul 2>&1
 %no_regedit%%no_temp%if exist "%TMPP%\quickedit%CID%.reg" regedit /S "%TMPP%\quickedit%CID%.reg"&DEL /F /Q "%TMPP%\quickedit%CID%.reg"&goto :eof
 %no_regedit%%no_temp%regedit /S /e "%TMPP%\quickedit%CID%.reg" "%qkey%"
 %no_regedit%%no_temp%echo REGEDIT4>"%TMPP%\quickedit2%CID%.reg"&echo [%qkey%]>>"%TMPP%\quickedit2%CID%.reg"
@@ -805,17 +808,17 @@ goto :eof
 :init
 @call :setn_defaults&call :init_settnBOOL !settingsBOOL!
 @if "%pretty%"=="0" set debgn=::
-%debgn%@echo off
-call :init_settnSTR viewmode %viewmode%
+%debgn%@echo off&call :init_colors %theme%
+call :init_settnSTR viewmode %viewmode%&%debgn%COLOR %curcolor%
 echo ";%viewmode%;"|FINDSTR /L ";mini; ;normal; ;details;">nul || set viewmode=%D_viewmode%
-call :SETMODECON&call :iecho Verifying Settings...&set version=4.3.350&set channel=d
+call :SETMODECON&call :iecho Verify Settings...&set version=4.3.351&set channel=d
 set ThisTitle=Lectrode's Quick Net Fix %channel%%version%&call :init_settnINT %settingsINT%
 TITLE %ThisTitle%&if "%CID%"=="" call :init_CID
 %alertoncrash%call :testValidPATHS&call :testCompatibility&call :detectIsAdmin&call :disableQuickEdit
 %alertoncrash%@set alertoncrash=::&goto :crashAlert
 if "%isAdmin%"=="0" set use_admin=::&set thistitle=Limited: %thistitle%&title !thistitle!
-call :getruntime&call :testCompatibility2&%no_temp%call :iecho Temp cleanup...&call :cleanTMPP&call :iecho Initializing variables...
-%debgn%@call :init_colors %theme%
+call :getruntime&call :testCompatibility2&%no_temp%call :iecho Clean Temp Files...&call :cleanTMPP
+call :iecho Initialize Variables...
 set statspacer=                                                               .
 set plainbar=------------------------------------------------------------------------------
 set updatebar=___________________________________________________________/UPDATE AVAILABLE\ 
