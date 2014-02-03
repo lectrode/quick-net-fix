@@ -1,4 +1,4 @@
-::Quick detect&fix 4.3.349 (DEV)
+::Quick detect&fix 4.3.350 (DEV)
 
 ::Documentation and updated versions can be found at
 ::https://code.google.com/p/quick-net-fix/
@@ -773,12 +773,10 @@ set no_reg=::&set reg1=::&set reg2=::&(reg /?>nul 2>&1 && set no_reg=&set reg1=)
 cscript /?>nul 2>&1 || set no_cscript=::
 goto :eof
 :testCompatibility2
-call :iecho Testing powershell...
-powershell -?>nul 2>&1 || set no_ps=:: & title %ThisTitle%
 bitsadmin /?>nul 2>&1 || set no_bits=::
 netsh help >nul 2>&1 || set no_netsh=::
-call :iecho Testing wmic...
-call :antihang 11 null wmic.exe os get status || set no_wmic=::
+call :iecho Testing powershell...&powershell -?>nul 2>&1 || set no_ps=:: & title %ThisTitle%
+call :iecho Testing wmic...&call :antihang 11 null wmic.exe os get status || set no_wmic=::
 if "%no_netsh%%no_wmic%"=="::::" (echo.&echo Critical error: This script requires either NETSH or WMIC.&echo Press any key to exit...&pause>nul&exit)
 goto :eof
 
@@ -805,18 +803,18 @@ goto :eof
 @echo.&echo Script crashed. Please contact ElectrodeXSnet@gmail.com with the information above.&@pause>nul&exit
 
 :init
-@call :iecho Initializing Settings...&call :setn_defaults&call :init_settnBOOL !settingsBOOL!
+@call :setn_defaults&call :init_settnBOOL !settingsBOOL!
 @if "%pretty%"=="0" set debgn=::
 %debgn%@echo off
 call :init_settnSTR viewmode %viewmode%
-echo " %viewmode% "|FINDSTR /C:" mini " /C:" normal " /C:" details ">nul || set viewmode=%D_viewmode%
-call :SETMODECON&call :iecho&set version=4.3.349&set channel=d
+echo ";%viewmode%;"|FINDSTR /L ";mini; ;normal; ;details;">nul || set viewmode=%D_viewmode%
+call :SETMODECON&call :iecho Verifying Settings...&set version=4.3.350&set channel=d
 set ThisTitle=Lectrode's Quick Net Fix %channel%%version%&call :init_settnINT %settingsINT%
 TITLE %ThisTitle%&if "%CID%"=="" call :init_CID
 %alertoncrash%call :testValidPATHS&call :testCompatibility&call :detectIsAdmin&call :disableQuickEdit
 %alertoncrash%@set alertoncrash=::&goto :crashAlert
 if "%isAdmin%"=="0" set use_admin=::&set thistitle=Limited: %thistitle%&title !thistitle!
-call :getruntime&call :testCompatibility2&%no_temp%call :cleanTMPP
+call :getruntime&call :testCompatibility2&%no_temp%call :iecho Temp cleanup...&call :cleanTMPP&call :iecho Initializing variables...
 %debgn%@call :init_colors %theme%
 set statspacer=                                                               .
 set plainbar=------------------------------------------------------------------------------
