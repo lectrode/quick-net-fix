@@ -1,4 +1,4 @@
-::Quick detect&fix 4.3.351 (DEV)
+::Quick detect&fix 4.3.352 (DEV)
 
 ::Documentation and updated versions can be found at
 ::https://code.google.com/p/quick-net-fix/
@@ -360,7 +360,7 @@ if "%1"=="" set pn=3
 if not "%1"=="" set pn=%1&if !pn! equ 0 goto :eof
 if not "%checkconnects%"=="force" if %c4u% geq %c4u_max% call :check4update&set /a pn-=tot
 if "%checkconnects%"=="force" call :checkRouterAdapter&set /a pn-=tot
-if not "%stability:~0,4%"=="Calc" if "%lastResult%"=="Connected" if %checkconnects% geq %INT_checkrouterdelay% call :checkRouterAdapter&set /a pn-=tot
+if not "%stability:~0,4%"=="Calc" if "%result%"=="Connected" if %checkconnects% geq %INT_checkrouterdelay% call :checkRouterAdapter&set /a pn-=tot
 if %pn% leq 0 goto :eof
 @set curstatus=Wait %pn% seconds...
 %debgn%call :header
@@ -811,7 +811,7 @@ goto :eof
 %debgn%@echo off&call :init_colors %theme%
 call :init_settnSTR viewmode %viewmode%&%debgn%COLOR %curcolor%
 echo ";%viewmode%;"|FINDSTR /L ";mini; ;normal; ;details;">nul || set viewmode=%D_viewmode%
-call :SETMODECON&call :iecho Verify Settings...&set version=4.3.351&set channel=d
+call :SETMODECON&call :iecho Verify Settings...&set version=4.3.352&set channel=d
 set ThisTitle=Lectrode's Quick Net Fix %channel%%version%&call :init_settnINT %settingsINT%
 TITLE %ThisTitle%&if "%CID%"=="" call :init_CID
 %alertoncrash%call :testValidPATHS&call :testCompatibility&call :detectIsAdmin&call :disableQuickEdit
