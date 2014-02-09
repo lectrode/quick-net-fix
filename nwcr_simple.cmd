@@ -1,4 +1,4 @@
-::Quick detect&fix 4.3.352 (DEV)
+::Quick detect&fix 4.3.353 (DEV)
 
 ::Documentation and updated versions can be found at
 ::https://code.google.com/p/quick-net-fix/
@@ -532,12 +532,13 @@ if "%no_temp%%no_proclist%"=="::::" ping -n %1 127.0.0.1>nul
 %no_prockill%(%prockill% %3)>nul 2>&1
 %no_temp%2>nul TYPE "%tempoutfile%.tmp">"%TMPP%\%2%CID%" || if %waitproc% leq %ah_maxwait% goto :antihang_reset
 :antihang_cleanup
+set /a waitkill+=1&%no_prockill%(%prockill% %3)>nul 2>&1
 %no_temp%DEL /F /Q "%TMPP%\procerrlvl%CID%*">nul 2>&1
 %no_temp%DEL /F /Q "%TMPP%\null%CID%*">nul 2>&1
 %no_temp%DEL /F /Q "%TMPP%\tempoutput%CID%*">nul 2>&1
-%no_temp%DIR /B "%TMPP%" 2>nul|FINDSTR /C:"null%CID%" /C:"procerrlvl%CID%" /C:"tempoutput%CID%" >nul 2>&1 && goto :antihang_cleanup
+%no_temp%DIR /B "%TMPP%" 2>nul|FINDSTR /C:"null%CID%" /C:"procerrlvl%CID%" /C:"tempoutput%CID%" >nul 2>&1 && if %waitkill% lss 25 goto :antihang_cleanup
 for /f "tokens=1 delims==" %%n in ('set null 2^>nul') do set %%n=
-set waitproc=0&set procfinished=&set procerr=&set proc=&set startedproc=&set ah_num=0&exit /b %procsuccess%
+set waitproc=&set waitkill=&set procfinished=&set procerr=&set proc=&set startedproc=&set ah_num=0&exit /b %procsuccess%
 
 :resetAdapter_oldOS
 if /I "%1"=="enable" set disoren=Enable&set trufalse=false
@@ -762,10 +763,10 @@ ping /?>nul 2>&1 || (echo.&echo Critical error: PING error.&echo Press any key t
 ipconfig >nul 2>&1 || (echo.&echo Critical error: IPCONFIG error.&echo Press any key to exit...&pause>nul&exit)
 for %%c in (framedyn.dll) do if "%%~$PATH:c"=="" set no_taskkill=::
 for %%c in (sfc.exe) do if "%%~$PATH:c"=="" set no_sfc=::
-set no_kill=::&(kill /?>nul 2>&1 && (set prockill=kill&set no_kill=&set killPID=kill))
-set no_pskill=::&pskill /?>nul 2>&1& if !errorlevel! equ -1 set prockill=pskill&set no_pskill=&set killPID=pskill
+set no_kill=::&(kill /?>nul 2>&1 && (set prockill=kill /f&set no_kill=&set killPID=kill))
+set no_pskill=::&pskill /?>nul 2>&1& if !errorlevel! equ -1 set prockill=pskill /f&set no_pskill=&set killPID=pskill
 set no_tskill=::&(tskill /?>nul 2>&1 && (set no_tskill=&set prockill=tskill&set killPID=tskill))
-%no_taskkill%set no_taskkill=::&(taskkill /?>nul 2>&1 && (set no_taskkill=&set prockill=taskkill /im&set killPID=taskkill /pid))
+%no_taskkill%set no_taskkill=::&(taskkill /?>nul 2>&1 && (set no_taskkill=&set prockill=taskkill /f /im&set killPID=taskkill /pid))
 if "%prockill%"=="" set no_prockill=::
 tlist /?>nul 2>&1 || set no_tlist=::
 tasklist /?>nul 2>&1 || set no_tasklist=::
@@ -811,7 +812,7 @@ goto :eof
 %debgn%@echo off&call :init_colors %theme%
 call :init_settnSTR viewmode %viewmode%&%debgn%COLOR %curcolor%
 echo ";%viewmode%;"|FINDSTR /L ";mini; ;normal; ;details;">nul || set viewmode=%D_viewmode%
-call :SETMODECON&call :iecho Verify Settings...&set version=4.3.352&set channel=d
+call :SETMODECON&call :iecho Verify Settings...&set version=4.3.353&set channel=d
 set ThisTitle=Lectrode's Quick Net Fix %channel%%version%&call :init_settnINT %settingsINT%
 TITLE %ThisTitle%&if "%CID%"=="" call :init_CID
 %alertoncrash%call :testValidPATHS&call :testCompatibility&call :detectIsAdmin&call :disableQuickEdit
