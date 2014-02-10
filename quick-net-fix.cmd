@@ -1,4 +1,4 @@
-::Quick detect&fix 5.0.354 (DEV)
+::Quick Net Fix 5.0.355 (DEV)
 
 ::Documentation and updated versions can be found at
 ::https://code.google.com/p/quick-net-fix/
@@ -16,7 +16,7 @@
 
 ::-GUI-
 @set pretty=1
-@set theme=subtle			none,subtle,vibrant,fullsubtle,fullvibrant,fullcolor,neon,crazy
+@set theme=subtle			none,subtle,vibrant,fullsubtle,fullvibrant,fullcolor,neon
 @set viewmode=normal		mini,normal,details
 
 ::-Updates-
@@ -33,96 +33,89 @@
 ::Admin rights are needed to enable/disable the Network Connection
 @set requestAdmin=1
 
-::This script can disable IPv6 if the computer has an excessive number of Tunnel adapters.
-::Setting options: 0:auto-reject, 1:ask, 2:auto-accept
-@set requestDisableIPv6=1
-
 ::-Advanced-
-@set INT_StabilityHistory=25	Default: 25 [number of last tests to determine stability]
-@set INT_flukechecks=0			Default: 0  (auto) [test x times to verify result]
+@set INT_StabilityHistory=25	Default: 25 [number of last tests to determine stblty]
+@set INT_flukechecks=7			Default: 7  [test x times to verify result]
 @set INT_flukemaxtime=25		Default: 25 [test for maximum of x seconds to verify result (requires INT_flukechecks=0)]
 @set INT_checkdelay=5			Default: 5  [wait x seconds between connectivity tests]
 @set INT_fixdelay=10			Default: 10 [wait x seconds after resetting connection]
 @set INT_flukecheckdelay=1		Default: 1  [wait x seconds between fluke checks]
-@set INT_timeoutsecs=0			Default: 0  (auto) [wait x seconds for timeout]
-@set INT_checkrouterdelay=0		Default: 0  (auto) [wait x number of connects before verifying router and adapter]
+@set INT_timeoutsecs=3			Default: 3  [wait x seconds for timeout]
+@set INT_checkrouterdelay=10	Default: 10 [wait x number of connects before verifying router and adapter]
 
 :: --------------------------------------
 :: -      DO NOT EDIT BELOW HERE!       -
 :: --------------------------------------
 @PROMPT=^>&setlocal enabledelayedexpansion enableextensions
-%noclose%@set noclose=::&start "" "cmd" /k set CID=%CID%^&call "%~dpnx0"&exit
-@call :init&call :checkRouterAdapter
+%noclose%@set noclose=::&start "" "cmd" /k "%~dpnx0"&exit
+@call :init&call :chkRA
 
 :loop
 %debgn%call :SETMODECON
-%no_temp%set /a cleanTMPPnum+=1&(if !cleanTMPPnum! geq 200 (call :cleanTMPP&set cleanTMPPnum=0))
-call :check&set /a c4u+=1&call :sleep %INT_checkdelay%&goto :loop
+set /a c4u+=1&set /a cleanTMPPnum+=1&call :check&call :sleep %INT_checkdelay%&goto :loop
 
 :getNETINFO
-set /a gNI_arrLen+=0
-if not %gNI_arrLen% equ 0 for /l %%n in (1,1,%gNI_arrLen%) do set net_%%n_cn=&set net_%%n_gw=
-set gNI_arrLen=0&set gNI_needAdapter=1&set gNI_RESET=set net_^^!gNI_arrLen^^!_cn=^&set net_^^!gNI_arrLen^^!_gw=^&set /a gNI_arrLen-=1^&set gNI_needAdapter=1^&goto :eof
-for /f "tokens=1 delims=%%" %%r in ('ipconfig') do echo "%%r" |FINDSTR /L "^& ^^ ^^! %%">nul || call :getNETINFO_parse %%r
+setlocal disabledelayedexpansion&set /a net_arrLen+=0
+if not %net_arrLen% equ 0 for /l %%n in (1,1,%net_arrLen%) do set net_%%n_cn=&set net_%%n_gw=
+set net_arrLen=0&set net_needAdapter=1
+for /f "tokens=*" %%r in ('ipconfig') do set "line=%%r"&call :getNETINFO_parse
+for /f "tokens=1* delims==" %%a in ('set net_') do endlocal&set "%%a=%%b"
 goto :eof
 
 :getNETINFO_parse
-echo "%*" |FINDSTR /C:"adapter">nul && (set "line=%*"&goto :getNETINFO_parseAdapter)
-if %gNI_needAdapter%==1 goto :eof
-echo "%*" |FINDSTR /C:"disconnected">nul && (%gNI_RESET%)
-echo "%*" |FINDSTR /C:"Default Gateway">nul && (set "line=%*"&goto :getNETINFO_parseRouter)
+echo "%line%" |FINDSTR /C:"adapter">nul && goto :getNETINFO_parseAdapter
+if %net_needAdapter%==1 goto :eof
+echo "%line%" |FINDSTR /C:"disconnected">nul && (set /a net_arrLen-=1&set net_needAdapter=1&goto :eof)
+echo "%line%" |FINDSTR /C:"Default Gateway">nul && goto :getNETINFO_parseRouter
 goto :eof
 
 :getNETINFO_parseAdapter
-if not "%filterAdapters%"=="" echo "%line%" |FINDSTR /I /L "%filterAdapters%">nul && (set gNI_needAdapter=1&goto :eof)
-set gNI_needAdapter=0&set /a gNI_arrLen+=1&set line=%line:adapter =:%
-for /f "tokens=2 delims=:" %%a in ("%line%") do set net_%gNI_arrLen%_cn=%%a
+if not "%filterAdapters%"=="" echo "%line%" |FINDSTR /I /L "%filterAdapters%">nul && (set net_needAdapter=1&goto :eof)
+set "line=%line:!=^!%"
+setlocal enabledelayedexpansion
+set "line=!line:%%=%%%!"
+endlocal&set "line=%line%"
+set net_needAdapter=0&set /a net_arrLen+=1&set "line=%line:adapter =:%"
+for /f "tokens=2 delims=:" %%a in ("%line%") do set "net_%net_arrLen%_cn=%%a"
 goto :eof
 
 :getNETINFO_parseRouter
-if not "%filterRouters%"=="" echo %line%|FINDSTR /I /L "%filterRouters%">nul && (%gNI_RESET%)
-set line=%line: .=%&set line=!line:Default Gateway :=!
-if "%line%"=="" (%gNI_RESET%)
-set net_%gNI_arrLen%_gw=%line: =%&goto :eof
+if not "%filterRouters%"=="" echo "%line%"|FINDSTR /I /L "%filterRouters%">nul && (set /a net_arrLen-=1&set net_needAdapter=1&goto :eof)
+for /f "tokens=1 delims=%%" %%r in ("%line%") do set "line=%%r"
+set line=%line: .=%
+set line=%line:Default Gateway :=%
+if "%line%"=="" (set /a net_arrLen-=1&set net_needAdapter=1&goto :eof)
+set net_%net_arrLen%_gw=%line: =%&goto :eof
 
 :header
-set show_stbtlySTR=%stbltySTR:0=-%
-set show_stbtlySTR=%show_stbtlySTR:1==%
-set show_stbtlySTR=%show_stbtlySTR:2=*%
-set show_stbtlySTR=%aft-%!show_stbtlySTR: =%-%!
-if "%stbltySTR%"=="" set show_stbtlySTR=%plainbar%
-@set h_top=%plainbar%&if %hasupdate%x==1x set h_top=%updatebar%
-goto :header_%viewmode%
+call :stblty_set %ss_STR%&set show_ss_STR=%plainbar%%ss_STR%&set show_ss_STR=!show_ss_STR:0=-!
+set show_ss_STR=%show_ss_STR:1==%&set show_ss_STR=!show_ss_STR:2=*!
+set show_ss_STR=!show_ss_STR: =%-%!&goto :header_%viewmode%
 
 :header_mini
-set /a h_dbl=dbl-1
-set dsp_dbl=&if not %h_dbl% leq 0 set dsp_dbl=%h_dbl%/%INT_flukechecks%
-cls&COLOR %curcolor%
-echo  %h_top:~-35%
+set /a h_dbl=dbl-1&set dsp_dbl=&if not !h_dbl! leq 0 set dsp_dbl=!h_dbl!/%INT_flukechecks%
+cls&COLOR %curcolor%&echo  %h_top:~-35%
 echo  ^|%ThisTitle:Limited: =%^|
 echo  ^| http://electrodexs.net/scripts  ^|
-echo. !show_stbtlySTR:~-%colnum%!
-echo. %show_cur_ADAPTER%
-echo. %cur_ROUTER%
+echo. !show_ss_STR:~-%colnum%!
+echo. !%show_cur_ADAPTER%!&echo. %cur_ROUTER%
 echo. Up: %uptime% ^| Fixes: %numfixes%
 echo. Last result: %result% %dsp_dbl%
-echo. %curstatus%
-goto :eof
+echo. %curstatus%&goto :eof
 
 :header_normal
-cls&COLOR %curcolor%
-echo  %h_top:~-50%
+cls&COLOR %curcolor%&echo  %h_top:~-50%
 echo  ^|     -%ThisTitle:Limited: =%-        ^|
 echo  ^|       http://electrodexs.net/scripts           ^|
-if not "!show_stbtlySTR:~-%colnum%!"=="" echo. !show_stbtlySTR:~-%colnum%!
+echo. !show_ss_STR:~-%colnum%!
 echo.
-if not "%show_cur_ADAPTER%"=="" echo  Connection: %show_cur_ADAPTER%
+if not "%show_cur_ADAPTER%"=="" echo  Connection: !%show_cur_ADAPTER%!
 if not "%cur_ROUTER%"=="" 		echo  Router:     %cur_ROUTER%
-if not "%uptime%"=="" 			echo  Uptime:     %uptime% (started %GRT_TimeRan% ago)
-if not "%stability%"==""		echo  Stability:  %stability%
+if not "%uptime%"=="" 			echo  Uptime:     %uptime% [started %GRT_TimeRan% ago]
+if not "%stblty%"==""		echo  Stability:  %stblty%
 echo.
 if not %numfixes%==0 			echo  Fixes:      %numfixes%
-if not "%result%"=="" 		echo  Last Test:  %result% %showdbl%
+if not "%result%"=="" 			echo  Last Test:  %result% %showdbl%
 if not "%curstatus%"=="" 		echo  Status:     %curstatus%
 goto :eof
 
@@ -130,118 +123,49 @@ goto :eof
 set ismanualA=&if "%manualAdapter%"=="" set ismanualA= (AUTO)
 set ismanualR=&if "%manualRouter%"=="" set ismanualR= (AUTO)
 set dsp_cur_ROUTER=%cur_Router%%ismanualR%%statspacer%
-set dsp_secondaryRouter=%secondaryRouter%%statspacer%
-if "%cur_ROUTER%"=="" set dsp_cur_ROUTER=%secondaryRouter%%ismanualR%%statspacer%
+set dsp_testSite=%testSite%%statspacer%
+if "%cur_ROUTER%"=="" set dsp_cur_ROUTER=%testSite%%ismanualR%%statspacer%
 set dsp_uptime=%uptime%%statspacer%
 set dsp_GRT_TimeRan=%GRT_TimeRan%%statspacer%
-set dsp_adapters=%con_num%
-if "%con_num%"=="" set dsp_adapters=%numAdapters%
-set dsp_stability=%stability% (%stblty_result%%%)%statspacer%
+set dsp_stblty=%stblty%%statspacer%
 set dspAdmin=True&if %isAdmin%==0 set dspAdmin=False
 set dspUsrInput=True&if %fullAuto%==0 set dspUsrInput=False
 set dspReqAdmin=True&if %requestAdmin%==0 set dspReqAdmin=False
 set dspCRD=[%INT_checkrouterdelay%]%STR_ca_percent%%statspacer%
 set dspAvgTOS=[%timeoutmilsecs%]%STR_timeout%%statspacer%
 set dsp_fixes=%numfixes%%statspacer%
-set H_filterRouters=%filterRouters%%statspacer%
-set H_filterAdapters=%filterAdapters%%statspacer%
-set dsp_rfilt1=%H_filterRouters:~0,30%%statspacer%
-set dsp_rfilt2=%H_filterRouters:~30,60%%statspacer%
-set dsp_afilt1=%H_filterAdapters:~0,30%%statspacer%
-set dsp_afilt2=%H_filterAdapters:~30,60%%statspacer%
-cls&COLOR %curcolor%
-echo  %h_top%
+cls&COLOR %curcolor%&echo  %h_top%
 echo  ^|                                                                            ^|
 echo  ^|                   -%ThisTitle:Limited: =%-                      ^|
 echo  ^|                     http://electrodexs.net/scripts                         ^|
 echo  ^|                                                                            ^|
-if not "!show_stbtlySTR:~-%colnum%!"=="" echo. !show_stbtlySTR:~-%colnum%!
+echo. !show_ss_STR:~-%colnum%!
 echo.
-echo  Connection: %show_cur_ADAPTER%%ismanualA%
-echo  Router:     %dsp_cur_ROUTER:~0,40%NIC Adapters:      %totalAdapters%
-echo  Router 2:   %dsp_secondaryRouter:~0,40%No User Input:     %dspUsrInput%
+echo  Connection: !%show_cur_ADAPTER%!%ismanualA%
+echo  Router:     %dsp_cur_ROUTER:~0,40%
+echo  Test Site:  %dsp_testSite:~0,40%No User Input:     %dspUsrInput%
 echo  Uptime:     %dsp_uptime:~0,40%Stability Hist:    %INT_StabilityHistory%
 echo  Runtime:    %dsp_GRT_TimeRan:~0,40%Request Admin:     %dspReqAdmin%
-echo  Stability:  %dsp_stability:~0,40%Is Admin:          %dspAdmin%
+echo  Stability:  %dsp_stblty:~0,40%Is Admin:          %dspAdmin%
 echo  Fixes:      %dsp_fixes:~0,40%Theme:             %theme%
 echo                                                      Fluke Checks:      %INT_flukechecks%
 echo                                                      Check Delay:       %INT_checkdelay%
 echo  Verify Router Delay: %dspCRD:~0,31%Test Timeout Secs: %INT_timeoutsecs%
 echo  Test Timeout Mils: %dspAvgTOS:~0,33%Fix Delay:         %INT_fixdelay%
 echo                                                      Fluke Check Delay: %INT_flukecheckdelay%
-echo. Router Filters:  %dsp_rfilt1:~0,30%
-echo.                  %dsp_rfilt2:~0,30%
-echo. Adapter Filters: %dsp_afilt1:~0,30%
-echo.                  %dsp_afilt2:~0,30%
 echo.
 echo  Last Test:  %result% %showdbl%
 echo  Status:     %curstatus%
 goto :eof
 
-:set_stability
-if "%stblty_firstval%"=="" set stblty_firstval=%1
-set /a stblty_tests+=1&set /a stblty_val+=%1&shift
-if not "%1"=="" goto :set_stability
-set /a stblty_over=stblty_tests-INT_StabilityHistory
-if %stblty_over% geq 1 set /a stblty_over*=2&set /a stblty_val-=stblty_firstval&set stbltySTR=!stbltySTR:~%stblty_over%!
-set /a stblty_result=100-((stblty_val*100)/stblty_tests)
-set stability=Very Poor [7]&if %stblty_result% gtr 40 set stability=Poor [6]
-if %stblty_result% gtr 55 set stability=Lower [5]&if %stblty_result% gtr 70 set stability=Low [4]
-if %stblty_result% gtr 85 set stability=Fair [3]&if %stblty_result% gtr 94 set stability=Normal [2]
-if %stblty_result% equ 100 set stability=High [1]
-if %stblty_tests% leq %INT_StabilityHistory% set stability=Calculating...(%stblty_tests%/%INT_StabilityHistory%)
-if %stblty_tests% gtr %INT_StabilityHistory% set INT_checkdelay=%orig_checkdelay%
-set stblty_firstval=&set stblty_tests=&set stblty_val=&goto :eof
-
-:countAdapters
-set totalAdapters=0&set tA_plus=0
-for /f "tokens=*" %%n in ('ipconfig ^|FINDSTR /C:"adapter"') do set /a totalAdapters+=1&(echo "%%n"|FINDSTR /L "& ^ %%">nul && set /a badnm+=1)
-setlocal disabledelayedexpansion
-for /f "tokens=*" %%n in ('ipconfig ^|FINDSTR /C:"adapter"') do @echo "%%n"|FINDSTR /L "!">nul && set /a badnm+=1
-if not "%badnm%"=="0" if not "%badnm%"=="%oldbadnm%" (cls&echo.&echo Error: %badnm% or more adapter names have invalid symbols.&echo This script may not parse them correctly.&ping -n 11 127.0.0.1>nul)
-endlocal&set badnm=0&set oldbadnm=%badnm%
-if "%totalAdapters%"=="0" set tA_plus=1
-set /a est_secs=((totalAdapters+%tA_plus%)*ca_percent)/100&goto :eof
-
-:Update_avgca
-set /a last_ca_percent+=0&set /a last_checkca+=0
-set /a checkca=(%1*100)/ca_percent
-if %checkca% geq 300 if not %last_checkca% geq 300 goto :eof
-set num=0&set avg_ca_percent=0&set STR_ca_percent=
-if %checkca% geq 300 set STR_ca_percent=%last_ca_percent%&set num=1
-set last_checkca=%checkca%&set last_ca_percent=%1
-:Update_avgca_loop
-if not "%1"=="" if %num% lss %MX_avgca% set /a avg_ca_percent+=%1&set STR_ca_percent=%STR_ca_percent% %1
-if not "%1"=="" if %num% lss %MX_avgca% set /a num+=1&shift&goto :Update_avgca_loop
-set /a ca_percent=(avg_ca_percent/num)
-if "%AUTO_checkrouterdelay%"=="" goto :eof
-set /a est_secs=(totalAdapters*ca_percent)/100
-set /a INT_checkrouterdelay=est_secs+1
-if %INT_checkrouterdelay% lss %MN_crd% set INT_checkrouterdelay=%MN_crd%
-if %INT_checkrouterdelay% gtr %MX_crd% set INT_checkrouterdelay=%MX_crd%
-goto :eof
-
-:Update_avgtimeout
-if "%AUTO_timeoutsecs%"=="" goto :eof
-set num=0&set high_timeout=%1&set STR_timeout=
-:Update_avgtimeout_loop
-if not "%1"=="" if %num% lss %MX_avgtimeout% set STR_timeout=%STR_timeout% %1&set /a num+=1&if %10 gtr %high_timeout%0 set high_timeout=%1
-if not "%1"=="" shift&goto :Update_avgtimeout_loop
-set /a timeoutmilsecs=high_timeout+(high_timeout/2)
-if %timeoutmilsecs% lss %MN_timeout% set timeoutmilsecs=%MN_timeout%
-if %timeoutmilsecs% gtr %MX_timeout% set timeoutmilsecs=%MX_timeout%
-goto :eof
-
-:Update_avgdowntest
-if "%AUTO_flukechecks%"=="" goto :eof
-set num=0&set avg_downtest=0&set STR_downtest%result%=
-:Update_avgdowntest_loop
-if not "%1"=="" set /a avg_downtest+=%1&set STR_downtest%result%=!STR_downtest%result%! %1
-if not "%1"=="" set /a num+=1&shift&goto :Update_avgdowntest_loop
-set /a INT_flukechecks=(INT_flukemaxtime*1000)/((avg_downtest/num)+(INT_flukecheckdelay*1000))
-if %INT_flukechecks% lss %MN_flukechecks% set INT_flukechecks=%MN_flukechecks%
-if %INT_flukechecks% gtr %MX_flukechecks% set INT_flukechecks=%MX_flukechecks%
-goto :eof
+:stblty_set
+if not "%1"=="" set /a ss_tests+=1&set /a ss_val+=%1&shift&goto :stblty_set
+set /a ss_over=ss_tests-INT_StabilityHistory&set /a ss_over2=!ss_over!*2
+:stblty_loop
+if %ss_over% geq 1 set /a ss_tests-=1&set /a ss_over-=1&(for /f "tokens=1" %%n in ("%ss_STR%") do set /a ss_val-=%%n)&&set ss_STR=!ss_STR:~2!&goto :stblty_loop
+set /a stblty=100-((ss_val*100)/ss_tests)&set /a ss_valneg=ss_tests-ss_val&set /a stblty+=0&set /a ss_tests+=0&if !stblty! leq 0 set stblty=0
+set "stblty=!stblty!%% [!ss_valneg!/%ss_tests%]"
+set ss_tests=&set ss_sub=&set ss_val=&goto :eof
 
 :precisiontimer
 set id=%1&set var=%2
@@ -256,116 +180,94 @@ if !%id%_ptemins! lss !%id%_ptsmins! set /a %id%_ptemins+=60
 set /a %var%=(%id%_ptemils-%id%_ptsmils)+((%id%_ptesecs-%id%_ptssecs)*100)+(((%id%_ptemins-%id%_ptsmins)*60)*100)
 goto :eof
 
-:checkRouterAdapter
+:chkRA
 set checkconnects=0&if not "%manualRouter%"=="" if not "%manualAdapter%"=="" goto :eof
-call :precisiontimer cRA start
-call :countAdapters&set curstatus=Verify Router/Adapter [%est_secs%s]
-%debgn%call :header
+set curstatus=Verify Router/Adapter...&%debgn%call :header
 call :getNETINFO
 set cur_ROUTER=&set cur_ADAPTER=&set show_cur_ADAPTER=
 if not "%manualAdapter%"=="" call :getRouter
 if not "%manualRouter%"=="" call :getAdapter
 if "%cur_ROUTER%%cur_ADAPTER%"=="" call :getRouterAdapter
-if "%cur_ROUTER%%cur_ADAPTER%"=="" call :EnumerateAdapters
-
-:checkRouterAdapter_end
-call :precisiontimer cRA tot
-set /a tot/=100&set /a timepassed+=!tot!
-if not %tot%==0 set /a new_ca_percent=(tot*100)/(totalAdapters+%tA_plus%)
-if not %tot%==0 call :Update_avgca %new_ca_percent% %STR_ca_percent%
 goto :eof
 
 :getRouterAdapter
-if %gNI_arrLen%==0 goto :eof
-if %gNI_arrLen%==1 set cur_ROUTER=%net_1_gw%&set cur_ADAPTER=%net_1_cn%&set show_cur_ADAPTER=%net_1_cn%&goto :eof
+if %net_arrLen%==0 goto :eof
+if %net_arrLen%==1 set cur_ROUTER=%net_1_gw%&set "cur_ADAPTER=net_1_cn"&set "show_cur_ADAPTER=net_1_cn"&goto :eof
 call :ask4NET&goto :eof
 
 :getRouter
-set cur_ADAPTER=%manualAdapter%&set show_cur_ADAPTER=%manualAdapter%
-if /i "%manualAdapter%"=="all" set cur_ADAPTER=&set show_cur_ADAPTER=[Reset All Connections on Error]
-if %gNI_arrLen%==0 goto :eof
-if %gNI_arrLen%==1 set cur_ROUTER=%net_1_gw%&goto :eof
-for /l %%n in (1,1,%gNI_arrLen%) do if "%manualAdapter%"=="!net_%%n_cn!" set cur_ROUTER=!net_%%n_gw!
+set "cur_ADAPTER=%manualAdapter%"&set "show_cur_ADAPTER=%manualAdapter%"
+if /i "%manualAdapter%"=="all" set cur_ADAPTER=&set show_cur_ADAPTER=allAdapters
+if %net_arrLen%==0 goto :eof
+if %net_arrLen%==1 set cur_ROUTER=%net_1_gw%&goto :eof
+for /l %%n in (1,1,%net_arrLen%) do if "%manualAdapter%"=="!net_%%n_cn!" set cur_ROUTER=!net_%%n_gw!
 if "%cur_ROUTER%"=="" call :Ask4NET router
 goto :eof
 
 :getAdapter
 set cur_ROUTER=%manualRouter%
 if /i "%manualRouter%"=="none" set cur_ROUTER=
-if %gNI_arrLen%==0 goto :eof
-if %gNI_arrLen%==1 set cur_ADAPTER=%net_1_cn%&goto :eof
-for /l %%n in (1,1,%gNI_arrLen%) do if "%manualRouter%"=="!net_%%n_gw!" set cur_ADAPTER=!net_%%n_cn!
+if %net_arrLen%==0 goto :eof
+if %net_arrLen%==1 set cur_ADAPTER=net_1_cn&goto :eof
+for /l %%n in (1,1,%net_arrLen%) do if "%manualRouter%"=="!net_%%n_gw!" set "cur_ADAPTER=net_%%n_cn"&set "show_cur_ADAPTER=net_%%n_cn"
 if "%cur_ADAPTER%"=="" call :Ask4NET adapter
-set show_cur_ADAPTER=%cur_Adapter%
-if /i "%manualAdapter%"=="all" set cur_ADAPTER=&set show_cur_ADAPTER=[Reset All Connections on Error]
+if /i "%manualAdapter%"=="all" set cur_ADAPTER=&set show_cur_ADAPTER=allAdapter
 goto :eof
 
 :check
 @set curstatus=Testing connectivity...
 %debgn%call :header
-set ping_test=&set result=&set testrouter=%secondaryRouter%
-if not "%cur_ROUTER%"=="" if %dbl% equ 0 set testrouter=%cur_ROUTER%
-if not "%manualRouter%"=="" set testrouter=%cur_ROUTER%
+set ping_test=&set result=&set testrouter=%testSite%
+if not "%cur_ROUTER%"=="" if %dbl% equ 0 set "testrouter=%cur_ROUTER%"
+if not "%manualRouter%"=="" set "testrouter=%cur_ROUTER%"
 
-call :precisiontimer PING start
-for /f "tokens=* delims=" %%p in ('ping -w %timeoutmilsecs% -n 1 %testrouter%') do set ping_test=!ping_test! %%p
-call :precisiontimer PING pingtime
-echo "%ping_test%" |FINDSTR /C:"Reply from " >nul && (set result=Connected&set chkresup=&set chkresdn=::)
+for /f "tokens=* delims=" %%p in ('ping -w %timeoutmilsecs% -n 1 "%testrouter%"') do set "ping_test=!ping_test! %%p"
+echo "%ping_test%" |FINDSTR /C:"bytes=32" >nul && (set result=Connected&set chkresup=&set chkresdn=::)
 echo "%ping_test%" |FINDSTR /C:"request could not find" /C:"Unknown host" /C:"unreachable" /C:"General failure" >nul
 if %errorlevel% equ 0 set result=NotConnected&set chkresup=::&set chkresdn=
-set /a pingtime*=10&if "%result%"=="" set result=TimeOut&set chkresup=::&set chkresdn=&set /a MN_timeout+=1000
+if "%result%"=="" set result=TimeOut&set chkresup=::&set chkresdn=
 
-%chkresup%set /a checkconnects+=1
-%chkresup%if %lastresult%==dn set /a timepassed/=2&if not "%resetted%"=="1" set checkconnects=force
-%chkresup%if %lastresult%==dn if "%resetted%"=="1" if "%cur_Adapter%"==""  set checkconnects=force
-%chkresup%if %timepassed% leq 0 set timepassed=1
-%chkresup%set /a up+=timepassed&set curcolor=%norm%&set stbltySTR=%stbltySTR% 0
-%chkresdn%if %lastresult%==up set /a timepassed/=2
-%chkresdn%if %timepassed% leq 0 set timepassed=1
-%chkresdn%set /a down+=timepassed&if "%result%"=="TimeOut" set /a down+=INT_timeoutsecs
-%chkresdn%set curcolor=%warn%&set stbltySTR=%stbltySTR% 1&if not %dbl%==0 call :setSecondaryRouter
-%chkresdn%call :Update_avgdowntest !STR_downtest%result%! %pingtime%
+if not "%lastresult%"=="%result%" set /a timepassed/=2&if !timepassed! leq 0 set timepassed=1
+%chkresup%set /a checkconnects+=1&set /a up+=timepassed&set curcolor=%norm%&set ss_STR=%ss_STR% 0
+%chkresup%set lastresult=up&if "%resetted%"=="1" set /a numfixes+=1&set resetted=0
+%chkresdn%set /a down+=timepassed&set curcolor=%warn%&set ss_STR=%ss_STR% 1&if not %dbl%==0 call :testSite_set
+%chkresdn%set lastresult=dn&if "%result%"=="TimeOut" set /a down+=INT_timeoutsecs
 
 set timepassed=0&if %dbl% gtr 0 set showdbl=(fluke check %dbl%/%INT_flukechecks%)
-set /a dbl+=1&call :update_avgtimeout %pingtime% %STR_timeout%
-call :set_uptime&call :set_stability %stbltySTR%
-if "%result%"=="Connected" if not %lastresult%==up if "%resetted%"=="1" set /a numfixes+=1
-set lastresult=dn&if "%result%"=="Connected" (set resetted=0&set lastresult=up)
-if "%result%"=="NotConnected" call :check_adapterenabled
-if not "%result%"=="Connected" if not %dbl% gtr %INT_flukechecks% call :sleep %INT_flukecheckdelay%&goto :check
-if not "%result%"=="Connected" if %dbl% gtr %INT_flukechecks% call :resetConnection
-set dbl=0&set MN_timeout=100&set showdbl=&set STR_downtestNotConnected=&set STR_downtestTimeOut=&goto :eof
+set /a dbl+=1&call :set_uptime
+if "%result%"=="NotConnected" call :c_enabled
+if %lastresult%==dn if not %dbl% gtr %INT_flukechecks% call :sleep %INT_flukecheckdelay%&goto :check
+if %lastresult%==dn if %dbl% gtr %INT_flukechecks% call :resetConnection
+set dbl=0&set showdbl=&goto :eof
 
-:check_adapterenabled
+:c_enabled
 if "%isAdmin%"=="0" goto :eof
 if "%cur_ADAPTER%"=="" goto :eof
-ipconfig |FINDSTR /C:"adapter %cur_ADAPTER%:">nul && goto :eof
-@set curstatus=Enabling adapter...&set curcolor=%pend%&set resetted=1
-%debgn%call :header
-%no_netsh%%rsetnetsh%"%cur_ADAPTER%" admin=enable>nul 2>&1
-%no_netsh%if %errorlevel%==0 set stbltySTR=%stbltySTR% 2&call :sleep %INT_fixdelay%&goto :eof
-%no_wmic%%rsetwmic%%cur_ADAPTER%'" call enable
-%no_wmic%if %errorlevel%==0 set stbltySTR=%stbltySTR% 2&call :sleep %INT_fixdelay%&goto :eof
-%no_temp%%no_cscript%call :resetAdapter_oldOS enable %cur_ADAPTER%&set stbltySTR=%stbltySTR% 2
+ipconfig |FINDSTR /C:"adapter !%cur_ADAPTER%!:">nul && goto :eof
+@set curstatus=Enabling adapter...&set curcolor=%pend%&%debgn%call :header
+%no_netsh%call :rset_netsh enable %cur_ADAPTER% && goto :c_e_success
+%no_wmic%call :rset_wmic enable %cur_ADAPTER% && goto :c_e_success
+%no_temp%%no_cscript%call :rset_vbs enable %cur_ADAPTER%&goto :c_e_success
 goto :eof
+:c_e_success
+set resetted=1&set ss_STR=%ss_STR% 2&call :sleep %INT_fixdelay%&goto :eof
 
-:setSecondaryRouter
+:testSite_set
 %sSR_init%set sSR_addr=www.google.com;www.ask.com;www.yahoo.com;www.bing.com&set sSR_init=::
-for /f "tokens=%sSR_num% delims=;" %%r in ("%sSR_addr%") do set secondaryRouter=%%r
-if "%secondaryRouter%"=="" set sSR_num=1&goto :setSecondaryRouter
+for /f "tokens=%sSR_num% delims=;" %%r in ("%sSR_addr%") do set testSite=%%r
+if "%testSite%"=="" set sSR_num=1&goto :testSite_set
 set /a sSR_num+=1&goto :eof
 
 :sleep
-if "%1"=="" set pn=3
+call :precisiontimer SLP start&if "%1"=="" set pn=3
 if not "%1"=="" set pn=%1&if !pn! equ 0 goto :eof
+%no_temp%if not "%checkconnects%"=="force" if %cleanTMPPnum% geq 20000 (call :cleanTMPP&set cleanTMPPnum=0)
 if not "%checkconnects%"=="force" if %c4u% geq %c4u_max% call :check4update&set /a pn-=tot
-if "%checkconnects%"=="force" call :checkRouterAdapter&set /a pn-=tot
-if not "%stability:~0,4%"=="Calc" if "%result%"=="Connected" if %checkconnects% geq %INT_checkrouterdelay% call :checkRouterAdapter&set /a pn-=tot
-if %pn% leq 0 goto :eof
-@set curstatus=Wait %pn% seconds...
-%debgn%call :header
-set /a timepassed+=pn&set /a pn=!pn!+1
-ping -n %pn% -w 1000 127.0.0.1>nul&goto :eof
+if "%checkconnects%"=="force" call :chkRA&set /a pn-=tot
+if "%result%"=="Connected" if %checkconnects% geq %INT_checkrouterdelay% call :chkRA&set /a pn-=tot
+@set curstatus=Wait %pn% seconds...&%debgn%call :header
+set /a pn+=1&ping -n !pn! -w 1000 127.0.0.1>nul
+call :precisiontimer SLP timepassed&set /a timepassed/=100&goto :eof
 
 :SETMODECON
 if /i "%viewmode%"=="mini" set cols=37&set lines=10
@@ -374,16 +276,6 @@ if /i "%viewmode%"=="details" set cols=80&set lines=28
 if not "%1"=="" set cols=%1&set lines=%2
 if not "%pretty%"=="1" set cols=80&set lines=900
 MODE CON COLS=%cols% LINES=%lines%&goto :eof
-
-:crazy
-set /a cr_num=%random:~-1%&set /a cr_num=!cr_num!+!random:~-1!
-if %cr_num% gtr 15 goto :crazy
-:crazy2
-set /a cr_num2=%random:~-1%-1
-set /a cr_num2+=%random:~-1%-1
-if %cr_num2% gtr 15 goto :crazy2
-if "%cr_num%"=="%cr_num2%" goto :crazy
-COLOR !crazystr:~%cr_num%,1!!crazystr:~%cr_num2%,1!&goto :eof
 
 :set_uptime
 if %up% geq 100000 set /a up=up/10&set /a down=down/10
@@ -428,62 +320,48 @@ set GRT_MO_1=31&set GRT_MO_3=31&set GRT_MO_4=30&set GRT_MO_5=31
 set GRT_MO_6=30&set GRT_MO_7=31&set GRT_MO_8=31&set GRT_MO_9=30
 set GRT_MO_10=31&set GRT_MO_11=30&set GRT_MO_12=31&goto :eof
 
-:findprocess
-%no_tasklist%tasklist /fo:csv|FINDSTR /I /C:"%*">nul && exit /b 0
-%no_tasklist%exit /b 1
-%no_pslist%set proc=%*&set proc=!proc:~0,-4!
-%no_pslist%(pslist -e %proc%)>nul 2>&1 && exit /b 0
-%no_pslist%exit /b 1& REM Proc name max 15 char
-%no_temp%%no_cscript%@echo on&set foundproc=1&set tempfile=%TMPP%\findproc%CID%
-%no_temp%%no_cscript%@echo strComputer=".">"%tempfile%.vbs"
-%no_temp%%no_cscript%@echo Set objFSO = CreateObject("Scripting.FileSystemObject")>>"%tempfile%.vbs"
-%no_temp%%no_cscript%@echo Set objWMIService = GetObject("winmgmts:{impersonationLevel=impersonate}!\\" ^& strComputer ^& "\root\cimv2")>>"%tempfile%.vbs"
-%no_temp%%no_cscript%@echo Set colProcessList = objWMIService.ExecQuery("Select * from Win32_Process")>>"%tempfile%.vbs"
-%no_temp%%no_cscript%@echo For Each objProcess in colProcessList>>"%tempfile%.vbs"
-%no_temp%%no_cscript%@echo If InStr( objProcess.Name , "%*"  ) > 0 Then>>"%tempfile%.vbs"
-%no_temp%%no_cscript%@echo Set objFile = objFSO.CreateTextFile("%tempfile%", True)>>"%tempfile%.vbs"
-%no_temp%%no_cscript%@echo End If >>"%tempfile%.vbs"
-%no_temp%%no_cscript%@echo Next>>"%tempfile%.vbs"
-%debgn%%no_temp%%no_cscript%@echo off
-%no_temp%%no_cscript%cscript.exe //E:VBScript //B //NoLogo "%tempfile%.vbs"
-%no_temp%%no_cscript%if exist "%tempfile%" set foundproc=1
-%no_temp%%no_cscript%del /f /q "%tempfile%*">nul 2>&1
-%no_temp%%no_cscript%exit /b %foundproc%
-%no_tlist%tlist|FINDSTR /I /C:"%*">nul && exit /b 0
-%no_tlist%exit /b 1
-set no_proclist=::&exit /b 2
-
 :EnumerateAdapters
-set adapters_arrLen=0&set EAwmic=
-%no_wmic%call :antihang 20 wmicnetadapt wmic.exe nic get NetConnectionID || (set EAwmic=::&goto :EnumerateAdapters_alt)
-%no_wmic%%no_temp%for /f "usebackq tokens=* delims=" %%n in ("%TMPP%\wmicnetadapt%CID%") do echo "%%n" |FINDSTR /L "^& ^^! %% ^^">nul || call :EnumerateAdapters_parse %%n
-%no_wmic%if "%no_temp%"=="::" for /f "tokens=1* delims==" %%n in ('set wmicnetadapt') do (set "%%n="&echo "%%o" |FINDSTR /L "^& ^^! %% ^^">nul || call :EnumerateAdapters_parse %%o)
-%no_wmic%DEL /F /Q "%TMPP%"\wmicnetadapt%CID% >nul 2>&1&goto :eof
-:EnumerateAdapters_alt
+setlocal disabledelayedexpansion&set adapters_arrLen=0
+%no_wmic%call :antihang 20 wmicnetadapt wmic.exe nic get NetConnectionID || goto :EA_alt
+%no_wmic%%no_temp%for /f "usebackq tokens=* delims=" %%n in ("%TMPP%\wmicnetadapt%CID%") do set "line=%%n"&call :EA_parse wmic
+%no_wmic%if "%no_temp%"=="::" for /f "tokens=1* delims==" %%n in ('set wmicnetadapt') do set "line=%%o"&call :EA_parse wmic
+%no_wmic%goto :EA_cleanup
+:EA_alt
+%no_netsh%for /f "tokens=*" %%n in ('netsh int show int') do set "line=%%n"&call :EA_parse netsh
+%no_netsh%for /f "tokens=*" %%n in ('netsh mbn show int') do set "line=%%n"&call :EA_parse mbn
+:EA_cleanup
 %no_wmic%%no_temp%DEL /F /Q "%TMPP%"\wmicnetadapt%CID% >nul 2>&1
-%no_netsh%for /f "tokens=* delims=" %%n in ('netsh int show int') do echo "%%n" |FINDSTR /L "^& ^^! %% ^^">nul || call :EnumerateAdapters_parse %%n
-%no_netsh%for /f "tokens=* delims=" %%n in ('netsh mbn show int') do echo "%%n" |FINDSTR /L "^& ^^! %% ^^">nul || call :EnumerateAdapters_parseMBN %%n
+for /f "tokens=1* delims==" %%n in ('set adapters_') do endlocal&set "%%n=%%o"
 goto :eof
 
-:EnumerateAdapters_parse
-if "%*"=="" goto :eof
-set line=%*&if "!line!"=="NetConnectionID" goto :eof
+:EA_parse
+if "%line%"=="" goto :eof
+if not "%filterAdapters%"=="" echo "%line%"|FINDSTR /I /L "%filterAdapters%">nul && goto :eof
+::set "line=%line:^=^^%"
+::set "line=%line:&=^&%"
+set "line=%line:!=^!%"
+setlocal enabledelayedexpansion
+set "line=!line:%%=%%%!"
+endlocal&set "line=%line%"
+goto :EA_parse_%1
+:EA_parse_wmic
+if "%line%"=="NetConnectionID" goto :eof
+set /a adapters_arrLen+=1
+set "adapters_%adapters_arrLen%_name=%line%"&goto :eof
+:EA_parse_netsh
 if "%line:~0,11%"=="Admin State" goto :eof
 if "%line:~0,4%"=="----" goto :eof
-if not "%filterAdapters%"=="" echo %line%|FINDSTR /I /L "%filterAdapters%">nul && goto :eof
 set /a adapters_arrLen+=1
-%no_wmic%%EAwmic%set adapters_%adapters_arrLen%_name=%line%&goto :eof
-set EA_tokens=3&(echo "%2"|FINDSTR /I /C:"connected" /C:"Unreachable">nul || set EA_tokens=2)
-for /f "tokens=%EA_tokens%* delims= " %%c in ("%line%") do set adapters_%adapters_arrLen%_name=%%d
+set EA_tokens=3&(for /f "tokens=2* delims= " %%c in ("%line%") do echo "%%c"|FINDSTR /I /C:"connected" /C:"Unreachable">nul || set EA_tokens=2)
+for /f "tokens=%EA_tokens%* delims= " %%c in ("%line%") do set "adapters_%adapters_arrLen%_name=%%d"
 goto :eof
-
-:EnumerateAdapters_parseMBN
-echo "%*"|FINDSTR /C:"Name">nul || goto :eof
-set line=%*&if not "%filterAdapters%"=="" echo !line!|FINDSTR /I /L "%filterAdapters%">nul && goto :eof
-set /a adapters_arrLen+=1&set adapters_!adapters_arrLen!_name=%line:*: =%&goto :eof
+:EA_parse_mbn
+echo "%line%"|FINDSTR /C:"Name">nul || goto :eof
+set /a adapters_arrLen+=1
+set "adapters_%adapters_arrLen%_name=%line:*: =%"&goto :eof
 
 :resetConnection
-set curcolor=%alrt%&set curstatus=Attempting to fix connection...&set stbltySTR=%stbltySTR% 2
+set curcolor=%alrt%&set curstatus=Attempting to fix connection...&set ss_STR=%ss_STR% 2
 %debgn%call :header
 set resetted=1&if "%cur_ADAPTER%"=="" call :resetConnection_all
 if not "%cur_ADAPTER%"=="" call :resetConnection_one
@@ -491,22 +369,67 @@ set curcolor=%pend%&call :sleep %INT_fixdelay%&set checkconnects=force&goto :eof
 
 :resetConnection_all
 ipconfig /release>nul 2>&1&ipconfig /flushdns>nul 2>&1
-%use_admin%set use_netsh=::
-%use_admin%%no_netsh%%rsetnetsh%"%adapters_1_name%" admin=disable>nul 2>&1 && (set use_netsh=&set use_wmic=::&set use_vbs=::)
-%use_admin%%use_netsh%for /l %%n in (1,1,%adapters_arrLen%) do %rsetnetsh%"!adapters_%%n_name!" admin=disable>nul 2>&1&%rsetnetsh%"!adapters_%%n_name!" admin=enable>nul 2>&1
-%use_admin%%no_wmic%%use_wmic%set use_wmic=::&(%rsetwmic%%adapters_1_name%'" call disable && (set use_wmic=&set use_vbs=::))
-%use_admin%%no_wmic%%use_wmic%for /l %%n in (1,1,%adapters_arrLen%) do %rsetwmic%!adapters_%%n_name!'" call disable&%rsetwmic%!adapters_%%n_name!'" call enable
-%use_admin%%use_vbs%%no_temp%%no_cscript%for /l %%n in (1,1,%adapters_arrLen%) do call :resetAdapter_oldOS disable !adapters_%%n_name!&call :resetAdapter_oldOS enable !adapters_%%n_name!
+%use_admin%call :EnumerateAdapters
+%use_admin%%no_netsh%set use_netsh=::&call :rset_netsh disable adapters_1_name && (set use_netsh=&set use_wmic=::&set use_vbs=::)
+%use_admin%%no_netsh%%use_netsh%for /l %%n in (1,1,%adapters_arrLen%) do call :rset_netsh disable adapters_%%n_name&call :rset_netsh enable adapters_%%n_name
+%use_admin%%no_wmic%%use_wmic%set use_wmic=::&(call :rset_wmic disable adapters_1_name && (set use_wmic=&set use_vbs=::))
+%use_admin%%no_wmic%%use_wmic%for /l %%n in (1,1,%adapters_arrLen%) do call :rset_wmic disable adapters_%%n_name&call :rset_wmic enable adapters_%%n_name
+%use_admin%%use_vbs%%no_temp%%no_cscript%for /l %%n in (1,1,%adapters_arrLen%) do call :rset_vbs disable adapters_%%n_name&call :rset_vbs enable adapters_%%n_name
 ipconfig /renew>nul 2>&1&goto :eof
 
 :resetConnection_one
 ipconfig /release "%cur_ADAPTER%">nul 2>&1
 ipconfig /flushdns "%cur_ADAPTER%">nul 2>&1
-%use_admin%%no_netsh%set use_netsh=::&(%rsetnetsh%"%cur_Adapter%" admin=disable>nul 2>&1 && (set use_netsh=&set use_wmic=::&set use_vbs=::))
-%use_admin%%no_netsh%%use_netsh%%rsetnetsh%"%cur_ADAPTER%" admin=enable>nul 2>&1
-%use_admin%%no_wmic%%rsetwmic%%cur_ADAPTER%'" call disable && (%rsetwmic%%cur_ADAPTER%'" call enable&set use_wmic=&set use_vbs=::)
-%use_admin%%use_vbs%%no_temp%%no_cscript%call :resetAdapter_oldOS disable "%cur_ADAPTER%"&call :resetAdapter_oldOS enable "%cur_ADAPTER%"
+%use_admin%%no_netsh%set use_netsh=::&(call :rset_netsh disable cur_Adapter && (set use_netsh=&set use_wmic=::&set use_vbs=::))
+%use_admin%%no_netsh%%use_netsh%call :rset_netsh enable cur_Adapter || set use_wmic=
+%use_admin%%no_wmic%call :rset_wmic disable cur_Adapter && (call :rset_wmic enable cur_Adapter&set use_wmic=&set use_vbs=::)
+%use_admin%%use_vbs%%no_temp%%no_cscript%call :rset_vbs disable cur_ADAPTER&call :rset_vbs enable cur_ADAPTER
 ipconfig /renew "%cur_ADAPTER%">nul 2>&1&goto :eof
+
+:rset_netsh
+netsh int set int "!%2!" admin=%1>nul 2>&1&exit /b !errorlevel!
+:rset_wmic
+call :antihang 11 null wmic.exe path win32_networkadapter where "NetConnectionID='!%2!'" call %1>nul 2>&1&exit /b !errorlevel!
+:rset_vbs
+set rs_tf=true&if /I "%1"=="enable" set rs_tf=false
+set rs_file=%TMPP%\%1adapter%CID%.vbs
+@echo on
+@echo Const ssfCONTROLS = 3 '>"%rs_file%"
+@echo sEnableVerb = "En&able" '>>"%rs_file%"
+@echo sDisableVerb = "Disa&ble" '>>"%rs_file%"
+@echo set shellApp = createobject("shell.application") '>>"%rs_file%"
+@echo set oControlPanel = shellApp.Namespace(ssfCONTROLS) '>>"%rs_file%"
+@echo set oNetConnections = nothing '>>"%rs_file%"
+@echo for each folderitem in oControlPanel.items '>>"%rs_file%"
+@echo   if folderitem.name = "Network Connections" then '>>"%rs_file%"
+@echo         set oNetConnections = folderitem.getfolder: exit for '>>"%rs_file%"
+@echo   elseif folderitem.name = "Network and Dial-up Connections" then '>>"%rs_file%"
+@echo         set oNetConnections = folderitem.getfolder: exit for '>>"%rs_file%"
+@echo end if '>>"%rs_file%"&echo next '>>"%rs_file%"
+@echo if oNetConnections is nothing then '>>"%rs_file%"
+@echo wscript.quit '>>"%rs_file%"&echo end if '>>"%rs_file%"
+@echo set oLanConnection = nothing '>>"%rs_file%"
+@echo for each folderitem in oNetConnections.items '>>"%rs_file%"
+@echo if lcase(folderitem.name) = lcase("!%2!") then '>>"%rs_file%"
+@echo set oLanConnection = folderitem: exit for '>>"%rs_file%"
+@echo end if '>>"%rs_file%"&echo next '>>"%rs_file%"
+@echo Dim objFSO '>>"%rs_file%"&echo if oLanConnection is nothing then '>>"%rs_file%"
+@echo wscript.quit '>>"%rs_file%"&echo end if '>>"%rs_file%"
+@echo bEnabled = true '>>"%rs_file%"&echo set oEnableVerb = nothing '>>"%rs_file%"
+@echo set oDisableVerb = nothing '>>"%rs_file%"
+@echo s = "Verbs: " ^& vbcrlf '>>"%rs_file%"
+@echo for each verb in oLanConnection.verbs '>>"%rs_file%"
+@echo s = s ^& vbcrlf ^& verb.name '>>"%rs_file%"
+@echo if verb.name = sEnableVerb then '>>"%rs_file%"
+@echo set oEnableVerb = verb '>>"%rs_file%"&echo bEnabled = false '>>"%rs_file%"
+@echo end if '>>"%rs_file%"&echo if verb.name = sDisableVerb then '>>"%rs_file%"
+@echo set oDisableVerb = verb '>>"%rs_file%"&echo end if '>>"%rs_file%"
+@echo next '>>"%rs_file%"&echo if bEnabled = %rs_tf% then '>>"%rs_file%"
+@echo o%1Verb.DoIt '>>"%rs_file%"&echo end if '>>"%rs_file%"
+@echo wscript.sleep 2000 '>>"%rs_file%"
+%debgn%@echo off
+call :antihang 25 null cscript.exe //E:VBScript //T:25 //NoLogo "%rs_file%"
+DEL /F /Q "%rs_file%">nul 2>&1&exit /b 0
 
 :antihang
 set proc=%*&set proc=!proc:%1 %2 =!&set procsuccess=1&set /a ah_maxwait=(%1*10)/4
@@ -540,79 +463,59 @@ set /a waitkill+=1&%no_prockill%(%prockill% %3)>nul 2>&1
 for /f "tokens=1 delims==" %%n in ('set null 2^>nul') do set %%n=
 set waitproc=&set waitkill=&set procfinished=&set procerr=&set proc=&set startedproc=&set ah_num=0&exit /b %procsuccess%
 
-:resetAdapter_oldOS
-if /I "%1"=="enable" set disoren=Enable&set trufalse=false
-if /I "%1"=="disable" set disoren=Disable&set trufalse=true
-set reset_adaptername=%*&set reset_adaptername=!reset_adaptername:%1 =!
-set resetfile=%TMPP%\%disoren%adapter%CID%.vbs
-@echo on
-@echo Const ssfCONTROLS = 3 '>"%resetfile%"
-@echo sEnableVerb = "En&able" '>>"%resetfile%"
-@echo sDisableVerb = "Disa&ble" '>>"%resetfile%"
-@echo set shellApp = createobject("shell.application") '>>"%resetfile%"
-@echo set oControlPanel = shellApp.Namespace(ssfCONTROLS) '>>"%resetfile%"
-@echo set oNetConnections = nothing '>>"%resetfile%"
-@echo for each folderitem in oControlPanel.items '>>"%resetfile%"
-@echo   if folderitem.name = "Network Connections" then '>>"%resetfile%"
-@echo         set oNetConnections = folderitem.getfolder: exit for '>>"%resetfile%"
-@echo   elseif folderitem.name = "Network and Dial-up Connections" then '>>"%resetfile%"
-@echo         set oNetConnections = folderitem.getfolder: exit for '>>"%resetfile%"
-@echo end if '>>"%resetfile%"&echo next '>>"%resetfile%"
-@echo if oNetConnections is nothing then '>>"%resetfile%"
-@echo wscript.quit '>>"%resetfile%"&echo end if '>>"%resetfile%"
-@echo set oLanConnection = nothing '>>"%resetfile%"
-@echo for each folderitem in oNetConnections.items '>>"%resetfile%"
-@echo if lcase(folderitem.name) = lcase("%reset_adaptername%") then '>>"%resetfile%"
-@echo set oLanConnection = folderitem: exit for '>>"%resetfile%"
-@echo end if '>>"%resetfile%"&echo next '>>"%resetfile%"
-@echo Dim objFSO '>>"%resetfile%"&echo if oLanConnection is nothing then '>>"%resetfile%"
-@echo wscript.quit '>>"%resetfile%"&echo end if '>>"%resetfile%"
-@echo bEnabled = true '>>"%resetfile%"&echo set oEnableVerb = nothing '>>"%resetfile%"
-@echo set oDisableVerb = nothing '>>"%resetfile%"
-@echo s = "Verbs: " ^& vbcrlf '>>"%resetfile%"
-@echo for each verb in oLanConnection.verbs '>>"%resetfile%"
-@echo s = s ^& vbcrlf ^& verb.name '>>"%resetfile%"
-@echo if verb.name = sEnableVerb then '>>"%resetfile%"
-@echo set oEnableVerb = verb '>>"%resetfile%"&echo bEnabled = false '>>"%resetfile%"
-@echo end if '>>"%resetfile%"&echo if verb.name = sDisableVerb then '>>"%resetfile%"
-@echo set oDisableVerb = verb '>>"%resetfile%"&echo end if '>>"%resetfile%"
-@echo next '>>"%resetfile%"&echo if bEnabled = %trufalse% then '>>"%resetfile%"
-@echo o%disOrEn%Verb.DoIt '>>"%resetfile%"&echo end if '>>"%resetfile%"
-@echo wscript.sleep 2000 '>>"%resetfile%"
-%debgn%@echo off
-call :antihang 25 null cscript.exe //E:VBScript //T:25 //NoLogo "%resetfile%"
-DEL /F /Q "%resetfile%">nul 2>&1&goto :eof
+:findprocess
+%no_tasklist%tasklist /fo:csv|FINDSTR /I /C:"%*">nul && exit /b 0
+%no_tasklist%exit /b 1
+%no_pslist%set proc=%*&set proc=!proc:~0,-4!
+%no_pslist%(pslist -e %proc%)>nul 2>&1 && exit /b 0
+%no_pslist%exit /b 1& REM Proc name max 15 char
+%no_temp%%no_cscript%@echo on&set foundproc=1&set tempfile=%TMPP%\findproc%CID%
+%no_temp%%no_cscript%@echo strComputer=".">"%tempfile%.vbs"
+%no_temp%%no_cscript%@echo Set objFSO = CreateObject("Scripting.FileSystemObject")>>"%tempfile%.vbs"
+%no_temp%%no_cscript%@echo Set objWMIService = GetObject("winmgmts:{impersonationLevel=impersonate}!\\" ^& strComputer ^& "\root\cimv2")>>"%tempfile%.vbs"
+%no_temp%%no_cscript%@echo Set colProcessList = objWMIService.ExecQuery("Select * from Win32_Process")>>"%tempfile%.vbs"
+%no_temp%%no_cscript%@echo For Each objProcess in colProcessList>>"%tempfile%.vbs"
+%no_temp%%no_cscript%@echo If InStr( objProcess.Name , "%*"  ) > 0 Then>>"%tempfile%.vbs"
+%no_temp%%no_cscript%@echo Set objFile = objFSO.CreateTextFile("%tempfile%", True)>>"%tempfile%.vbs"
+%no_temp%%no_cscript%@echo End If >>"%tempfile%.vbs"
+%no_temp%%no_cscript%@echo Next>>"%tempfile%.vbs"
+%debgn%%no_temp%%no_cscript%@echo off
+%no_temp%%no_cscript%cscript.exe //E:VBScript //B //NoLogo "%tempfile%.vbs"
+%no_temp%%no_cscript%if exist "%tempfile%" set foundproc=1
+%no_temp%%no_cscript%del /f /q "%tempfile%*">nul 2>&1
+%no_temp%%no_cscript%exit /b %foundproc%
+%no_tlist%tlist|FINDSTR /I /C:"%*">nul && exit /b 0
+%no_tlist%exit /b 1
+set no_proclist=::&exit /b 2
 
 :check4update
 set c4u=%c4u_max%&set tot=0&if not "%result%"=="Connected" goto :eof
-echo "%stbltySTR:~-50%"|FINDSTR /C:"2">nul && goto :eof
-set c4u=0&if "%hasupdate%"=="1" goto :eof
-call :precisiontimer c4u start
+echo "%ss_STR:~-50%"|FINDSTR /C:"2">nul && goto :eof
+set c4u=0&if "%h_top:~0,4%"=="____" goto :eof
 set curstatus=Checking for updates...&%debgn%call :header
 set use_ps=&set use_bits=::&set use_vbs=::
 set vurl=http://electrodexs.net/scripts/qNET/cur&set c4u_local=%version:.=%
 %no_ps%set pscmd=powershell -c "echo (New-Object System.Text.ASCIIEncoding).GetString((New-Object Net.WebClient).DownloadData('%vurl%'));"
 %no_ps%for /f "usebackq tokens=2 delims==" %%v in (`%pscmd%^|FINDSTR "SET %channel%="`) do set "c4u_remote=%%v"&title %ThisTitle%
 set /a c4u_remote+=0&if !c4u_remote!==0 set use_bits=&set c4u_file=%TMPP%\c4u%CID%
-%no_bits%%no_temp%%use_bits%call :antihang 25 null bitsadmin /transfer "qNET_updatecheck" "%vurl%" "%c4u_file%" && (call :c4u_runfile %c4u_file%&set c4u_remote=!%channel%!&del /f /q "%c4u_file%">nul 2>&1)
+%no_bits%%no_temp%%use_bits%call :antihang 25 null bitsadmin /transfer "qNET_updatecheck" "%vurl%" "%c4u_file%" && (call :c4u_parse %c4u_file%&set c4u_remote=!%channel%!&del /f /q "%c4u_file%">nul 2>&1)
 set /a c4u_remote+=0&if !c4u_remote!==0 set use_vbs=&set c4u_vbs=%TMPP%\c4u%CID%.vbs
 %no_cscript%%no_temp%%use_vbs%echo Set mX = CreateObject("Microsoft.XmlHTTP")>"%c4u_vbs%"
 %no_cscript%%no_temp%%use_vbs%echo mX.Open "GET", "%vurl%", False>>"%c4u_vbs%"&echo mX.Send "">>"%c4u_vbs%"
 %no_cscript%%no_temp%%use_vbs%echo Set objFile = CreateObject("Scripting.FileSystemObject").CreateTextFile("%c4u_file%", True)>>"%c4u_vbs%"
 %no_cscript%%no_temp%%use_vbs%echo objFile.Write mX.responseText>>"%c4u_vbs%"
 %no_cscript%%no_temp%%use_vbs%call :antihang 25 null cscript.exe //E:VBScript //T:25 //NoLogo "%c4u_vbs%"
-%no_cscript%%no_temp%%use_vbs%call :c4u_runfile %c4u_file%&del /f /q "%c4u_file%*">nul 2>&1&set "c4u_remote=!%channel%!"
-set /a c4u_remote+=0&if !c4u_remote! gtr %c4u_local% set hasupdate=1
-call :precisiontimer c4u tot
-set /a tot/=100&set /a timepassed+=!tot!&goto :eof
-:c4u_runfile
+%no_cscript%%no_temp%%use_vbs%call :c4u_parse %c4u_file%&del /f /q "%c4u_file%*">nul 2>&1&set "c4u_remote=!%channel%!"
+set /a c4u_remote+=0&if !c4u_remote! gtr %c4u_local% set h_top=___________________________________________________________/UPDATE AVAILABLE\ 
+goto :eof
+:c4u_parse
 if exist "%*" for /f "usebackq tokens=2 delims==" %%v in (`FINDSTR /C:"SET %channel%=" "%*"^>nul 2^>^&1`) do set "%channel%=%%v"
 goto :eof
 
 :detectIsAdmin
 call :iecho Detect Admin Rights...
 %no_temp%DEL /F /Q "%TMPP%\getadmin*.vbs">nul 2>&1
-%no_sfc%for /f "tokens=* delims=" %%s in ('sfc 2^>^&1^|MORE') do @set "output=!output!%%s"
+for /f "tokens=* delims=" %%s in ('sfc 2^>^&1^|MORE') do @set "output=!output!%%s"
 set isAdmin=0&echo "%output%"|findstr /I /C:"/scannow">nul 2>&1 && set isAdmin=1
 :dIA_kill
 %no_prockill%%no_tasklist%for /f "tokens=2 delims=," %%p in ('tasklist /V /FO:CSV ^|FINDSTR /C:"Limited: %ThisTitle%" 2^>nul') do (%killPID% %%p>nul 2>&1 && goto :dIA_kill)
@@ -628,35 +531,34 @@ if not "%requestAdmin%"=="1" goto :eof
 goto :eof
 
 :Ask4NET
-if not "%1"=="adapter" if "%fullAuto%"=="1" set manualRouter=%secondaryRouter%&set cur_ROUTER=%secondaryRouter%
+if not "%1"=="adapter" if "%fullAuto%"=="1" set manualRouter=%testSite%&set cur_ROUTER=%testSite%
 if "%1"=="router" if "%fullAuto%"=="1" goto :eof
-if not "%1"=="router" if "%fullAuto%"=="1" set manualAdapter=all&set cur_ADAPTER=&set show_cur_ADAPTER=[Reset All Connections on Error]&goto :eof
-call :precisiontimer cRA halt
+if not "%1"=="router" if "%fullAuto%"=="1" set manualAdapter=all&set cur_ADAPTER=&set show_cur_ADAPTER=allAdapter&goto :eof
 if "%1"=="adapter" call :EnumerateAdapters
-%debgn%set /a lines=%gNI_arrLen%+11
+%debgn%set /a lines=%net_arrLen%+11
 %debgn%call :SETMODECON 70 %lines%
 echo.&echo Which one would you like to monitor?&echo.&echo Choose by the selection number below.
 if not "%1"=="router" echo You may also enter x to cancel.
 if "%1"=="router" echo You may also type in a router address to use, or x to cancel.
 echo.&if not "%1"=="adapter" echo  #     Router Adress                  Associated Connection
 if not "%1"=="adapter" echo  ----- ------------------------------ -----------------------------
-if not "%1"=="adapter" for /l %%n in (1,1,%gNI_arrLen%) do set showroutr%%n=[%%n]%statspacer%
-if not "%1"=="adapter" for /l %%n in (1,1,%gNI_arrLen%) do set showroutr%%n=!showroutr%%n:~0,5! !net_%%n_gw!%statspacer%
-if not "%1"=="adapter" for /l %%n in (1,1,%gNI_arrLen%) do set showroutr%%n=!showroutr%%n:~0,36! !net_%%n_cn!%statspacer%
-if not "%1"=="adapter" for /l %%n in (1,1,%gNI_arrLen%) do echo -!showroutr%%n:~0,68!
+if not "%1"=="adapter" for /l %%n in (1,1,%net_arrLen%) do set showroutr%%n=[%%n]%statspacer%
+if not "%1"=="adapter" for /l %%n in (1,1,%net_arrLen%) do set "showroutr%%n=!showroutr%%n:~0,5! !net_%%n_gw!%statspacer%"
+if not "%1"=="adapter" for /l %%n in (1,1,%net_arrLen%) do set "showroutr%%n=!showroutr%%n:~0,36! !net_%%n_cn!%statspacer%"
+if not "%1"=="adapter" for /l %%n in (1,1,%net_arrLen%) do echo -!showroutr%%n:~0,68!
 if "%1"=="adapter" echo  #     Connection
 if "%1"=="adapter" echo  ----- -------------------------------------------
 if "%1"=="adapter" for /l %%n in (1,1,%adapters_arrLen%) do set showconn%%n=[%%n]%statspacer%
-if "%1"=="adapter" for /l %%n in (1,1,%adapters_arrLen%) do set showconn%%n=!showconn%%n:~0,5! !adapters_%%n_name!%statspacer%
+if "%1"=="adapter" for /l %%n in (1,1,%adapters_arrLen%) do set "showconn%%n=!showconn%%n:~0,5! !adapters_%%n_name!%statspacer%"
 if "%1"=="adapter" for /l %%n in (1,1,%adapters_arrLen%) do echo -!showconn%%n:~0,50!
 echo.&set usrinput=&set usrinput2=
 set /p usrinput=[] 
 if "%usrinput%"=="" set usrinput=1
-if not "%1"=="adapter" for /l %%n in (1,1,%gNI_arrLen%) do if "%usrinput%"=="%%n" set cur_ROUTER=!net_%%n_gw!
-if not "%1"=="adapter" if "%manualAdapter%"=="" for /l %%n in (1,1,%gNI_arrLen%) do if "%usrinput%"=="%%n" set cur_ADAPTER=!net_%%n_cn!
-if "%1"=="adapter" for /l %%n in (1,1,%adapters_arrLen%) do if "%usrinput%"=="%%n" set cur_ADAPTER=!adapters_%%n_name!
-if "%usrinput%"=="x" if not "%1"=="adapter" set cur_ROUTER=%secondaryRouter%
-if "%usrinput%"=="x" if not "%1"=="router" set manualAdapter=all&set cur_Adapter=&set show_cur_ADAPTER=[Reset All Connections on Error]&goto :eof
+if not "%1"=="adapter" for /l %%n in (1,1,%net_arrLen%) do if "%usrinput%"=="%%n" set cur_ROUTER=!net_%%n_gw!
+if not "%1"=="adapter" if "%manualAdapter%"=="" for /l %%n in (1,1,%net_arrLen%) do if "%usrinput%"=="%%n" set "cur_ADAPTER=!net_%%n_cn!"
+if "%1"=="adapter" for /l %%n in (1,1,%adapters_arrLen%) do if "%usrinput%"=="%%n" set "cur_ADAPTER=!adapters_%%n_name!"
+if "%usrinput%"=="x" if not "%1"=="adapter" set cur_ROUTER=%testSite%
+if "%usrinput%"=="x" if not "%1"=="router" set manualAdapter=all&set cur_Adapter=&set show_cur_ADAPTER=allAdapter&goto :eof
 if "%1"=="router" if "%cur_ROUTER%"=="" cls&echo.&echo.&echo Use "%usrinput%" as router address?
 if "%1"=="router" if "%cur_ROUTER%"=="" set /p usrinput2=[y/n] 
 if "%1"=="router" if "%cur_ROUTER%"=="" if "%usrinput2%"=="" set cur_ROUTER=%usrinput%
@@ -664,58 +566,8 @@ if "%1"=="router" if "%cur_ROUTER%"=="" if /i "%usrinput2%"=="y" set cur_ROUTER=
 if "%1"=="router" if "%cur_ROUTER%"=="" goto :Ask4NET
 if "%1"=="adapter" if "%cur_ADAPTER%"=="" goto :Ask4NET
 if not "%1"=="adapter" set manualRouter=%cur_ROUTER%
-if not "%1"=="router" set manualAdapter=%cur_ADAPTER%&set show_cur_ADAPTER=%cur_ADAPTER%
+if not "%1"=="router" set "manualAdapter=%cur_ADAPTER%"&set "show_cur_ADAPTER=%cur_ADAPTER%"
 cls&call :SETMODECON&goto :eof
-
-:countTunnelAdapters
-set totalTunnelAdapters=0&for /f %%n in ('ipconfig ^|FINDSTR /C:"Tunnel"') do set /a totalTunnelAdapters+=1
-goto :eof
-
-:alert_2manyconnections
-call :SETMODECON 60 20&if %requestDisableIPv6%==1 if %fullAuto%==1 set requestDisableIPv6=0
-set /a est_min=est_secs/60
-set /a est_sec=est_secs-(est_min*60)
-set rkey=hklm\system\currentcontrolset\services\tcpip6\parameters
-set rval=DisabledComponents
-for /f "tokens=3*" %%i in ('reg query "%rkey%" /v "%rval%" ^| FINDSTR /I "%rval%"') DO set ipv6_dsbld=%%i
-:alert_2manyconnections_ask
-cls&set usrInput=&echo.&echo    -- Warning: Excessive number of Network Connections --
-echo.&echo  Network Connections: %totalAdapters%
-echo  Tunnel Adapters: %totalTunnelAdapters%
-echo  Est. configure time: %est_min% min, %est_sec% sec
-echo.&echo  Excessive network connections can cause performance and 
-echo  stability issues, including long delays in connecting to 
-echo  a network and/or the internet.&echo.&echo.
-if "%isAdmin%"=="0" ping 127.0.0.1>nul&ping 127.0.0.1>nul&goto :eof
-if "%requestDisableIPv6%"=="0" ping 127.0.0.1>nul&ping 127.0.0.1>nul&goto :eof
-if "%ipv6_dsbld%"=="0xffffffff" ping 127.0.0.1>nul&ping 127.0.0.1>nul&goto :eof
-if "%requestDisableIPv6%"=="2" goto :disable_IPv6
-echo Do you wish to disable IPv6 to remove some of these
-set /p usrInput=network connections?[y/n] 
-if /i "%usrInput%"=="y" goto :disable_IPv6
-if /i "%usrInput%"=="n" goto :alert_2manyconnections_ask_no
-goto :alert_2manyconnections_ask
-
-:alert_2manyconnections_ask_no
-cls&echo.&echo.&echo  This option can be disabled by editing this script's 
-echo  settings. Settings can be accessed by opening this
-echo  script with notepad.&echo.&echo Press any key to continue...&pause&goto :eof
-
-:disable_IPv6
-set oldnumtotal=%totalAdapters%&cls&echo.&echo Disable IPv6:&set disableipv6_err=0
-echo. |set /p dummy=-add 'DisableComponents' to registry...
-echo y|reg add "%rkey%" /v "%rval%" /t REG_DWORD /d 4294967295>nul 2>&1 || (echo Fail %errorlevel%&set disableipv6_err=1)
-%no_netsh%echo.&echo. |set /p dummy=-set netsh interface teredo state disable...
-%no_netsh%netsh interface teredo set state disable>nul 2>&1 || (echo. |set /p dummy=Fail %errorlevel%&set /a disableipv6_err+=1)
-%no_netsh%echo.&echo. |set /p dummy=-set netsh interface 6to4 state disable...
-%no_netsh%netsh interface 6to4 set state disabled>nul 2>&1 || (echo. |set /p dummy=Fail %errorlevel%&set /a disableipv6_err+=1)
-%no_netsh%echo.&echo. |set /p dummy=-set netsh interface isatap state disable...
-%no_netsh%netsh interface isatap set state disabled>nul 2>&1 || (echo. |set /p dummy=Fail %errorlevel%&set /a disableipv6_err+=1)
-echo.&if %disableipv6_err% geq 1 echo.&echo %disableipv6_err% commands did not complete successfully.
-if %disableipv6_err% leq 0 echo.&echo Commands completed successfully.
-%no_netsh%call :countAdapters&set /a removedadapters=oldnumtotal-totaladapters&echo Removed !removedadapters! adapters&echo.
-echo You may have to reboot your computer for some changes to&echo take effect.
-ping 127.0.0.1>nul&ping 127.0.0.1>nul&goto :eof
 
 :testValidPATHS
 set thisdir=%~dp0&call :iecho Verify Environment Variables...
@@ -762,7 +614,6 @@ call :iecho Test Basic Commands...
 ping /?>nul 2>&1 || (echo.&echo Critical error: PING error.&echo Press any key to exit...&pause>nul&exit)
 ipconfig >nul 2>&1 || (echo.&echo Critical error: IPCONFIG error.&echo Press any key to exit...&pause>nul&exit)
 for %%c in (framedyn.dll) do if "%%~$PATH:c"=="" set no_taskkill=::
-for %%c in (sfc.exe) do if "%%~$PATH:c"=="" set no_sfc=::
 set no_kill=::&(kill /?>nul 2>&1 && (set prockill=kill /f&set no_kill=&set killPID=kill))
 set no_pskill=::&pskill /?>nul 2>&1& if !errorlevel! equ -1 set prockill=pskill /f&set no_pskill=&set killPID=pskill
 set no_tskill=::&(tskill /?>nul 2>&1 && (set no_tskill=&set prockill=tskill&set killPID=tskill))
@@ -785,20 +636,20 @@ if "%no_netsh%%no_wmic%"=="::::" (echo.&echo Critical error: This script require
 goto :eof
 
 :disableQuickEdit
-set qkey=HKEY_CURRENT_USER\Console&set qval=QuickEdit&call :iecho Check Console Properties...
-%no_reg%%reg1%if not "%qedit_dsbld%"=="" ((echo y|reg add "%qkey%" /v "%qval%" /t REG_DWORD /d %qedit_dsbld%)>nul&goto :eof)
-%no_reg%%reg1%for /f "tokens=3*" %%i in ('reg query "%qkey%" /v "%qval%" ^| FINDSTR /I "%qval%"') DO (set qedit_dsbld=%%i)&if "!qedit_dsbld!"=="0x0" goto :eof
-%no_reg%%reg1%(echo y|reg add "%qkey%" /v "%qval%" /t REG_DWORD /d 0)>nul&start "" "cmd" /k set CID=%CID%^&set qedit_dsbld=%qedit_dsbld% ^& call "%~dpnx0"&exit
-%no_reg%%reg2%if not "%qedit_dsbld%"=="" ((reg update "%qkey%\%qval%"=%qedit_dsbld%)>nul&goto :eof)
-%no_reg%%reg2%for /f "tokens=3*" %%i in ('reg query "%qkey%\%qval%"') DO (set qedit_dsbld=%%i)&if "!qedit_dsbld!"=="0" pause&goto :eof
-%no_reg%%reg2%if "%qedit_dsbld%"=="" (reg add "%qkey%\%qval%"=0 REG_DWORD>nul&start "" "cmd" /k set CID=%CID%^&set qedit_dsbld=%qedit_dsbld% ^&call "%~dpnx0"&exit)
-%no_reg%%reg2%if "%qedit_dsbld%"=="1" ((reg update "%qkey%\%qval%"=0)>nul&start "" "cmd" /k set CID=%CID%^& call "%~dpnx0"&exit)
+set qkey=HKEY_CURRENT_USER\Console&set qpro=QuickEdit&call :iecho Check Console Properties...
+%no_reg%%reg1%if not "%qedit_val%"=="" ((echo y|reg add "%qkey%" /v "%qpro%" /t REG_DWORD /d %qedit_val%)>nul&goto :eof)
+%no_reg%%reg1%for /f "tokens=3*" %%i in ('reg query "%qkey%" /v "%qpro%" ^| FINDSTR /I "%qpro%"') DO (set qedit_val=%%i)&if "!qedit_val!"=="0x0" goto :eof
+%no_reg%%reg1%(echo y|reg add "%qkey%" /v "%qpro%" /t REG_DWORD /d 0)>nul&start "" "cmd" /k set CID=%CID%^&set qedit_val=%qedit_val% ^& call "%~dpnx0"&exit
+%no_reg%%reg2%if not "%qedit_val%"=="" ((reg update "%qkey%\%qpro%"=%qedit_val%)>nul&goto :eof)
+%no_reg%%reg2%for /f "tokens=3*" %%i in ('reg query "%qkey%\%qpro%"') DO (set qedit_val=%%i)&if "!qedit_val!"=="0" pause&goto :eof
+%no_reg%%reg2%if "%qedit_val%"=="" (reg add "%qkey%\%qpro%"=0 REG_DWORD>nul&start "" "cmd" /k set CID=%CID%^&set qedit_val=%qedit_val% ^&call "%~dpnx0"&exit)
+%no_reg%%reg2%if "%qedit_val%"=="1" ((reg update "%qkey%\%qpro%"=0)>nul&start "" "cmd" /k set CID=%CID%^& call "%~dpnx0"&exit)
 %no_regedit%%no_temp%echo REGEDIT4>"%TMPP%\quickedit3%CID%.reg"&(regedit /S "%TMPP%\quickedit3%CID%.reg" || set no_regedit=::)
 %no_regedit%%no_temp%DEL /F /Q "%TMPP%\quickedit3%CID%.reg">nul 2>&1
 %no_regedit%%no_temp%if exist "%TMPP%\quickedit%CID%.reg" regedit /S "%TMPP%\quickedit%CID%.reg"&DEL /F /Q "%TMPP%\quickedit%CID%.reg"&goto :eof
 %no_regedit%%no_temp%regedit /S /e "%TMPP%\quickedit%CID%.reg" "%qkey%"
 %no_regedit%%no_temp%echo REGEDIT4>"%TMPP%\quickedit2%CID%.reg"&echo [%qkey%]>>"%TMPP%\quickedit2%CID%.reg"
-%no_regedit%%no_temp%(echo "%qval%"=dword:00000000)>>"%TMPP%\quickedit2%CID%.reg"
+%no_regedit%%no_temp%(echo "%qpro%"=dword:00000000)>>"%TMPP%\quickedit2%CID%.reg"
 %no_regedit%%no_temp%regedit /S "%TMPP%\quickedit2%CID%.reg"&DEL /F /Q "%TMPP%\quickedit2%CID%.reg"&start "" "cmd" /k set CID=%CID%^& call "%~dpnx0"&exit
 goto :eof
 
@@ -810,9 +661,9 @@ goto :eof
 @call :setn_defaults&call :init_settnBOOL !settingsBOOL!
 @if "%pretty%"=="0" set debgn=::
 %debgn%@echo off&call :init_colors %theme%
-call :init_settnSTR viewmode %viewmode%&%debgn%COLOR %curcolor%
+call :init_settnSTR viewmode %viewmode%&set version=5.0.355&set channel=d
 echo ";%viewmode%;"|FINDSTR /L ";mini; ;normal; ;details;">nul || set viewmode=%D_viewmode%
-call :SETMODECON&call :iecho Verify Settings...&set version=5.0.354&set channel=d
+call :SETMODECON&call :iecho Verify Settings...&%debgn%COLOR %curcolor%
 set ThisTitle=Lectrode's Quick Net Fix %channel%%version%&call :init_settnINT %settingsINT%
 TITLE %ThisTitle%&if "%CID%"=="" call :init_CID
 %alertoncrash%call :testValidPATHS&call :testCompatibility&call :detectIsAdmin&call :disableQuickEdit
@@ -822,26 +673,15 @@ call :getruntime&call :testCompatibility2&%no_temp%call :iecho Clean Temp Files.
 call :iecho Initialize Variables...
 set statspacer=                                                               .
 set plainbar=------------------------------------------------------------------------------
-set updatebar=___________________________________________________________/UPDATE AVAILABLE\ 
 echo ,%requestDisableIPv6%,|FINDSTR /L ",0, ,1, ,2,">nul || set reqeustDisableIPv6=%D_requestDisableIPv6%
 set numfixes=0&set up=0&set down=0&set lastResult=up&set /a c4u_max=24*60*60/(INT_checkdelay+1)
 set /a c4u=c4u_max-(INT_StabilityHistory+(6*60-INT_StabilityHistory)/(INT_checkdelay+1))
 set timepassed=0&set dbl=0&set numAdapters=0&set checkconnects=0
-set ca_percent=5&set MN_crd=5&set MX_crd=120&set MX_avgca=5
-set MX_avgtimeout=20&set MN_timeout=100&set MX_timeout=5000
-set MN_flukechecks=3&set MX_flukechecks=7&set INT_flukemaxtime*=1000
-set orig_checkdelay=%INT_checkdelay%&set INT_checkdelay=1
-if %INT_checkrouterdelay%==0 set AUTO_checkrouterdelay=1
-if %INT_timeoutsecs%==0 set AUTO_timeoutsecs=1&call :update_avgtimeout 3000
-if "%AUTO_timeoutsecs%"=="" set /a timeoutmilsecs=1000*INT_timeoutsecs
-if %INT_flukechecks%==0 set AUTO_flukechecks=1&set INT_flukechecks=7
-set sSR_num=1&call :setSecondaryRouter&call :init_manualRouter %manualRouter%
+set /a timeoutmilsecs=1000*INT_timeoutsecs&set allAdapter=[Reset All Connections on Error]&set h_top=%plainbar%
+set sSR_num=1&call :testSite_set&call :init_manualRouter %manualRouter%
 for /f "tokens=1 DELIMS=:" %%a in ("%manualAdapter%") do call :init_manualAdapter %%a
-call :init_bar&call :countAdapters&call :countTunnelAdapters
-if %totalAdapters% geq 20 (call :alert_2manyconnections&call :SETMODECON)
-%no_wmic%set rsetwmic=call :antihang 11 null wmic.exe path win32_networkadapter where "NetConnectionID='
-%no_netsh%set rsetnetsh=netsh interface set interface 
-call :update_avgca %ca_percent%&goto :eof
+call :init_bar
+goto :eof
 
 :iecho
 %debgn%@if not "%*"=="" set "ie_last=%*"
@@ -867,7 +707,7 @@ if "!%1!"=="" set %1=D_%1
 set /a %1=%1&shift&goto :init_settnINT
 :init_settnBOOL
 @if "%1"=="" goto :eof
-@echo ,!%1!,|FINDSTR /L ",0, ,1,">nul || set /a %1=D_%1
+@echo ",!%1!,"|FINDSTR /L ",0, ,1,">nul || set /a %1=D_%1
 @shift&goto :init_settnBOOL
 :init_settnSTR
 if "%2"=="" set %1=!D_%1!&goto :eof
@@ -881,7 +721,7 @@ set manualRouter=%manualRouter:https:=%
 set manualRouter=%manualRouter:http:=%
 set manualRouter=%manualRouter:/=%
 set cur_ROUTER=%manualRouter%
-if /I "%manualRouter%"=="none" set cur_ROUTER=%secondaryRouter%
+if /I "%manualRouter%"=="none" set cur_ROUTER=%testSite%
 goto :eof
 
 :init_manualAdapter
@@ -890,26 +730,21 @@ set manualAdapter=%*
 set manualAdapter=%manualAdapter:Examples=%
 if "%manualAdapter%"=="" goto :eof
 set manualAdapter=%manualAdapter:	=%
-set cur_ADAPTER=%manualAdapter%&set show_cur_ADAPTER=%manualAdapter%
-if /I "%manualAdapter%"=="all" set cur_ADAPTER=&set show_cur_ADAPTER=[Reset All Connections on Error]
+set cur_ADAPTER=manualAdapter&set show_cur_ADAPTER=manualAdapter
+if /I "%manualAdapter%"=="all" set cur_ADAPTER=&set show_cur_ADAPTER=allAdapter
 goto :eof
 
 :init_bar
-set /a colnum=cols-2
-set -=&set aft-=
+set /a colnum=cols-2&set -=
 if %colnum% leq %INT_StabilityHistory% goto :eof
-set /a numhyp=(colnum/INT_StabilityHistory)
-set /a hypleft=(colnum-(numhyp*INT_StabilityHistory))
-set /a numhyp-=1
+set /a numhyp=(colnum/INT_StabilityHistory)-1
 :init_bar_loop
 if not %numhyp% leq 0 set -=%-%-&set /a numhyp-=1
-if not %hypleft% leq 0 set aft-=%aft-%-&set /a hypleft-=1
-set /a bar_loop_tot=numhyp+hypleft
-if %bar_loop_tot% gtr 0 goto :init_bar_loop
+if %numhyp% gtr 0 goto :init_bar_loop
 goto :eof
 
 :init_colors
-set theme=%1&echo ",%1,"|FINDSTR /I /L ",mini, ,none, ,subtle, ,vibrant, ,fullsubtle, ,fullvibrant, ,fullcolor, ,neon, ,crazy,">nul || set theme=%D_theme%
+set theme=%1&echo ",%1,"|FINDSTR /I /L ",mini, ,none, ,subtle, ,vibrant, ,fullsubtle, ,fullvibrant, ,fullcolor, ,neon,">nul || set theme=%D_theme%
 call :init_colors_%theme%
 set curcolor=%norm%&goto :eof
 :init_colors_none
@@ -926,8 +761,6 @@ set norm=a0&set warn=e0&set alrt=c0&set pend=b0&goto :eof
 set norm=2A&set warn=6E&set alrt=4C&set pend=1B&goto :eof
 :init_colors_neon
 set norm=5A&set warn=9E&set alrt=1C&set pend=5B&goto :eof
-:init_colors_crazy
-set "norm=>nul ^&call :crazy"&set "warn=^&call :crazy"&set "alrt=^&call :crazy"&set "pend=^&call :crazy"&set crazystr=0123456789ABCDEF&goto :eof
 
 :setn_defaults
 @set settingsINT=INT_StabilityHistory INT_flukechecks INT_flukemaxtime INT_checkdelay INT_fixdelay INT_flukecheckdelay INT_timeoutsecs INT_checkrouterdelay
