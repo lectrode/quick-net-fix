@@ -1,4 +1,4 @@
-::Quick detect&fix 4.3.353 (DEV)
+::Quick detect&fix 5.0.354 (DEV)
 
 ::Documentation and updated versions can be found at
 ::https://code.google.com/p/quick-net-fix/
@@ -812,7 +812,7 @@ goto :eof
 %debgn%@echo off&call :init_colors %theme%
 call :init_settnSTR viewmode %viewmode%&%debgn%COLOR %curcolor%
 echo ";%viewmode%;"|FINDSTR /L ";mini; ;normal; ;details;">nul || set viewmode=%D_viewmode%
-call :SETMODECON&call :iecho Verify Settings...&set version=4.3.353&set channel=d
+call :SETMODECON&call :iecho Verify Settings...&set version=5.0.354&set channel=d
 set ThisTitle=Lectrode's Quick Net Fix %channel%%version%&call :init_settnINT %settingsINT%
 TITLE %ThisTitle%&if "%CID%"=="" call :init_CID
 %alertoncrash%call :testValidPATHS&call :testCompatibility&call :detectIsAdmin&call :disableQuickEdit
