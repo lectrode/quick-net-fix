@@ -1,4 +1,4 @@
-::Quick Net Fix 5.0.355 (DEV)
+::Quick Net Fix 5.0.356 (DEV)
 
 ::Documentation and updated versions can be found at
 ::https://code.google.com/p/quick-net-fix/
@@ -6,9 +6,18 @@
 ::------------------------
 ::-       SETTINGS       -
 ::------------------------
-::-Manual-
-@set manualRouter=			Examples: 192.168.0.1 or www.google.com or NONE (optional)
-@set manualAdapter=			Examples: Wireless Network Connection or ALL (optional)
+
+::-Manual Router-
+::Examples: 192.168.0.1 or www.google.com or NONE (optional)
+::Do NOT include the "HTTP://" portion of the web address
+@set manualRouter=
+
+::-Manual Adapter-
+::Examples: Wireless Network Connection or ALL (optional)
+::Names with special characters (% & ! ^) must be as follows (notice the quotes):
+::@set "manualAdapter=N&me with specia! c%aracters"
+::NOTE: Names with ^ before another special character cannot be parsed
+@set manualAdapter=
 
 ::-Filters- (Separate filter keywords with space. Matches are filtered OUT)
 @set filterRouters=
@@ -17,7 +26,7 @@
 ::-GUI-
 @set pretty=1
 @set theme=subtle			none,subtle,vibrant,fullsubtle,fullvibrant,fullcolor,neon
-@set viewmode=normal		mini,normal,details
+@set viewmode=normal		mini,normal
 
 ::-Updates-
 ::This script can check for updates only; it does not download or install them
@@ -36,7 +45,6 @@
 ::-Advanced-
 @set INT_StabilityHistory=25	Default: 25 [number of last tests to determine stblty]
 @set INT_flukechecks=7			Default: 7  [test x times to verify result]
-@set INT_flukemaxtime=25		Default: 25 [test for maximum of x seconds to verify result (requires INT_flukechecks=0)]
 @set INT_checkdelay=5			Default: 5  [wait x seconds between connectivity tests]
 @set INT_fixdelay=10			Default: 10 [wait x seconds after resetting connection]
 @set INT_flukecheckdelay=1		Default: 1  [wait x seconds between fluke checks]
@@ -57,106 +65,61 @@ set /a c4u+=1&set /a cleanTMPPnum+=1&call :check&call :sleep %INT_checkdelay%&go
 :getNETINFO
 setlocal disabledelayedexpansion&set /a net_arrLen+=0
 if not %net_arrLen% equ 0 for /l %%n in (1,1,%net_arrLen%) do set net_%%n_cn=&set net_%%n_gw=
-set net_arrLen=0&set net_needAdapter=1
+set net_arrLen=0&set GNI_NdADR=1
 for /f "tokens=*" %%r in ('ipconfig') do set "line=%%r"&call :getNETINFO_parse
 for /f "tokens=1* delims==" %%a in ('set net_') do endlocal&set "%%a=%%b"
 goto :eof
 
 :getNETINFO_parse
 echo "%line%" |FINDSTR /C:"adapter">nul && goto :getNETINFO_parseAdapter
-if %net_needAdapter%==1 goto :eof
-echo "%line%" |FINDSTR /C:"disconnected">nul && (set /a net_arrLen-=1&set net_needAdapter=1&goto :eof)
+if %GNI_NdADR%==1 goto :eof
+echo "%line%" |FINDSTR /C:"disconnected">nul && (set /a net_arrLen-=1&set GNI_NdADR=1&goto :eof)
 echo "%line%" |FINDSTR /C:"Default Gateway">nul && goto :getNETINFO_parseRouter
 goto :eof
 
 :getNETINFO_parseAdapter
-if not "%filterAdapters%"=="" echo "%line%" |FINDSTR /I /L "%filterAdapters%">nul && (set net_needAdapter=1&goto :eof)
+if not "%filterAdapters%"=="" echo "%line%" |FINDSTR /I /L "%filterAdapters%">nul && (set GNI_NdADR=1&goto :eof)
 set "line=%line:!=^!%"
 setlocal enabledelayedexpansion
 set "line=!line:%%=%%%!"
 endlocal&set "line=%line%"
-set net_needAdapter=0&set /a net_arrLen+=1&set "line=%line:adapter =:%"
-for /f "tokens=2 delims=:" %%a in ("%line%") do set "net_%net_arrLen%_cn=%%a"
-goto :eof
+set GNI_NdADR=0&set /a net_arrLen+=1&set "line=%line:adapter =:%"
+(for /f "tokens=2 delims=:" %%a in ("%line%") do set "net_%net_arrLen%_cn=%%a")&goto :eof
 
 :getNETINFO_parseRouter
-if not "%filterRouters%"=="" echo "%line%"|FINDSTR /I /L "%filterRouters%">nul && (set /a net_arrLen-=1&set net_needAdapter=1&goto :eof)
+if not "%filterRouters%"=="" echo "%line%"|FINDSTR /I /L "%filterRouters%">nul && (set /a net_arrLen-=1&set GNI_NdADR=1&goto :eof)
 for /f "tokens=1 delims=%%" %%r in ("%line%") do set "line=%%r"
 set line=%line: .=%
 set line=%line:Default Gateway :=%
-if "%line%"=="" (set /a net_arrLen-=1&set net_needAdapter=1&goto :eof)
+if "%line%"=="" (set /a net_arrLen-=1&set GNI_NdADR=1&goto :eof)
 set net_%net_arrLen%_gw=%line: =%&goto :eof
 
 :header
-call :stblty_set %ss_STR%&set show_ss_STR=%plainbar%%ss_STR%&set show_ss_STR=!show_ss_STR:0=-!
-set show_ss_STR=%show_ss_STR:1==%&set show_ss_STR=!show_ss_STR:2=*!
-set show_ss_STR=!show_ss_STR: =%-%!&goto :header_%viewmode%
+call :stblty_set %ss_STR%&set h_ss_STR=%plainbar%%ss_STR%&set h_ss_STR=!h_ss_STR:0=-!
+set h_ss_STR=%h_ss_STR:1==%&set h_ss_STR=!h_ss_STR:2=*!
+set h_ss_STR=!h_ss_STR: =%-%!&goto :header_%viewmode%
 
 :header_mini
-set /a h_dbl=dbl-1&set dsp_dbl=&if not !h_dbl! leq 0 set dsp_dbl=!h_dbl!/%INT_flukechecks%
-cls&COLOR %curcolor%&echo  %h_top:~-35%
-echo  ^|%ThisTitle:Limited: =%^|
-echo  ^| http://electrodexs.net/scripts  ^|
-echo. !show_ss_STR:~-%colnum%!
-echo. !%show_cur_ADAPTER%!&echo. %cur_ROUTER%
-echo. Up: %uptime% ^| Fixes: %numfixes%
-echo. Last result: %result% %dsp_dbl%
-echo. %curstatus%&goto :eof
+set /a l_dbl=dbl-1&set h_dbl=&if not !l_dbl! leq 0 set h_dbl=!h_dbl!/%INT_flukechecks%
+COLOR %curcolor%&cls&echo  %h_top:~-35%&echo  ^|%ThisTitle:Limited: =%^|
+echo  ^| http://electrodexs.net/scripts  ^|&echo. !h_ss_STR:~-%colnum%!
+echo. !%h_curADR%!&echo. %curRTR%&echo. Up: %uptime% ^| Fixes: %numfixes%
+echo. Last result: %result% %h_dbl%&echo. %status%&goto :eof
 
 :header_normal
-cls&COLOR %curcolor%&echo  %h_top:~-50%
+COLOR %curcolor%&cls&echo  %h_top:~-50%
 echo  ^|     -%ThisTitle:Limited: =%-        ^|
 echo  ^|       http://electrodexs.net/scripts           ^|
-echo. !show_ss_STR:~-%colnum%!
+echo. !h_ss_STR:~-%colnum%!
 echo.
-if not "%show_cur_ADAPTER%"=="" echo  Connection: !%show_cur_ADAPTER%!
-if not "%cur_ROUTER%"=="" 		echo  Router:     %cur_ROUTER%
-if not "%uptime%"=="" 			echo  Uptime:     %uptime% [started %GRT_TimeRan% ago]
-if not "%stblty%"==""		echo  Stability:  %stblty%
+if defined h_curADR	echo  Connection: !%h_curADR%!
+if defined curRTR	echo  Router:     %curRTR%
+if defined uptime	echo  Uptime:     %uptime% [started %GRT_RT% ago]
+if defined stblty	echo  Stability:  %stblty%
 echo.
-if not %numfixes%==0 			echo  Fixes:      %numfixes%
-if not "%result%"=="" 			echo  Last Test:  %result% %showdbl%
-if not "%curstatus%"=="" 		echo  Status:     %curstatus%
-goto :eof
-
-:header_details
-set ismanualA=&if "%manualAdapter%"=="" set ismanualA= (AUTO)
-set ismanualR=&if "%manualRouter%"=="" set ismanualR= (AUTO)
-set dsp_cur_ROUTER=%cur_Router%%ismanualR%%statspacer%
-set dsp_testSite=%testSite%%statspacer%
-if "%cur_ROUTER%"=="" set dsp_cur_ROUTER=%testSite%%ismanualR%%statspacer%
-set dsp_uptime=%uptime%%statspacer%
-set dsp_GRT_TimeRan=%GRT_TimeRan%%statspacer%
-set dsp_stblty=%stblty%%statspacer%
-set dspAdmin=True&if %isAdmin%==0 set dspAdmin=False
-set dspUsrInput=True&if %fullAuto%==0 set dspUsrInput=False
-set dspReqAdmin=True&if %requestAdmin%==0 set dspReqAdmin=False
-set dspCRD=[%INT_checkrouterdelay%]%STR_ca_percent%%statspacer%
-set dspAvgTOS=[%timeoutmilsecs%]%STR_timeout%%statspacer%
-set dsp_fixes=%numfixes%%statspacer%
-cls&COLOR %curcolor%&echo  %h_top%
-echo  ^|                                                                            ^|
-echo  ^|                   -%ThisTitle:Limited: =%-                      ^|
-echo  ^|                     http://electrodexs.net/scripts                         ^|
-echo  ^|                                                                            ^|
-echo. !show_ss_STR:~-%colnum%!
-echo.
-echo  Connection: !%show_cur_ADAPTER%!%ismanualA%
-echo  Router:     %dsp_cur_ROUTER:~0,40%
-echo  Test Site:  %dsp_testSite:~0,40%No User Input:     %dspUsrInput%
-echo  Uptime:     %dsp_uptime:~0,40%Stability Hist:    %INT_StabilityHistory%
-echo  Runtime:    %dsp_GRT_TimeRan:~0,40%Request Admin:     %dspReqAdmin%
-echo  Stability:  %dsp_stblty:~0,40%Is Admin:          %dspAdmin%
-echo  Fixes:      %dsp_fixes:~0,40%Theme:             %theme%
-echo                                                      Fluke Checks:      %INT_flukechecks%
-echo                                                      Check Delay:       %INT_checkdelay%
-echo  Verify Router Delay: %dspCRD:~0,31%Test Timeout Secs: %INT_timeoutsecs%
-echo  Test Timeout Mils: %dspAvgTOS:~0,33%Fix Delay:         %INT_fixdelay%
-echo                                                      Fluke Check Delay: %INT_flukecheckdelay%
-echo.
-echo  Last Test:  %result% %showdbl%
-echo  Status:     %curstatus%
-goto :eof
+if %numfixes% geq 1	echo  Fixes:      %numfixes%
+if defined result	echo  Last Test:  %result% %showdbl%
+if defined status	echo  Status:     %status%&goto :eof
 
 :stblty_set
 if not "%1"=="" set /a ss_tests+=1&set /a ss_val+=%1&shift&goto :stblty_set
@@ -181,45 +144,45 @@ set /a %var%=(%id%_ptemils-%id%_ptsmils)+((%id%_ptesecs-%id%_ptssecs)*100)+(((%i
 goto :eof
 
 :chkRA
-set checkconnects=0&if not "%manualRouter%"=="" if not "%manualAdapter%"=="" goto :eof
-set curstatus=Verify Router/Adapter...&%debgn%call :header
+set checkconnects=0&if defined manualRouter if defined manualAdapter goto :eof
+set status=Verify Router/Adapter...&%debgn%call :header
 call :getNETINFO
-set cur_ROUTER=&set cur_ADAPTER=&set show_cur_ADAPTER=
-if not "%manualAdapter%"=="" call :getRouter
-if not "%manualRouter%"=="" call :getAdapter
-if "%cur_ROUTER%%cur_ADAPTER%"=="" call :getRouterAdapter
+set curRTR=&set curADR=&set h_curADR=
+if defined manualAdapter call :getRouter
+if defined manualRouter call :getAdapter
+if "%curRTR%%curADR%"=="" call :getRouterAdapter
 goto :eof
 
 :getRouterAdapter
 if %net_arrLen%==0 goto :eof
-if %net_arrLen%==1 set cur_ROUTER=%net_1_gw%&set "cur_ADAPTER=net_1_cn"&set "show_cur_ADAPTER=net_1_cn"&goto :eof
+if %net_arrLen%==1 set curRTR=%net_1_gw%&set "curADR=net_1_cn"&set "h_curADR=net_1_cn"&goto :eof
 call :ask4NET&goto :eof
 
 :getRouter
-set "cur_ADAPTER=%manualAdapter%"&set "show_cur_ADAPTER=%manualAdapter%"
-if /i "%manualAdapter%"=="all" set cur_ADAPTER=&set show_cur_ADAPTER=allAdapters
+set "curADR=manualAdapter"&set "h_curADR=manualAdapter"
+if /i "%manualAdapter%"=="all" set curADR=&set h_curADR=allAdapters
 if %net_arrLen%==0 goto :eof
-if %net_arrLen%==1 set cur_ROUTER=%net_1_gw%&goto :eof
-for /l %%n in (1,1,%net_arrLen%) do if "%manualAdapter%"=="!net_%%n_cn!" set cur_ROUTER=!net_%%n_gw!
-if "%cur_ROUTER%"=="" call :Ask4NET router
+if %net_arrLen%==1 set curRTR=%net_1_gw%&goto :eof
+for /l %%n in (1,1,%net_arrLen%) do if "%manualAdapter%"=="!net_%%n_cn!" set curRTR=!net_%%n_gw!
+if "%curRTR%"=="" call :Ask4NET router
 goto :eof
 
 :getAdapter
-set cur_ROUTER=%manualRouter%
-if /i "%manualRouter%"=="none" set cur_ROUTER=
+set curRTR=%manualRouter%
+if /i "%manualRouter%"=="none" set curRTR=
 if %net_arrLen%==0 goto :eof
-if %net_arrLen%==1 set cur_ADAPTER=net_1_cn&goto :eof
-for /l %%n in (1,1,%net_arrLen%) do if "%manualRouter%"=="!net_%%n_gw!" set "cur_ADAPTER=net_%%n_cn"&set "show_cur_ADAPTER=net_%%n_cn"
-if "%cur_ADAPTER%"=="" call :Ask4NET adapter
-if /i "%manualAdapter%"=="all" set cur_ADAPTER=&set show_cur_ADAPTER=allAdapter
+if %net_arrLen%==1 set curADR=net_1_cn&goto :eof
+for /l %%n in (1,1,%net_arrLen%) do if "%manualRouter%"=="!net_%%n_gw!" set "curADR=net_%%n_cn"&set "h_curADR=net_%%n_cn"
+if "%curADR%"=="" call :Ask4NET adapter
+if /i "%manualAdapter%"=="all" set curADR=&set h_curADR=allAdapter
 goto :eof
 
 :check
-@set curstatus=Testing connectivity...
+@set status=Testing connectivity...
 %debgn%call :header
 set ping_test=&set result=&set testrouter=%testSite%
-if not "%cur_ROUTER%"=="" if %dbl% equ 0 set "testrouter=%cur_ROUTER%"
-if not "%manualRouter%"=="" set "testrouter=%cur_ROUTER%"
+if not "%curRTR%"=="" if %dbl% equ 0 set "testrouter=%curRTR%"
+if not "%manualRouter%"=="" set "testrouter=%curRTR%"
 
 for /f "tokens=* delims=" %%p in ('ping -w %timeoutmilsecs% -n 1 "%testrouter%"') do set "ping_test=!ping_test! %%p"
 echo "%ping_test%" |FINDSTR /C:"bytes=32" >nul && (set result=Connected&set chkresup=&set chkresdn=::)
@@ -242,12 +205,12 @@ set dbl=0&set showdbl=&goto :eof
 
 :c_enabled
 if "%isAdmin%"=="0" goto :eof
-if "%cur_ADAPTER%"=="" goto :eof
-ipconfig |FINDSTR /C:"adapter !%cur_ADAPTER%!:">nul && goto :eof
-@set curstatus=Enabling adapter...&set curcolor=%pend%&%debgn%call :header
-%no_netsh%call :rset_netsh enable %cur_ADAPTER% && goto :c_e_success
-%no_wmic%call :rset_wmic enable %cur_ADAPTER% && goto :c_e_success
-%no_temp%%no_cscript%call :rset_vbs enable %cur_ADAPTER%&goto :c_e_success
+if "%curADR%"=="" goto :eof
+ipconfig |FINDSTR /C:"adapter !%curADR%!:">nul && goto :eof
+@set status=Enabling adapter...&set curcolor=%pend%&%debgn%call :header
+%no_netsh%call :rset_netsh enable %curADR% && goto :c_e_success
+%no_wmic%call :rset_wmic enable %curADR% && goto :c_e_success
+%no_temp%%no_cscript%call :rset_vbs enable %curADR%&goto :c_e_success
 goto :eof
 :c_e_success
 set resetted=1&set ss_STR=%ss_STR% 2&call :sleep %INT_fixdelay%&goto :eof
@@ -265,7 +228,7 @@ if not "%1"=="" set pn=%1&if !pn! equ 0 goto :eof
 if not "%checkconnects%"=="force" if %c4u% geq %c4u_max% call :check4update&set /a pn-=tot
 if "%checkconnects%"=="force" call :chkRA&set /a pn-=tot
 if "%result%"=="Connected" if %checkconnects% geq %INT_checkrouterdelay% call :chkRA&set /a pn-=tot
-@set curstatus=Wait %pn% seconds...&%debgn%call :header
+@set status=Wait %pn% seconds...&%debgn%call :header
 set /a pn+=1&ping -n !pn! -w 1000 127.0.0.1>nul
 call :precisiontimer SLP timepassed&set /a timepassed/=100&goto :eof
 
@@ -306,11 +269,11 @@ set /a GRT_c_sec=GRT_c_sec-GRT_s_sec
 for /f "tokens=1 delims==" %%a in ('set GRT_c_') do if !%%a! leq 0 set /a %%a=0
 if %GRT_c_min% leq 9 set GRT_c_min=0%GRT_c_min%
 if %GRT_c_sec% leq 9 set GRT_c_sec=0%GRT_c_sec%
-if %GRT_c_year% geq 10000 set GRT_TimeRan=Over 10,000 years&set toolong=goto :eof&goto :eof
-set GRT_TimeRan=%GRT_c_hour%:%GRT_c_min%:%GRT_c_sec%
-if %GRT_c_year% neq 0 set GRT_TimeRan=%GRT_c_year%y %GRT_c_month%m %GRT_c_day%d %GRT_TimeRan%&goto :eof
-if %GRT_c_month% neq 0 set GRT_TimeRan=%GRT_c_month%m %GRT_c_day%d %GRT_TimeRan%&goto :eof
-if %GRT_c_day% neq 0 set GRT_TimeRan=%GRT_c_day%d %GRT_TimeRan%
+if %GRT_c_year% geq 10000 set GRT_RT=Over 10,000 years&set toolong=goto :eof&goto :eof
+set GRT_RT=%GRT_c_hour%:%GRT_c_min%:%GRT_c_sec%
+if %GRT_c_year% neq 0 set GRT_RT=%GRT_c_year%y %GRT_c_month%m %GRT_c_day%d %GRT_RT%&goto :eof
+if %GRT_c_month% neq 0 set GRT_RT=%GRT_c_month%m %GRT_c_day%d %GRT_RT%&goto :eof
+if %GRT_c_day% neq 0 set GRT_RT=%GRT_c_day%d %GRT_RT%
 goto :eof
 :getruntime_init
 set GRT_s_year=%DATE:~10,4%&set GRT_s_month=%DATE:~4,2%&set GRT_s_day=%DATE:~7,2%
@@ -338,7 +301,6 @@ goto :eof
 if "%line%"=="" goto :eof
 if not "%filterAdapters%"=="" echo "%line%"|FINDSTR /I /L "%filterAdapters%">nul && goto :eof
 ::set "line=%line:^=^^%"
-::set "line=%line:&=^&%"
 set "line=%line:!=^!%"
 setlocal enabledelayedexpansion
 set "line=!line:%%=%%%!"
@@ -361,10 +323,10 @@ set /a adapters_arrLen+=1
 set "adapters_%adapters_arrLen%_name=%line:*: =%"&goto :eof
 
 :resetConnection
-set curcolor=%alrt%&set curstatus=Attempting to fix connection...&set ss_STR=%ss_STR% 2
+set curcolor=%alrt%&set status=Attempting to fix connection...&set ss_STR=%ss_STR% 2
 %debgn%call :header
-set resetted=1&if "%cur_ADAPTER%"=="" call :resetConnection_all
-if not "%cur_ADAPTER%"=="" call :resetConnection_one
+set resetted=1&if "%curADR%"=="" call :resetConnection_all
+if not "%curADR%"=="" call :resetConnection_one
 set curcolor=%pend%&call :sleep %INT_fixdelay%&set checkconnects=force&goto :eof
 
 :resetConnection_all
@@ -378,13 +340,13 @@ ipconfig /release>nul 2>&1&ipconfig /flushdns>nul 2>&1
 ipconfig /renew>nul 2>&1&goto :eof
 
 :resetConnection_one
-ipconfig /release "%cur_ADAPTER%">nul 2>&1
-ipconfig /flushdns "%cur_ADAPTER%">nul 2>&1
-%use_admin%%no_netsh%set use_netsh=::&(call :rset_netsh disable cur_Adapter && (set use_netsh=&set use_wmic=::&set use_vbs=::))
-%use_admin%%no_netsh%%use_netsh%call :rset_netsh enable cur_Adapter || set use_wmic=
-%use_admin%%no_wmic%call :rset_wmic disable cur_Adapter && (call :rset_wmic enable cur_Adapter&set use_wmic=&set use_vbs=::)
-%use_admin%%use_vbs%%no_temp%%no_cscript%call :rset_vbs disable cur_ADAPTER&call :rset_vbs enable cur_ADAPTER
-ipconfig /renew "%cur_ADAPTER%">nul 2>&1&goto :eof
+ipconfig /release "%curADR%">nul 2>&1
+ipconfig /flushdns "%curADR%">nul 2>&1
+%use_admin%%no_netsh%set use_netsh=::&(call :rset_netsh disable curADR && (set use_netsh=&set use_wmic=::&set use_vbs=::))
+%use_admin%%no_netsh%%use_netsh%call :rset_netsh enable curADR || set use_wmic=
+%use_admin%%no_wmic%call :rset_wmic disable curADR && (call :rset_wmic enable curADR&set use_wmic=&set use_vbs=::)
+%use_admin%%use_vbs%%no_temp%%no_cscript%call :rset_vbs disable curADR&call :rset_vbs enable curADR
+ipconfig /renew "%curADR%">nul 2>&1&goto :eof
 
 :rset_netsh
 netsh int set int "!%2!" admin=%1>nul 2>&1&exit /b !errorlevel!
@@ -467,8 +429,7 @@ set waitproc=&set waitkill=&set procfinished=&set procerr=&set proc=&set started
 %no_tasklist%tasklist /fo:csv|FINDSTR /I /C:"%*">nul && exit /b 0
 %no_tasklist%exit /b 1
 %no_pslist%set proc=%*&set proc=!proc:~0,-4!
-%no_pslist%(pslist -e %proc%)>nul 2>&1 && exit /b 0
-%no_pslist%exit /b 1& REM Proc name max 15 char
+%no_pslist%(pslist -e %proc%)>nul 2>&1 & exit /b !errorlevel!& REM name max 15 char
 %no_temp%%no_cscript%@echo on&set foundproc=1&set tempfile=%TMPP%\findproc%CID%
 %no_temp%%no_cscript%@echo strComputer=".">"%tempfile%.vbs"
 %no_temp%%no_cscript%@echo Set objFSO = CreateObject("Scripting.FileSystemObject")>>"%tempfile%.vbs"
@@ -484,15 +445,14 @@ set waitproc=&set waitkill=&set procfinished=&set procerr=&set proc=&set started
 %no_temp%%no_cscript%if exist "%tempfile%" set foundproc=1
 %no_temp%%no_cscript%del /f /q "%tempfile%*">nul 2>&1
 %no_temp%%no_cscript%exit /b %foundproc%
-%no_tlist%tlist|FINDSTR /I /C:"%*">nul && exit /b 0
-%no_tlist%exit /b 1
+%no_tlist%tlist|FINDSTR /I /C:"%*">nul & exit /b !errorlevel!& REM name max 15 char
 set no_proclist=::&exit /b 2
 
 :check4update
 set c4u=%c4u_max%&set tot=0&if not "%result%"=="Connected" goto :eof
 echo "%ss_STR:~-50%"|FINDSTR /C:"2">nul && goto :eof
 set c4u=0&if "%h_top:~0,4%"=="____" goto :eof
-set curstatus=Checking for updates...&%debgn%call :header
+set status=Checking for updates...&%debgn%call :header
 set use_ps=&set use_bits=::&set use_vbs=::
 set vurl=http://electrodexs.net/scripts/qNET/cur&set c4u_local=%version:.=%
 %no_ps%set pscmd=powershell -c "echo (New-Object System.Text.ASCIIEncoding).GetString((New-Object Net.WebClient).DownloadData('%vurl%'));"
@@ -531,9 +491,9 @@ if not "%requestAdmin%"=="1" goto :eof
 goto :eof
 
 :Ask4NET
-if not "%1"=="adapter" if "%fullAuto%"=="1" set manualRouter=%testSite%&set cur_ROUTER=%testSite%
+if not "%1"=="adapter" if "%fullAuto%"=="1" set manualRouter=%testSite%&set curRTR=%testSite%
 if "%1"=="router" if "%fullAuto%"=="1" goto :eof
-if not "%1"=="router" if "%fullAuto%"=="1" set manualAdapter=all&set cur_ADAPTER=&set show_cur_ADAPTER=allAdapter&goto :eof
+if not "%1"=="router" if "%fullAuto%"=="1" set manualAdapter=all&set curADR=&set h_curADR=allAdapter&goto :eof
 if "%1"=="adapter" call :EnumerateAdapters
 %debgn%set /a lines=%net_arrLen%+11
 %debgn%call :SETMODECON 70 %lines%
@@ -554,19 +514,19 @@ if "%1"=="adapter" for /l %%n in (1,1,%adapters_arrLen%) do echo -!showconn%%n:~
 echo.&set usrinput=&set usrinput2=
 set /p usrinput=[] 
 if "%usrinput%"=="" set usrinput=1
-if not "%1"=="adapter" for /l %%n in (1,1,%net_arrLen%) do if "%usrinput%"=="%%n" set cur_ROUTER=!net_%%n_gw!
-if not "%1"=="adapter" if "%manualAdapter%"=="" for /l %%n in (1,1,%net_arrLen%) do if "%usrinput%"=="%%n" set "cur_ADAPTER=!net_%%n_cn!"
-if "%1"=="adapter" for /l %%n in (1,1,%adapters_arrLen%) do if "%usrinput%"=="%%n" set "cur_ADAPTER=!adapters_%%n_name!"
-if "%usrinput%"=="x" if not "%1"=="adapter" set cur_ROUTER=%testSite%
-if "%usrinput%"=="x" if not "%1"=="router" set manualAdapter=all&set cur_Adapter=&set show_cur_ADAPTER=allAdapter&goto :eof
-if "%1"=="router" if "%cur_ROUTER%"=="" cls&echo.&echo.&echo Use "%usrinput%" as router address?
-if "%1"=="router" if "%cur_ROUTER%"=="" set /p usrinput2=[y/n] 
-if "%1"=="router" if "%cur_ROUTER%"=="" if "%usrinput2%"=="" set cur_ROUTER=%usrinput%
-if "%1"=="router" if "%cur_ROUTER%"=="" if /i "%usrinput2%"=="y" set cur_ROUTER=%usrinput%
-if "%1"=="router" if "%cur_ROUTER%"=="" goto :Ask4NET
-if "%1"=="adapter" if "%cur_ADAPTER%"=="" goto :Ask4NET
-if not "%1"=="adapter" set manualRouter=%cur_ROUTER%
-if not "%1"=="router" set "manualAdapter=%cur_ADAPTER%"&set "show_cur_ADAPTER=%cur_ADAPTER%"
+if not "%1"=="adapter" for /l %%n in (1,1,%net_arrLen%) do if "%usrinput%"=="%%n" set curRTR=!net_%%n_gw!
+if not "%1"=="adapter" if "%manualAdapter%"=="" for /l %%n in (1,1,%net_arrLen%) do if "%usrinput%"=="%%n" set "curADR=!net_%%n_cn!"
+if "%1"=="adapter" for /l %%n in (1,1,%adapters_arrLen%) do if "%usrinput%"=="%%n" set "curADR=!adapters_%%n_name!"
+if "%usrinput%"=="x" if not "%1"=="adapter" set curRTR=%testSite%
+if "%usrinput%"=="x" if not "%1"=="router" set manualAdapter=all&set curADR=&set h_curADR=allAdapter&goto :eof
+if "%1"=="router" if "%curRTR%"=="" cls&echo.&echo.&echo Use "%usrinput%" as router address?
+if "%1"=="router" if "%curRTR%"=="" set /p usrinput2=[y/n] 
+if "%1"=="router" if "%curRTR%"=="" if "%usrinput2%"=="" set curRTR=%usrinput%
+if "%1"=="router" if "%curRTR%"=="" if /i "%usrinput2%"=="y" set curRTR=%usrinput%
+if "%1"=="router" if "%curRTR%"=="" goto :Ask4NET
+if "%1"=="adapter" if "%curADR%"=="" goto :Ask4NET
+if not "%1"=="adapter" set manualRouter=%curRTR%
+if not "%1"=="router" set "manualAdapter=%curADR%"&set "h_curADR=%curADR%"
 cls&call :SETMODECON&goto :eof
 
 :testValidPATHS
@@ -661,8 +621,8 @@ goto :eof
 @call :setn_defaults&call :init_settnBOOL !settingsBOOL!
 @if "%pretty%"=="0" set debgn=::
 %debgn%@echo off&call :init_colors %theme%
-call :init_settnSTR viewmode %viewmode%&set version=5.0.355&set channel=d
-echo ";%viewmode%;"|FINDSTR /L ";mini; ;normal; ;details;">nul || set viewmode=%D_viewmode%
+call :init_settnSTR viewmode %viewmode%&set version=5.0.356&set channel=d
+echo ";%viewmode%;"|FINDSTR /L ";mini; ;normal;">nul || set viewmode=%D_viewmode%
 call :SETMODECON&call :iecho Verify Settings...&%debgn%COLOR %curcolor%
 set ThisTitle=Lectrode's Quick Net Fix %channel%%version%&call :init_settnINT %settingsINT%
 TITLE %ThisTitle%&if "%CID%"=="" call :init_CID
@@ -714,24 +674,15 @@ if "%2"=="" set %1=!D_%1!&goto :eof
 set %1=%2&goto :eof
 
 :init_manualRouter
-if "%1"=="" set manualRouter=&goto :eof
-if "%1"=="Examples:" set manualRouter=&goto :eof
-set manualRouter=%1
-set manualRouter=%manualRouter:https:=%
-set manualRouter=%manualRouter:http:=%
-set manualRouter=%manualRouter:/=%
-set cur_ROUTER=%manualRouter%
-if /I "%manualRouter%"=="none" set cur_ROUTER=%testSite%
+if not defined manualRouter goto :eof
+set curRTR=%manualRouter%
+if /I "%manualRouter%"=="none" set curRTR=%testSite%
 goto :eof
 
 :init_manualAdapter
-if "%1"=="" set manualAdapter=&goto :eof
-set manualAdapter=%*
-set manualAdapter=%manualAdapter:Examples=%
-if "%manualAdapter%"=="" goto :eof
-set manualAdapter=%manualAdapter:	=%
-set cur_ADAPTER=manualAdapter&set show_cur_ADAPTER=manualAdapter
-if /I "%manualAdapter%"=="all" set cur_ADAPTER=&set show_cur_ADAPTER=allAdapter
+if not defined manualAdapter goto :eof
+set curADR=manualAdapter&set h_curADR=manualAdapter
+if /I "%manualAdapter%"=="all" set curADR=&set h_curADR=allAdapter
 goto :eof
 
 :init_bar
@@ -745,28 +696,20 @@ goto :eof
 
 :init_colors
 set theme=%1&echo ",%1,"|FINDSTR /I /L ",mini, ,none, ,subtle, ,vibrant, ,fullsubtle, ,fullvibrant, ,fullcolor, ,neon,">nul || set theme=%D_theme%
-call :init_colors_%theme%
+set THM_subtle=07 06 04 03
+set THM_vibrant=0a 0e 0c 0b
+set THM_fullsubtle=20 60 40 30
+set THM_fullvibrant=a0 e0 c0 b0
+set THM_fullcolor=2a 6e 4c 1b
+set THM_neon=5a 9e 1c 5b
+if not "%theme%"=="none" for /f "tokens=1-4" %%c in ("!THM_%theme%!") do set norm=%%c&set warn=%%d&set alrt=%%e&set pend=%%f
 set curcolor=%norm%&goto :eof
-:init_colors_none
-set norm=&set warn=&set alrt=&goto :eof
-:init_colors_subtle
-set norm=07&set warn=06&set alrt=04&set pend=03&goto :eof
-:init_colors_vibrant
-set norm=0a&set warn=0e&set alrt=0c&set pend=0b&goto :eof
-:init_colors_fullsubtle
-set norm=20&set warn=60&set alrt=40&set pend=30&goto :eof
-:init_colors_fullvibrant
-set norm=a0&set warn=e0&set alrt=c0&set pend=b0&goto :eof
-:init_colors_fullcolor
-set norm=2A&set warn=6E&set alrt=4C&set pend=1B&goto :eof
-:init_colors_neon
-set norm=5A&set warn=9E&set alrt=1C&set pend=5B&goto :eof
 
 :setn_defaults
-@set settingsINT=INT_StabilityHistory INT_flukechecks INT_flukemaxtime INT_checkdelay INT_fixdelay INT_flukecheckdelay INT_timeoutsecs INT_checkrouterdelay
+@set settingsINT=INT_StabilityHistory INT_flukechecks INT_checkdelay INT_fixdelay INT_flukecheckdelay INT_timeoutsecs INT_checkrouterdelay
 @set settingsBOOL=pretty fullAuto requestAdmin check4update
 @set D_pretty=1&set D_theme=subtle&set D_viewmode=normal&set D_fullAuto=0
-@set D_requestAdmin=1&set D_requestDisableIPv6=1&set D_INT_StabilityHistory=25
-@set D_INT_flukechecks=0&set D_INT_flukemaxtime=25&set D_INT_checkdelay=5
-@set D_INT_fixdelay=10&set D_INT_flukecheckdelay=1&set D_INT_timeoutsecs=0
-@set D_INT_checkrouterdelay=0&set D_check4update=1&goto :eof
+@set D_requestAdmin=1&set D_INT_StabilityHistory=25
+@set D_INT_flukechecks=7&set D_INT_flukemaxtime=25&set D_INT_checkdelay=5
+@set D_INT_fixdelay=10&set D_INT_flukecheckdelay=1&set D_INT_timeoutsecs=3
+@set D_INT_checkrouterdelay=10&set D_check4update=1&goto :eof
