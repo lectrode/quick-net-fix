@@ -1,4 +1,4 @@
-::Quick Net Fix 5.0.356 (DEV)
+::Quick Net Fix 5.0.357 (DEV)
 
 ::Documentation and updated versions can be found at
 ::https://code.google.com/p/quick-net-fix/
@@ -24,7 +24,7 @@
 @set filterAdapters=Tunnel VirtualBox VMnet VMware Loopback Pseudo Bluetooth Internal
 
 ::-GUI-
-@set pretty=1
+@set pretty=0
 @set theme=subtle			none,subtle,vibrant,fullsubtle,fullvibrant,fullcolor,neon
 @set viewmode=normal		mini,normal
 
@@ -104,7 +104,7 @@ set /a l_dbl=dbl-1&set h_dbl=&if not !l_dbl! leq 0 set h_dbl=!h_dbl!/%INT_flukec
 COLOR %curcolor%&cls&echo  %h_top:~-35%&echo  ^|%ThisTitle:Limited: =%^|
 echo  ^| http://electrodexs.net/scripts  ^|&echo. !h_ss_STR:~-%colnum%!
 echo. !%h_curADR%!&echo. %curRTR%&echo. Up: %uptime% ^| Fixes: %numfixes%
-echo. Last result: %result% %h_dbl%&echo. %status%&goto :eof
+echo. Last result: %CT_rslt% %h_dbl%&echo. %status%&goto :eof
 
 :header_normal
 COLOR %curcolor%&cls&echo  %h_top:~-50%
@@ -118,12 +118,12 @@ if defined uptime	echo  Uptime:     %uptime% [started %GRT_RT% ago]
 if defined stblty	echo  Stability:  %stblty%
 echo.
 if %numfixes% geq 1	echo  Fixes:      %numfixes%
-if defined result	echo  Last Test:  %result% %showdbl%
+if defined CT_rslt	echo  Last Test:  %CT_rslt% %showdbl%
 if defined status	echo  Status:     %status%&goto :eof
 
 :stblty_set
 if not "%1"=="" set /a ss_tests+=1&set /a ss_val+=%1&shift&goto :stblty_set
-set /a ss_over=ss_tests-INT_StabilityHistory&set /a ss_over2=!ss_over!*2
+set /a ss_over=ss_tests-INT_StabilityHistory&set /a ss_over2=!ss_over!*2&if "%ss_tests%"=="" goto :eof
 :stblty_loop
 if %ss_over% geq 1 set /a ss_tests-=1&set /a ss_over-=1&(for /f "tokens=1" %%n in ("%ss_STR%") do set /a ss_val-=%%n)&&set ss_STR=!ss_STR:~2!&goto :stblty_loop
 set /a stblty=100-((ss_val*100)/ss_tests)&set /a ss_valneg=ss_tests-ss_val&set /a stblty+=0&set /a ss_tests+=0&if !stblty! leq 0 set stblty=0
@@ -178,29 +178,37 @@ if /i "%manualAdapter%"=="all" set curADR=&set h_curADR=allAdapter
 goto :eof
 
 :check
-@set status=Testing connectivity...
-%debgn%call :header
-set ping_test=&set result=&set testrouter=%testSite%
-if not "%curRTR%"=="" if %dbl% equ 0 set "testrouter=%curRTR%"
-if not "%manualRouter%"=="" set "testrouter=%curRTR%"
+@set status=Testing connectivity...&%debgn%call :header
+for /f "tokens=1 delims==" %%p in ('set ping_test 2^>nul') do set "%%p="
+set CT_rslt=&set CT_updn=&set pnum=0&set testrouter=%curRTR%
+if defined manualRouter set testrouter=%manualRouter%
+if "%testrouter%"=="" set testrouter=%testSite%
 
-for /f "tokens=* delims=" %%p in ('ping -w %timeoutmilsecs% -n 1 "%testrouter%"') do set "ping_test=!ping_test! %%p"
-echo "%ping_test%" |FINDSTR /C:"bytes=32" >nul && (set result=Connected&set chkresup=&set chkresdn=::)
-echo "%ping_test%" |FINDSTR /C:"request could not find" /C:"Unknown host" /C:"unreachable" /C:"General failure" >nul
-if %errorlevel% equ 0 set result=NotConnected&set chkresup=::&set chkresdn=
-if "%result%"=="" set result=TimeOut&set chkresup=::&set chkresdn=
+call :precisiontimer PNG start
+for /f "tokens=* delims=" %%p in ('ping -w %timeoutmilsecs% -n 1 "%testrouter%" -i 255') do (if not "%%p"=="" set /a pnum+=1&set "ping_test!pnum!=%%p")
+set parseping=echo "%ping_test1% %ping_test2%" ^|FINDSTR
+call :precisiontimer PNG ping_time
 
-if not "%lastresult%"=="%result%" set /a timepassed/=2&if !timepassed! leq 0 set timepassed=1
-%chkresup%set /a checkconnects+=1&set /a up+=timepassed&set curcolor=%norm%&set ss_STR=%ss_STR% 0
-%chkresup%set lastresult=up&if "%resetted%"=="1" set /a numfixes+=1&set resetted=0
-%chkresdn%set /a down+=timepassed&set curcolor=%warn%&set ss_STR=%ss_STR% 1&if not %dbl%==0 call :testSite_set
-%chkresdn%set lastresult=dn&if "%result%"=="TimeOut" set /a down+=INT_timeoutsecs
+%parseping% /C:"bytes=" /C:"quench" >nul && (set CT_rslt=Connected&set CT_updn=up)
+%parseping% /C:"quench" >nul && call :c_stall Quench recieved; stalling...
+%parseping% /L /I "resources memory" >nul && (call :c_stall Cannot allocate resources; waiting&goto :check)
+%parseping% /L /I "request unknown unreachable fail hardware" >nul && (set CT_rslt=Disconnected&set CT_updn=dn)
+%parseping% /L /I "timed expired resources" >nul && (set CT_rslt=Timed Out&set CT_updn=dn)
+
+if "%CT_updn%"=="" echo."%ping_test1% %ping_test2%"&echo Unsupported response&exit
+if "%CT_updn%"=="" if defined curRTR set curRTR=&goto :check
+
+set chkresup=::&set chkresdn=::&set chkres%CT_updn%=
+if not "%CT_updn%"=="%CT_updnL%" set /a timepassed/=2&if !timepassed! leq 0 set timepassed=1
+%chkresup%set /a checkconnects+=1&set /a up+=timepassed+(ping_time/100)&if "%CT_updnL%"=="dn" set checkconnects=force
+%chkresup%set CT_updn=up&set ss_STR=%ss_STR% 0&set curcolor=%norm%&if "%fixed%"=="1" set /a numfixes+=1&set fixed=0
+%chkresdn%set /a down+=timepassed+(ping_time/100)&set curcolor=%warn%&set ss_STR=%ss_STR% 1
 
 set timepassed=0&if %dbl% gtr 0 set showdbl=(fluke check %dbl%/%INT_flukechecks%)
-set /a dbl+=1&call :set_uptime
-if "%result%"=="NotConnected" call :c_enabled
-if %lastresult%==dn if not %dbl% gtr %INT_flukechecks% call :sleep %INT_flukecheckdelay%&goto :check
-if %lastresult%==dn if %dbl% gtr %INT_flukechecks% call :resetConnection
+set /a dbl+=1&set CT_updnL=%CT_updn%&call :set_uptime
+if "%CT_rslt%"=="Disconnected" call :c_enabled
+if %CT_updn%==dn if not %dbl% gtr %INT_flukechecks% call :sleep %INT_flukecheckdelay%&goto :check
+if %CT_updn%==dn if %dbl% gtr %INT_flukechecks% call :resetConnection
 set dbl=0&set showdbl=&goto :eof
 
 :c_enabled
@@ -213,7 +221,11 @@ ipconfig |FINDSTR /C:"adapter !%curADR%!:">nul && goto :eof
 %no_temp%%no_cscript%call :rset_vbs enable %curADR%&goto :c_e_success
 goto :eof
 :c_e_success
-set resetted=1&set ss_STR=%ss_STR% 2&call :sleep %INT_fixdelay%&goto :eof
+set fixed=1&set ss_STR=%ss_STR% 2&call :sleep %INT_fixdelay%&goto :eof
+
+:c_stall
+@set status=%*...&set curcolor=%pend%&%debgn%call :header
+ping -n 11 127.0.0.1>nul&set curcolor=%norm%&goto :eof
 
 :testSite_set
 %sSR_init%set sSR_addr=www.google.com;www.ask.com;www.yahoo.com;www.bing.com&set sSR_init=::
@@ -222,12 +234,13 @@ if "%testSite%"=="" set sSR_num=1&goto :testSite_set
 set /a sSR_num+=1&goto :eof
 
 :sleep
-call :precisiontimer SLP start&if "%1"=="" set pn=3
+call :precisiontimer SLP start&call :precisiontimer SLP2 start&if "%1"=="" set pn=3
 if not "%1"=="" set pn=%1&if !pn! equ 0 goto :eof
 %no_temp%if not "%checkconnects%"=="force" if %cleanTMPPnum% geq 20000 (call :cleanTMPP&set cleanTMPPnum=0)
-if not "%checkconnects%"=="force" if %c4u% geq %c4u_max% call :check4update&set /a pn-=tot
-if "%checkconnects%"=="force" call :chkRA&set /a pn-=tot
-if "%result%"=="Connected" if %checkconnects% geq %INT_checkrouterdelay% call :chkRA&set /a pn-=tot
+if not "%checkconnects%"=="force" if %c4u% geq %c4u_max% call :check4update
+if "%checkconnects%"=="force" call :chkRA
+if "%CT_rslt%"=="up" if %checkconnects% geq %INT_checkrouterdelay% call :chkRA
+call :precisiontimer SLP2 tot&set /a pn-=(tot/100)&if !pn! lss 0 set pn=0
 @set status=Wait %pn% seconds...&%debgn%call :header
 set /a pn+=1&ping -n !pn! -w 1000 127.0.0.1>nul
 call :precisiontimer SLP timepassed&set /a timepassed/=100&goto :eof
@@ -235,7 +248,7 @@ call :precisiontimer SLP timepassed&set /a timepassed/=100&goto :eof
 :SETMODECON
 if /i "%viewmode%"=="mini" set cols=37&set lines=10
 if /i "%viewmode%"=="normal" set cols=52&set lines=14
-if /i "%viewmode%"=="details" set cols=80&set lines=28
+::if /i "%viewmode%"=="details" set cols=80&set lines=28
 if not "%1"=="" set cols=%1&set lines=%2
 if not "%pretty%"=="1" set cols=80&set lines=900
 MODE CON COLS=%cols% LINES=%lines%&goto :eof
@@ -325,7 +338,7 @@ set "adapters_%adapters_arrLen%_name=%line:*: =%"&goto :eof
 :resetConnection
 set curcolor=%alrt%&set status=Attempting to fix connection...&set ss_STR=%ss_STR% 2
 %debgn%call :header
-set resetted=1&if "%curADR%"=="" call :resetConnection_all
+set fixed=1&if "%curADR%"=="" call :resetConnection_all
 if not "%curADR%"=="" call :resetConnection_one
 set curcolor=%pend%&call :sleep %INT_fixdelay%&set checkconnects=force&goto :eof
 
@@ -449,14 +462,14 @@ set waitproc=&set waitkill=&set procfinished=&set procerr=&set proc=&set started
 set no_proclist=::&exit /b 2
 
 :check4update
-set c4u=%c4u_max%&set tot=0&if not "%result%"=="Connected" goto :eof
+set c4u=%c4u_max%&if "%CT_rslt%"=="dn" goto :eof
 echo "%ss_STR:~-50%"|FINDSTR /C:"2">nul && goto :eof
 set c4u=0&if "%h_top:~0,4%"=="____" goto :eof
 set status=Checking for updates...&%debgn%call :header
 set use_ps=&set use_bits=::&set use_vbs=::
 set vurl=http://electrodexs.net/scripts/qNET/cur&set c4u_local=%version:.=%
 %no_ps%set pscmd=powershell -c "echo (New-Object System.Text.ASCIIEncoding).GetString((New-Object Net.WebClient).DownloadData('%vurl%'));"
-%no_ps%for /f "usebackq tokens=2 delims==" %%v in (`%pscmd%^|FINDSTR "SET %channel%="`) do set "c4u_remote=%%v"&title %ThisTitle%
+%no_ps%for /f "usebackq tokens=2 delims==" %%v in (`%pscmd%^|FINDSTR /C:"SET %channel%="`) do set "c4u_remote=%%v"&title %ThisTitle%
 set /a c4u_remote+=0&if !c4u_remote!==0 set use_bits=&set c4u_file=%TMPP%\c4u%CID%
 %no_bits%%no_temp%%use_bits%call :antihang 25 null bitsadmin /transfer "qNET_updatecheck" "%vurl%" "%c4u_file%" && (call :c4u_parse %c4u_file%&set c4u_remote=!%channel%!&del /f /q "%c4u_file%">nul 2>&1)
 set /a c4u_remote+=0&if !c4u_remote!==0 set use_vbs=&set c4u_vbs=%TMPP%\c4u%CID%.vbs
@@ -571,7 +584,7 @@ set hastemp=::&goto :eof
 
 :testCompatibility
 call :iecho Test Basic Commands...
-ping /?>nul 2>&1 || (echo.&echo Critical error: PING error.&echo Press any key to exit...&pause>nul&exit)
+ping -n 1 127.0.0.1 >nul 2>&1 || (echo.&echo Critical error: PING error.&echo Press any key to exit...&pause>nul&exit)
 ipconfig >nul 2>&1 || (echo.&echo Critical error: IPCONFIG error.&echo Press any key to exit...&pause>nul&exit)
 for %%c in (framedyn.dll) do if "%%~$PATH:c"=="" set no_taskkill=::
 set no_kill=::&(kill /?>nul 2>&1 && (set prockill=kill /f&set no_kill=&set killPID=kill))
@@ -621,7 +634,7 @@ goto :eof
 @call :setn_defaults&call :init_settnBOOL !settingsBOOL!
 @if "%pretty%"=="0" set debgn=::
 %debgn%@echo off&call :init_colors %theme%
-call :init_settnSTR viewmode %viewmode%&set version=5.0.356&set channel=d
+call :init_settnSTR viewmode %viewmode%&set version=5.0.357&set channel=d
 echo ";%viewmode%;"|FINDSTR /L ";mini; ;normal;">nul || set viewmode=%D_viewmode%
 call :SETMODECON&call :iecho Verify Settings...&%debgn%COLOR %curcolor%
 set ThisTitle=Lectrode's Quick Net Fix %channel%%version%&call :init_settnINT %settingsINT%
@@ -633,10 +646,8 @@ call :getruntime&call :testCompatibility2&%no_temp%call :iecho Clean Temp Files.
 call :iecho Initialize Variables...
 set statspacer=                                                               .
 set plainbar=------------------------------------------------------------------------------
-echo ,%requestDisableIPv6%,|FINDSTR /L ",0, ,1, ,2,">nul || set reqeustDisableIPv6=%D_requestDisableIPv6%
-set numfixes=0&set up=0&set down=0&set lastResult=up&set /a c4u_max=24*60*60/(INT_checkdelay+1)
-set /a c4u=c4u_max-(INT_StabilityHistory+(6*60-INT_StabilityHistory)/(INT_checkdelay+1))
-set timepassed=0&set dbl=0&set numAdapters=0&set checkconnects=0
+set numfixes=0&set up=0&set down=0&set CT_updn=up&set /a c4u_max=24*60*60/(INT_checkdelay+1)
+set /a c4u=c4u_max-((6*60)/(INT_checkdelay+1))&set timepassed=0&set dbl=0&set numAdapters=0&set checkconnects=0
 set /a timeoutmilsecs=1000*INT_timeoutsecs&set allAdapter=[Reset All Connections on Error]&set h_top=%plainbar%
 set sSR_num=1&call :testSite_set&call :init_manualRouter %manualRouter%
 for /f "tokens=1 DELIMS=:" %%a in ("%manualAdapter%") do call :init_manualAdapter %%a
@@ -696,12 +707,8 @@ goto :eof
 
 :init_colors
 set theme=%1&echo ",%1,"|FINDSTR /I /L ",mini, ,none, ,subtle, ,vibrant, ,fullsubtle, ,fullvibrant, ,fullcolor, ,neon,">nul || set theme=%D_theme%
-set THM_subtle=07 06 04 03
-set THM_vibrant=0a 0e 0c 0b
-set THM_fullsubtle=20 60 40 30
-set THM_fullvibrant=a0 e0 c0 b0
-set THM_fullcolor=2a 6e 4c 1b
-set THM_neon=5a 9e 1c 5b
+set THM_subtle=07 06 04 03&set THM_vibrant=0a 0e 0c 0b&set THM_fullsubtle=20 60 40 30
+set THM_fullvibrant=a0 e0 c0 b0&set THM_fullcolor=2a 6e 4c 1b&set THM_neon=5a 9e 1c 5b
 if not "%theme%"=="none" for /f "tokens=1-4" %%c in ("!THM_%theme%!") do set norm=%%c&set warn=%%d&set alrt=%%e&set pend=%%f
 set curcolor=%norm%&goto :eof
 
