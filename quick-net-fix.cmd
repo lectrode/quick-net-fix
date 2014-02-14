@@ -1,4 +1,4 @@
-::Quick Net Fix 5.0.357 (DEV)
+::Quick Net Fix 5.0.358 (DEV)
 
 ::Documentation and updated versions can be found at
 ::https://code.google.com/p/quick-net-fix/
@@ -24,7 +24,7 @@
 @set filterAdapters=Tunnel VirtualBox VMnet VMware Loopback Pseudo Bluetooth Internal
 
 ::-GUI-
-@set pretty=0
+@set pretty=1
 @set theme=subtle			none,subtle,vibrant,fullsubtle,fullvibrant,fullcolor,neon
 @set viewmode=normal		mini,normal
 
@@ -185,7 +185,7 @@ if defined manualRouter set testrouter=%manualRouter%
 if "%testrouter%"=="" set testrouter=%testSite%
 
 call :precisiontimer PNG start
-for /f "tokens=* delims=" %%p in ('ping -w %timeoutmilsecs% -n 1 "%testrouter%" -i 255') do (if not "%%p"=="" set /a pnum+=1&set "ping_test!pnum!=%%p")
+for /f "tokens=*" %%p in ('ping -w %timeoutmilsecs% -n 1 "%testrouter%" -i 255^|FINDSTR /r "[a-z]"') do if "%%p"=="" (set /a pnum+=1&set "ping_test!pnum!=%%p")))
 set parseping=echo "%ping_test1% %ping_test2%" ^|FINDSTR
 call :precisiontimer PNG ping_time
 
@@ -488,7 +488,7 @@ goto :eof
 :detectIsAdmin
 call :iecho Detect Admin Rights...
 %no_temp%DEL /F /Q "%TMPP%\getadmin*.vbs">nul 2>&1
-for /f "tokens=* delims=" %%s in ('sfc 2^>^&1^|MORE') do @set "output=!output!%%s"
+for /f "tokens=*" %%s in ('sfc 2^>^&1^|MORE') do @set "output=!output!%%s"
 set isAdmin=0&echo "%output%"|findstr /I /C:"/scannow">nul 2>&1 && set isAdmin=1
 :dIA_kill
 %no_prockill%%no_tasklist%for /f "tokens=2 delims=," %%p in ('tasklist /V /FO:CSV ^|FINDSTR /C:"Limited: %ThisTitle%" 2^>nul') do (%killPID% %%p>nul 2>&1 && goto :dIA_kill)
@@ -634,7 +634,7 @@ goto :eof
 @call :setn_defaults&call :init_settnBOOL !settingsBOOL!
 @if "%pretty%"=="0" set debgn=::
 %debgn%@echo off&call :init_colors %theme%
-call :init_settnSTR viewmode %viewmode%&set version=5.0.357&set channel=d
+call :init_settnSTR viewmode %viewmode%&set version=5.0.358&set channel=d
 echo ";%viewmode%;"|FINDSTR /L ";mini; ;normal;">nul || set viewmode=%D_viewmode%
 call :SETMODECON&call :iecho Verify Settings...&%debgn%COLOR %curcolor%
 set ThisTitle=Lectrode's Quick Net Fix %channel%%version%&call :init_settnINT %settingsINT%
