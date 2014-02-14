@@ -1,4 +1,4 @@
-::Quick Net Fix 5.0.358 (DEV)
+::Quick Net Fix 5.0.359 (DEV)
 
 ::Documentation and updated versions can be found at
 ::https://code.google.com/p/quick-net-fix/
@@ -180,12 +180,12 @@ goto :eof
 :check
 @set status=Testing connectivity...&%debgn%call :header
 for /f "tokens=1 delims==" %%p in ('set ping_test 2^>nul') do set "%%p="
-set CT_rslt=&set CT_updn=&set pnum=0&set testrouter=%curRTR%
+set CT_rslt=&set CT_updn=&set pnum=&set testrouter=%curRTR%
 if defined manualRouter set testrouter=%manualRouter%
 if "%testrouter%"=="" set testrouter=%testSite%
 
 call :precisiontimer PNG start
-for /f "tokens=*" %%p in ('ping -w %timeoutmilsecs% -n 1 "%testrouter%" -i 255^|FINDSTR /r "[a-z]"') do if "%%p"=="" (set /a pnum+=1&set "ping_test!pnum!=%%p")))
+for /f "tokens=*" %%p in ('ping -w %timeoutmilsecs% -n 1 "%testrouter%" -i 255 ^| FINDSTR /r "[a-z]"') do if not "%%p"=="" (set /a pnum+=1&set "ping_test!pnum!=%%p")
 set parseping=echo "%ping_test1% %ping_test2%" ^|FINDSTR
 call :precisiontimer PNG ping_time
 
@@ -634,7 +634,7 @@ goto :eof
 @call :setn_defaults&call :init_settnBOOL !settingsBOOL!
 @if "%pretty%"=="0" set debgn=::
 %debgn%@echo off&call :init_colors %theme%
-call :init_settnSTR viewmode %viewmode%&set version=5.0.358&set channel=d
+call :init_settnSTR viewmode %viewmode%&set version=5.0.359&set channel=d
 echo ";%viewmode%;"|FINDSTR /L ";mini; ;normal;">nul || set viewmode=%D_viewmode%
 call :SETMODECON&call :iecho Verify Settings...&%debgn%COLOR %curcolor%
 set ThisTitle=Lectrode's Quick Net Fix %channel%%version%&call :init_settnINT %settingsINT%
