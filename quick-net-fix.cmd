@@ -1,4 +1,4 @@
-::Quick Net Fix 5.0.359 (DEV)
+::Quick Net Fix 5.0.360 (DEV)
 
 ::Documentation and updated versions can be found at
 ::https://code.google.com/p/quick-net-fix/
@@ -30,8 +30,8 @@
 
 ::-Updates-
 ::This script can check for updates only; it does not download or install them
-::Setting options: '0' is OFF; '1' is ON
 @set check4update=1
+@set channel=d				v=Release; b=Beta; d=DEV
 
 ::-User Interaction-
 ::Setting fullAuto to 1 will omit all user input and best guess is made for each decision;
@@ -189,7 +189,7 @@ for /f "tokens=*" %%p in ('ping -w %timeoutmilsecs% -n 1 "%testrouter%" -i 255 ^
 set parseping=echo "%ping_test1% %ping_test2%" ^|FINDSTR
 call :precisiontimer PNG ping_time
 
-%parseping% /C:"bytes=" /C:"quench" >nul && (set CT_rslt=Connected&set CT_updn=up)
+%parseping% /r "time[=><] quench" >nul && (set CT_rslt=Connected&set CT_updn=up)
 %parseping% /C:"quench" >nul && call :c_stall Quench recieved; stalling...
 %parseping% /L /I "resources memory" >nul && (call :c_stall Cannot allocate resources; waiting&goto :check)
 %parseping% /L /I "request unknown unreachable fail hardware" >nul && (set CT_rslt=Disconnected&set CT_updn=dn)
@@ -234,16 +234,16 @@ if "%testSite%"=="" set sSR_num=1&goto :testSite_set
 set /a sSR_num+=1&goto :eof
 
 :sleep
-call :precisiontimer SLP start&call :precisiontimer SLP2 start&if "%1"=="" set pn=3
+call :precisiontimer SLP start&if "%1"=="" set pn=3
 if not "%1"=="" set pn=%1&if !pn! equ 0 goto :eof
 %no_temp%if not "%checkconnects%"=="force" if %cleanTMPPnum% geq 20000 (call :cleanTMPP&set cleanTMPPnum=0)
 if not "%checkconnects%"=="force" if %c4u% geq %c4u_max% call :check4update
 if "%checkconnects%"=="force" call :chkRA
 if "%CT_rslt%"=="up" if %checkconnects% geq %INT_checkrouterdelay% call :chkRA
-call :precisiontimer SLP2 tot&set /a pn-=(tot/100)&if !pn! lss 0 set pn=0
+call :precisiontimer SLP tot&set /a pn-=(tot/100)&if !pn! lss 0 set pn=0
 @set status=Wait %pn% seconds...&%debgn%call :header
 set /a pn+=1&ping -n !pn! -w 1000 127.0.0.1>nul
-call :precisiontimer SLP timepassed&set /a timepassed/=100&goto :eof
+set /a timepassed=(tot/100)+(pn-1)&goto :eof
 
 :SETMODECON
 if /i "%viewmode%"=="mini" set cols=37&set lines=10
@@ -614,7 +614,7 @@ set qkey=HKEY_CURRENT_USER\Console&set qpro=QuickEdit&call :iecho Check Console 
 %no_reg%%reg1%for /f "tokens=3*" %%i in ('reg query "%qkey%" /v "%qpro%" ^| FINDSTR /I "%qpro%"') DO (set qedit_val=%%i)&if "!qedit_val!"=="0x0" goto :eof
 %no_reg%%reg1%(echo y|reg add "%qkey%" /v "%qpro%" /t REG_DWORD /d 0)>nul&start "" "cmd" /k set CID=%CID%^&set qedit_val=%qedit_val% ^& call "%~dpnx0"&exit
 %no_reg%%reg2%if not "%qedit_val%"=="" ((reg update "%qkey%\%qpro%"=%qedit_val%)>nul&goto :eof)
-%no_reg%%reg2%for /f "tokens=3*" %%i in ('reg query "%qkey%\%qpro%"') DO (set qedit_val=%%i)&if "!qedit_val!"=="0" pause&goto :eof
+%no_reg%%reg2%for /f "tokens=3*" %%i in ('reg query "%qkey%\%qpro%"') DO (set qedit_val=%%i)&if "!qedit_val!"=="0" goto :eof
 %no_reg%%reg2%if "%qedit_val%"=="" (reg add "%qkey%\%qpro%"=0 REG_DWORD>nul&start "" "cmd" /k set CID=%CID%^&set qedit_val=%qedit_val% ^&call "%~dpnx0"&exit)
 %no_reg%%reg2%if "%qedit_val%"=="1" ((reg update "%qkey%\%qpro%"=0)>nul&start "" "cmd" /k set CID=%CID%^& call "%~dpnx0"&exit)
 %no_regedit%%no_temp%echo REGEDIT4>"%TMPP%\quickedit3%CID%.reg"&(regedit /S "%TMPP%\quickedit3%CID%.reg" || set no_regedit=::)
@@ -634,15 +634,16 @@ goto :eof
 @call :setn_defaults&call :init_settnBOOL !settingsBOOL!
 @if "%pretty%"=="0" set debgn=::
 %debgn%@echo off&call :init_colors %theme%
-call :init_settnSTR viewmode %viewmode%&set version=5.0.359&set channel=d
+call :init_settnSTR viewmode %viewmode%&call :init_settnSTR channel %channel%&set version=5.0.360
 echo ";%viewmode%;"|FINDSTR /L ";mini; ;normal;">nul || set viewmode=%D_viewmode%
+echo ";%channel%;"|FINDSTR /L ";v; ;b; ;d;">nul || set channel=%D_channel%
 call :SETMODECON&call :iecho Verify Settings...&%debgn%COLOR %curcolor%
 set ThisTitle=Lectrode's Quick Net Fix %channel%%version%&call :init_settnINT %settingsINT%
 TITLE %ThisTitle%&if "%CID%"=="" call :init_CID
 %alertoncrash%call :testValidPATHS&call :testCompatibility&call :detectIsAdmin&call :disableQuickEdit
 %alertoncrash%@set alertoncrash=::&goto :crashAlert
 if "%isAdmin%"=="0" set use_admin=::&set thistitle=Limited: %thistitle%&title !thistitle!
-call :getruntime&call :testCompatibility2&%no_temp%call :iecho Clean Temp Files...&call :cleanTMPP
+call :getruntime&call :testCompatibility2&%no_temp%call :iecho Clean Temp Files...&call :cleanTMPP ::
 call :iecho Initialize Variables...
 set statspacer=                                                               .
 set plainbar=------------------------------------------------------------------------------
@@ -667,6 +668,7 @@ if %CIDchars% lss 3 goto :init_CID
 endlocal&set CID=%CID:~0,5%&goto :eof
 
 :cleanTMPP
+%1set status=Clean temp files...&call :header
 set day=%DATE:/=-%&cd "%TMPP%"
 for /f "tokens=*" %%a IN ('xcopy *.* /d:%day:~4% /L /I null') do @if exist "%%~nxa" set "excludefiles=!excludefiles!;;%%~nxa"
 for /f "tokens=*" %%a IN ('dir /b 2^>nul') do @(@echo ";;%excludefiles%;;"|FINDSTR /C:";;%%a;;">nul || if exist "%TMPP%\%%a" DEL /F /Q "%TMPP%\%%a">nul 2>&1)
@@ -716,7 +718,7 @@ set curcolor=%norm%&goto :eof
 @set settingsINT=INT_StabilityHistory INT_flukechecks INT_checkdelay INT_fixdelay INT_flukecheckdelay INT_timeoutsecs INT_checkrouterdelay
 @set settingsBOOL=pretty fullAuto requestAdmin check4update
 @set D_pretty=1&set D_theme=subtle&set D_viewmode=normal&set D_fullAuto=0
-@set D_requestAdmin=1&set D_INT_StabilityHistory=25
+@set D_requestAdmin=1&set D_INT_StabilityHistory=25&set D_channel=v
 @set D_INT_flukechecks=7&set D_INT_flukemaxtime=25&set D_INT_checkdelay=5
 @set D_INT_fixdelay=10&set D_INT_flukecheckdelay=1&set D_INT_timeoutsecs=3
 @set D_INT_checkrouterdelay=10&set D_check4update=1&goto :eof
