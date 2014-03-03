@@ -1,4 +1,4 @@
-::Quick Net Fix 5.0.362 (DEV)
+::Quick Net Fix 5.0.363 (DEV)
 
 ::Documentation and updated versions can be found at
 ::https://code.google.com/p/quick-net-fix/
@@ -207,7 +207,8 @@ set nt_resup=::&set nt_resdn=::&set nt_resuk=::&set nt_res%CT_updn%=
 if not "%CT_updn%"=="%CT_updnL%" set /a timepassed/=2&if !timepassed! leq 0 set timepassed=1
 %nt_resup%set /a checkconnects+=1&set /a up+=timepassed+(nt_ptime/100)&if not "%CT_updnL%"=="up" set checkconnects=force
 %nt_resup%set CT_updn=up&set flux_STR=%flux_STR% 0&set curcolor=%CO_n%&if "%fixed%"=="1" set /a numfixes+=1&set fixed=0
-%nt_resdn%set /a down+=timepassed+(nt_ptime/100)&set curcolor=%CO_w%&set flux_STR=%flux_STR% 1&call :testSite_set
+%nt_resdn%set /a down+=timepassed+(nt_ptime/100)&set curcolor=%CO_w%&set flux_STR=%flux_STR% 1
+%nt_resdn%ipconfig|FINDSTR /C:"%curRTR%">nul 2>&1 || call :testSite_set
 %nt_resuk%set flux_STR=%flux_STR% 3&set curcolor=%CO_a%
 %nt_resuk%set /a down+=timepassed+(nt_ptime/100)&call :nt_stall&call :testSite_set
 
@@ -246,10 +247,10 @@ if "%checkconnects%"=="force" call :chkRA
 if "%CT_updn%"=="up" if %checkconnects% geq %INT_chknetwait% call :chkRA
 call :precisiontimer SLP tot&set /a pn-=(tot/100)&if !pn! lss 0 set pn=0
 set status=Wait %pn% seconds...&%debgn%call :header
-call :sleep %pn%&set /a timepassed=(tot/100)+(pn)&goto :eof
+call :sleep %pn%&set /a timepassed=(tot/100)+(pn)&set pn=&goto :eof
 
 :sleep
-set /a slp=%1+1&ping -n !slp! 127.0.0.1>nul&goto :eof
+set /a slp=%1+1&ping -n !slp! 127.0.0.1>nul&set slp=&goto :eof
 
 :SETMODECON
 if /i "%viewmode%"=="mini" set cols=37&set lines=10
@@ -261,9 +262,9 @@ set "SMC_last=%cols%%lines%"&MODE CON COLS=%cols% LINES=%lines%&goto :eof
 
 :set_uptime
 set /a up+=0&set /a uptime=((up*10000)/(up+down))>nul 2>&1
-if %up% geq 100000 set /a up=up/10&set /a down=down/10
-set /a uptime+=0&set uptime=!uptime:~0,-2!.!uptime:~-2!%%
-call :getruntime&goto :eof
+set /a uptime+=0&if %up% geq 100000 set /a up=up/10&set /a down=down/10
+if not %uptime% equ 0 set uptime=%uptime:~0,-2%.%uptime:~-2%
+set uptime=%uptime%%%&call :getruntime&goto :eof
 
 :getruntime
 %toolong%
@@ -271,11 +272,11 @@ if "%GRT_s_year%"=="" goto :getruntime_init
 set GRT_c_year=%DATE:~10,4%&set GRT_c_month=%DATE:~4,2%&set GRT_c_day=%DATE:~7,2%
 set GRT_c_hour=%TIME:~0,2%&set GRT_c_min=%TIME:~3,2%&set GRT_c_sec=%TIME:~6,2%
 for /f "tokens=1 delims==" %%a in ('set GRT_c_') do if "!%%a:~0,1!"=="0" set /a %%a=!%%a:~1,1!+0
-set GRT_MO_2=28&set /a GRT_leapyear=GRT_c_year*10/4
-if %GRT_leapyear:~-1% equ 0 set GRT_MO_2=29
+set GRT_mo2=28&set /a GRT_leapyear=GRT_c_year*10/4
+if %GRT_leapyear:~-1% equ 0 set GRT_mo2=29
 set /a GRT_lastmonth=GRT_c_month-1
 if %GRT_c_month% lss %GRT_s_month% set /a GRT_c_month+=12&set /a GRT_c_year-=1
-if %GRT_c_day% lss %GRT_s_day% set /a GRT_c_day+=GRT_MO_%GRT_lastmonth%&set /a GRT_c_month-=1
+if %GRT_c_day% lss %GRT_s_day% set /a GRT_c_day+=GRT_mo%GRT_lastmonth%&set /a GRT_c_month-=1
 if %GRT_c_hour% lss %GRT_s_hour% set /a GRT_c_hour+=24&set /a GRT_c_day-=1
 if %GRT_c_min% lss %GRT_s_min% set /a GRT_c_min+=60&set /a GRT_c_hour-=1
 if %GRT_c_sec% lss %GRT_s_sec% set /a GRT_c_sec+=60&set /a GRT_c_min-=1
@@ -298,9 +299,9 @@ goto :eof
 set GRT_s_year=%DATE:~10,4%&set GRT_s_month=%DATE:~4,2%&set GRT_s_day=%DATE:~7,2%
 set GRT_s_hour=%TIME:~0,2%&set GRT_s_min=%TIME:~3,2%&set GRT_s_sec=%TIME:~6,2%
 for /f "tokens=1 delims==" %%a in ('set GRT_s_') do if "!%%a:~0,1!"=="0" set /a %%a=!%%a:~1,1!+0
-set GRT_MO_1=31&set GRT_MO_3=31&set GRT_MO_4=30&set GRT_MO_5=31
-set GRT_MO_6=30&set GRT_MO_7=31&set GRT_MO_8=31&set GRT_MO_9=30
-set GRT_MO_10=31&set GRT_MO_11=30&set GRT_MO_12=31&goto :eof
+set GRT_mo1=31&set GRT_mo3=31&set GRT_mo4=30&set GRT_mo5=31
+set GRT_mo6=30&set GRT_mo7=31&set GRT_mo8=31&set GRT_mo9=30
+set GRT_mo10=31&set GRT_mo11=30&set GRT_mo12=31&goto :eof
 
 :EnumerateAdapters
 setlocal disabledelayedexpansion&set adapters_arrLen=0
@@ -667,7 +668,7 @@ call :sleep 3&goto :eof
 @call :setn_defaults&call :init_settnBOOL !settingsBOOL!
 @if "%pretty%"=="0" set debgn=::
 %debgn%@echo off&call :init_colors %theme%
-call :init_settnSTR viewmode %viewmode%&call :init_settnSTR channel %channel%&set version=5.0.362
+call :init_settnSTR viewmode %viewmode%&call :init_settnSTR channel %channel%&set version=5.0.363
 echo ";%viewmode%;"|FINDSTR /L ";mini; ;normal;">nul || set viewmode=%D_viewmode%
 echo ";%channel%;"|FINDSTR /L ";v; ;b; ;d;">nul || set channel=%D_channel%
 set SMC_last=&call :SETMODECON&call :iecho Verify Settings...&%debgn%COLOR %curcolor%
@@ -680,7 +681,7 @@ call :getruntime&call :testCompatibility2&%no_temp%call :iecho Clean Temp Files.
 call :iecho Initialize Variables...&set "tSs_addr=www.google.com;www.ask.com;www.yahoo.com;www.bing.com"
 set statspacer=                                                               .
 set plainbar=------------------------------------------------------------------------------
-set CT_updn=up&set /a c4u_max=24*60*60/(INT_checkwait+1)
+set CT_updnL=up&set /a c4u_max=24*60*60/(INT_checkwait+1)
 set /a c4u=c4u_max-((6*60)/(INT_checkwait+1))&set dbl=0
 set allAdapter=[Reset All Connections on Error]&set h_top=%plainbar%
 call :testSite_set&set curRTR=&call :init_manualRouter %manualRouter%
