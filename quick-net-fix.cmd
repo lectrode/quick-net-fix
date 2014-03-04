@@ -1,4 +1,4 @@
-::Quick Net Fix 5.0.363 (DEV)
+::Quick Net Fix 5.0.364 (DEV)
 
 ::Documentation and updated versions can be found at
 ::https://code.google.com/p/quick-net-fix/
@@ -69,10 +69,9 @@
 set /a c4u+=1&set /a cleanTMPPnum+=1&call :nettest&call :sleep_actv %INT_checkwait%&goto :loop
 
 :getNETINFO
-setlocal disabledelayedexpansion&set /a net_arrLen+=0
-if not %net_arrLen% equ 0 for /l %%n in (1,1,%net_arrLen%) do set net_%%n_cn=&set net_%%n_gw=
-set net_arrLen=0&set GNI_NdADR=1
-for /f "tokens=*" %%r in ('ipconfig') do set "line=%%r"&call :getNETINFO_parse
+for /f "tokens=1 delims==" %%n in ('set net_ 2^>nul') do set "%%n="
+setlocal disabledelayedexpansion&set net_arrLen=0&set GNI_NdADR=1
+for /f "tokens=*" %%r in ('ipconfig^|FINDSTR /L "adapter Gateway State"') do set "line=%%r"&call :getNETINFO_parse
 for /f "tokens=1* delims==" %%a in ('set net_') do endlocal&set "%%a=%%b"
 goto :eof
 
@@ -205,19 +204,24 @@ if "%CT_updn%"=="" set CT_updn=uk&%no_temp%call :crashdump _ErrPING&set CT_rslt=
 
 set nt_resup=::&set nt_resdn=::&set nt_resuk=::&set nt_res%CT_updn%=
 if not "%CT_updn%"=="%CT_updnL%" set /a timepassed/=2&if !timepassed! leq 0 set timepassed=1
-%nt_resup%set /a checkconnects+=1&set /a up+=timepassed+(nt_ptime/100)&if not "%CT_updnL%"=="up" set checkconnects=force
+%nt_resup%set /a checkconnects+=1&set /a up+=timepassed+(nt_ptime/100)
 %nt_resup%set CT_updn=up&set flux_STR=%flux_STR% 0&set curcolor=%CO_n%&if "%fixed%"=="1" set /a numfixes+=1&set fixed=0
 %nt_resdn%set /a down+=timepassed+(nt_ptime/100)&set curcolor=%CO_w%&set flux_STR=%flux_STR% 1
-%nt_resdn%ipconfig|FINDSTR /C:"%curRTR%">nul 2>&1 || call :testSite_set
 %nt_resuk%set flux_STR=%flux_STR% 3&set curcolor=%CO_a%
-%nt_resuk%set /a down+=timepassed+(nt_ptime/100)&call :nt_stall&call :testSite_set
+%nt_resuk%set /a down+=timepassed+(nt_ptime/100)&call :nt_stall
 
-set timepassed=0&if %dbl% gtr 0 if %CT_updn%==dn set showdbl=(fluke check %dbl%/%INT_flukechecks%)
+call :nt_chkRTR&set timepassed=0&if %dbl% gtr 0 if %CT_updn%==dn set showdbl=(fluke check %dbl%/%INT_flukechecks%)
 set /a dbl+=1&set CT_updnL=%CT_updn%&call :set_uptime
 if "%CT_rslt%"=="Disconnected" call :nt_enabled
 if %CT_updn%==dn if not %dbl% gtr %INT_flukechecks% call :sleep_actv %INT_flukechkwait%&goto :nettest
 if %CT_updn%==dn if %dbl% gtr %INT_flukechecks% call :resetConnection
 set dbl=0&set showdbl=&goto :eof
+
+:nt_chkRTR
+ipconfig|FINDSTR /C:"Default Gateway"|FINDSTR /C:"%curRTR%">nul 2>&1 && goto :eof
+set nt_hasRTR=0&for /f "tokens=1* delims=:" %%r in ('ipconfig^|FINDSTR /C:"Default Gateway" 2^>nul') do echo "%%s"|FINDSTR /r "[0-9] :">nul 2>&1 && set nt_hasRTR=1
+if %nt_hasRTR%==1 set checkconnects=force&goto :eof
+call :testSite_set&goto :eof
 
 :nt_enabled
 (if "%no_admin%"=="::" goto :eof)&if "%curADR%"=="" goto :eof
@@ -246,7 +250,7 @@ if not "%checkconnects%"=="force" if %c4u% geq %c4u_max% call :check4update
 if "%checkconnects%"=="force" call :chkRA
 if "%CT_updn%"=="up" if %checkconnects% geq %INT_chknetwait% call :chkRA
 call :precisiontimer SLP tot&set /a pn-=(tot/100)&if !pn! lss 0 set pn=0
-set status=Wait %pn% seconds...&%debgn%call :header
+if not %pn%==0 set status=Wait %pn% seconds...&%debgn%call :header
 call :sleep %pn%&set /a timepassed=(tot/100)+(pn)&set pn=&goto :eof
 
 :sleep
@@ -593,6 +597,7 @@ call :iecho Test Basic Commands...
 ping -n 1 127.0.0.1 >nul 2>&1 || (echo.&echo Critical error: PING error.&echo Press any key to exit...&pause>nul&exit)
 ipconfig >nul 2>&1 || (echo.&echo Critical error: IPCONFIG error.&echo Press any key to exit...&pause>nul&exit)
 for %%c in (framedyn.dll) do if "%%~$PATH:c"=="" set no_taskkill=::
+for %%c in (regedit.exe) do if "%%~$PATH:c"=="" set no_regedit=::
 set no_kill=::&(kill /?>nul 2>&1 && (set prockill=kill /f&set no_kill=&set killPID=kill))
 set no_pskill=::&pskill /?>nul 2>&1& if !errorlevel! equ -1 set prockill=pskill /f&set no_pskill=&set killPID=pskill
 set no_tskill=::&(tskill /?>nul 2>&1 && (set no_tskill=&set prockill=tskill&set killPID=tskill))
@@ -668,7 +673,7 @@ call :sleep 3&goto :eof
 @call :setn_defaults&call :init_settnBOOL !settingsBOOL!
 @if "%pretty%"=="0" set debgn=::
 %debgn%@echo off&call :init_colors %theme%
-call :init_settnSTR viewmode %viewmode%&call :init_settnSTR channel %channel%&set version=5.0.363
+call :init_settnSTR viewmode %viewmode%&call :init_settnSTR channel %channel%&set version=5.0.364
 echo ";%viewmode%;"|FINDSTR /L ";mini; ;normal;">nul || set viewmode=%D_viewmode%
 echo ";%channel%;"|FINDSTR /L ";v; ;b; ;d;">nul || set channel=%D_channel%
 set SMC_last=&call :SETMODECON&call :iecho Verify Settings...&%debgn%COLOR %curcolor%
