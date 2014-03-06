@@ -1,4 +1,4 @@
-::Quick Net Fix 5.0.364 (DEV)
+::Quick Net Fix 5.0.365 (DEV)
 
 ::Documentation and updated versions can be found at
 ::https://code.google.com/p/quick-net-fix/
@@ -71,7 +71,7 @@ set /a c4u+=1&set /a cleanTMPPnum+=1&call :nettest&call :sleep_actv %INT_checkwa
 :getNETINFO
 for /f "tokens=1 delims==" %%n in ('set net_ 2^>nul') do set "%%n="
 setlocal disabledelayedexpansion&set net_arrLen=0&set GNI_NdADR=1
-for /f "tokens=*" %%r in ('ipconfig^|FINDSTR /L "adapter Gateway State"') do set "line=%%r"&call :getNETINFO_parse
+for /f "tokens=*" %%r in ('ipconfig /all^|FINDSTR /L "adapter Gateway State Server"') do set "line=%%r"&call :getNETINFO_parse
 for /f "tokens=1* delims==" %%a in ('set net_') do endlocal&set "%%a=%%b"
 goto :eof
 
@@ -79,7 +79,7 @@ goto :eof
 echo "%line%" |FINDSTR /C:"adapter">nul && goto :getNETINFO_parseAdapter
 if %GNI_NdADR%==1 goto :eof
 echo "%line%" |FINDSTR /C:"disconnected">nul && (set /a net_arrLen-=1&set GNI_NdADR=1&goto :eof)
-echo "%line%" |FINDSTR /C:"Default Gateway">nul && goto :getNETINFO_parseRouter
+echo "%line%" |FINDSTR /C:"Default Gateway" /C:"DNS Servers" /C:"DHCP Server">nul && goto :getNETINFO_parseRouter
 goto :eof
 
 :getNETINFO_parseAdapter
@@ -88,16 +88,19 @@ set "line=%line:!=^!%"
 setlocal enabledelayedexpansion
 set "line=!line:%%=%%%!"
 endlocal&set "line=%line%"
-set GNI_NdADR=0&set /a net_arrLen+=1&set "line=%line:adapter =:%"
+set GNI_NdADR=0&set GNI_NdRTR=1&set /a net_arrLen+=1&set "line=%line:adapter =:%"
 (for /f "tokens=2 delims=:" %%a in ("%line%") do set "net_%net_arrLen%_cn=%%a")&goto :eof
 
 :getNETINFO_parseRouter
+if %GNI_NdRTR%==0 goto :eof
 if not "%filterRouters%"=="" echo "%line%"|FINDSTR /I /L "%filterRouters%">nul && (set /a net_arrLen-=1&set GNI_NdADR=1&goto :eof)
 for /f "tokens=1 delims=%%" %%r in ("%line%") do set "line=%%r"
 set line=%line: .=%
 set line=%line:Default Gateway :=%
+set line=%line:DNS Servers :=%
+set line=%line:DHCP Server :=%
 if "%line%"=="" (set /a net_arrLen-=1&set GNI_NdADR=1&goto :eof)
-set net_%net_arrLen%_gw=%line: =%&goto :eof
+set net_%net_arrLen%_gw=%line: =%&set GNI_NdRTR=0&goto :eof
 
 :header
 call :flux_set %flux_STR%&set h_flux_STR=%plainbar%%flux_STR%&set h_flux_STR=!h_flux_STR:0=-!
@@ -218,8 +221,8 @@ if %CT_updn%==dn if %dbl% gtr %INT_flukechecks% call :resetConnection
 set dbl=0&set showdbl=&goto :eof
 
 :nt_chkRTR
-ipconfig|FINDSTR /C:"Default Gateway"|FINDSTR /C:"%curRTR%">nul 2>&1 && goto :eof
-set nt_hasRTR=0&for /f "tokens=1* delims=:" %%r in ('ipconfig^|FINDSTR /C:"Default Gateway" 2^>nul') do echo "%%s"|FINDSTR /r "[0-9] :">nul 2>&1 && set nt_hasRTR=1
+ipconfig|FINDSTR /L "Gateway Server"|FINDSTR /C:"%curRTR%">nul 2>&1 && goto :eof
+set nt_hasRTR=0&for /f "tokens=1* delims=:" %%r in ('ipconfig^|FINDSTR /L "Gateway Server" 2^>nul') do echo "%%s"|FINDSTR /r "[0-9] :">nul 2>&1 && set nt_hasRTR=1
 if %nt_hasRTR%==1 set checkconnects=force&goto :eof
 call :testSite_set&goto :eof
 
@@ -673,7 +676,7 @@ call :sleep 3&goto :eof
 @call :setn_defaults&call :init_settnBOOL !settingsBOOL!
 @if "%pretty%"=="0" set debgn=::
 %debgn%@echo off&call :init_colors %theme%
-call :init_settnSTR viewmode %viewmode%&call :init_settnSTR channel %channel%&set version=5.0.364
+call :init_settnSTR viewmode %viewmode%&call :init_settnSTR channel %channel%&set version=5.0.365
 echo ";%viewmode%;"|FINDSTR /L ";mini; ;normal;">nul || set viewmode=%D_viewmode%
 echo ";%channel%;"|FINDSTR /L ";v; ;b; ;d;">nul || set channel=%D_channel%
 set SMC_last=&call :SETMODECON&call :iecho Verify Settings...&%debgn%COLOR %curcolor%
