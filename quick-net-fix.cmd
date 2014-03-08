@@ -1,4 +1,4 @@
-::Quick Net Fix 5.0.365 (DEV)
+::Quick Net Fix 5.0.366 (DEV)
 
 ::Documentation and updated versions can be found at
 ::https://code.google.com/p/quick-net-fix/
@@ -70,35 +70,32 @@ set /a c4u+=1&set /a cleanTMPPnum+=1&call :nettest&call :sleep_actv %INT_checkwa
 
 :getNETINFO
 for /f "tokens=1 delims==" %%n in ('set net_ 2^>nul') do set "%%n="
-setlocal disabledelayedexpansion&set net_arrLen=0&set GNI_NdADR=1
-for /f "tokens=*" %%r in ('ipconfig /all^|FINDSTR /L "adapter Gateway State Server"') do set "line=%%r"&call :getNETINFO_parse
+setlocal disabledelayedexpansion&set net_arrLen=1&set GNI_NdADR=1
+for /f "tokens=*" %%r in ('ipconfig /all^|FINDSTR /L "adapter Gateway Server"') do set "line=%%r"&call :getNETINFO_parse
+if not defined net_%net_arrLen%_gw set net_%net_arrLen%_cn=&set /a net_arrLen-=1
 for /f "tokens=1* delims==" %%a in ('set net_') do endlocal&set "%%a=%%b"
 goto :eof
 
 :getNETINFO_parse
 echo "%line%" |FINDSTR /C:"adapter">nul && goto :getNETINFO_parseAdapter
 if %GNI_NdADR%==1 goto :eof
-echo "%line%" |FINDSTR /C:"disconnected">nul && (set /a net_arrLen-=1&set GNI_NdADR=1&goto :eof)
 echo "%line%" |FINDSTR /C:"Default Gateway" /C:"DNS Servers" /C:"DHCP Server">nul && goto :getNETINFO_parseRouter
 goto :eof
 
 :getNETINFO_parseAdapter
 if not "%filterAdapters%"=="" echo "%line%" |FINDSTR /I /L "%filterAdapters%">nul && (set GNI_NdADR=1&goto :eof)
-set "line=%line:!=^!%"
+set "line=%line:!=^!%"&if defined net_%net_arrLen%_gw set /a net_arrLen+=1
 setlocal enabledelayedexpansion
 set "line=!line:%%=%%%!"
 endlocal&set "line=%line%"
-set GNI_NdADR=0&set GNI_NdRTR=1&set /a net_arrLen+=1&set "line=%line:adapter =:%"
+set GNI_NdADR=0&set GNI_NdRTR=1&set "line=%line:adapter =:%"
 (for /f "tokens=2 delims=:" %%a in ("%line%") do set "net_%net_arrLen%_cn=%%a")&goto :eof
 
 :getNETINFO_parseRouter
 if %GNI_NdRTR%==0 goto :eof
 if not "%filterRouters%"=="" echo "%line%"|FINDSTR /I /L "%filterRouters%">nul && (set /a net_arrLen-=1&set GNI_NdADR=1&goto :eof)
 for /f "tokens=1 delims=%%" %%r in ("%line%") do set "line=%%r"
-set line=%line: .=%
-set line=%line:Default Gateway :=%
-set line=%line:DNS Servers :=%
-set line=%line:DHCP Server :=%
+set line=%line:*: =%
 if "%line%"=="" (set /a net_arrLen-=1&set GNI_NdADR=1&goto :eof)
 set net_%net_arrLen%_gw=%line: =%&set GNI_NdRTR=0&goto :eof
 
@@ -188,32 +185,30 @@ if /i "%manualAdapter%"=="all" set curADR=&set h_curADR=allAdapter
 goto :eof
 
 :nettest
-if defined manualRouter if not "%manualRouter%"=="none" set curRTR=%manualRouter%
-if "%curRTR%"=="" set curRTR=%testSite%
-set status=Testing connectivity...&%debgn%call :header
+if defined manualRouter (if /I "%manualRouter%"=="none" (set curRTR=%testSite%) else (set curRTR=%manualRouter%))
+(if not defined manualRouter call :nt_chkRTR)&set status=Testing connectivity...&%debgn%call :header
 set CT_rslt=&set CT_updn=&for /f "tokens=1 delims==" %%p in ('set nt_ 2^>nul') do set "%%p="
 
-call :precisiontimer PNG start
-for /f "tokens=*" %%p in ('ping -w %INT_timeoutmil% -n 1 "%curRTR%" -i 255 ^| FINDSTR /r "[a-z]"') do if not "%%p"=="" (set /a nt_#+=1&set "nt_ping!nt_#!=%%p")
-set nt_prs=echo "%nt_ping1% %nt_ping2%" ^|FINDSTR 
-call :precisiontimer PNG nt_ptime
-
-%nt_prs%/r "time[=><] quench" >nul && (set CT_rslt=Connected&set CT_updn=up)
-%nt_prs%/C:"quench" >nul && (call :nt_stall Quench recieved; )
-%nt_prs%/L /I "resources memory" >nul && (call :nt_stall Insufficient resources; &goto :nettest)
-%nt_prs%/L /I "request unknown unreachable fail hardware" >nul && (set CT_rslt=Disconnected&set CT_updn=dn)
-%nt_prs%/L /I "timed expired" >nul && (set CT_rslt=Timed Out&set CT_updn=dn)
-if "%CT_updn%"=="" set CT_updn=uk&%no_temp%call :crashdump _ErrPING&set CT_rslt=Unsupported response
+if not defined curRTR set nt_pt=::&set CT_updn=dn&set CT_rslt=Disconnected
+%nt_pt%call :precisiontimer PNG start
+%nt_pt%for /f "tokens=*" %%p in ('ping -w %INT_timeoutmil% -n 1 "%curRTR%" -i 255 ^| FINDSTR /r "[a-z]"') do if not "%%p"=="" (set /a nt_#+=1&set "nt_ping!nt_#!=%%p")
+%nt_pt%set nt_prs=echo "%nt_ping1% %nt_ping2%" ^|FINDSTR 
+%nt_pt%call :precisiontimer PNG nt_ptime
+%nt_pt%%nt_prs%/r "time[=><] quench" >nul && (set CT_rslt=Connected&set CT_updn=up)
+%nt_pt%%nt_prs%/C:"quench" >nul && (call :nt_stall Quench recieved; )
+%nt_pt%%nt_prs%/L /I "resources memory" >nul && (call :nt_stall Insufficient resources; &goto :nettest)
+%nt_pt%%nt_prs%/L /I "request unknown unreachable fail hardware" >nul && (set CT_rslt=Disconnected&set CT_updn=dn)
+%nt_pt%%nt_prs%/L /I "timed expired" >nul && (set CT_rslt=Timed Out&set CT_updn=dn)
+%nt_pt%if "%CT_updn%"=="" set CT_updn=uk&%no_temp%call :crashdump _ErrPING&set CT_rslt=Unsupported response
 
 set nt_resup=::&set nt_resdn=::&set nt_resuk=::&set nt_res%CT_updn%=
 if not "%CT_updn%"=="%CT_updnL%" set /a timepassed/=2&if !timepassed! leq 0 set timepassed=1
 %nt_resup%set /a checkconnects+=1&set /a up+=timepassed+(nt_ptime/100)
 %nt_resup%set CT_updn=up&set flux_STR=%flux_STR% 0&set curcolor=%CO_n%&if "%fixed%"=="1" set /a numfixes+=1&set fixed=0
 %nt_resdn%set /a down+=timepassed+(nt_ptime/100)&set curcolor=%CO_w%&set flux_STR=%flux_STR% 1
-%nt_resuk%set flux_STR=%flux_STR% 3&set curcolor=%CO_a%
-%nt_resuk%set /a down+=timepassed+(nt_ptime/100)&call :nt_stall
+%nt_resuk%set flux_STR=%flux_STR% 3&set curcolor=%CO_a%&set /a down+=timepassed+(nt_ptime/100)&call :nt_stall
 
-call :nt_chkRTR&set timepassed=0&if %dbl% gtr 0 if %CT_updn%==dn set showdbl=(fluke check %dbl%/%INT_flukechecks%)
+set timepassed=0&if %dbl% gtr 0 if %CT_updn%==dn set showdbl=(fluke check %dbl%/%INT_flukechecks%)
 set /a dbl+=1&set CT_updnL=%CT_updn%&call :set_uptime
 if "%CT_rslt%"=="Disconnected" call :nt_enabled
 if %CT_updn%==dn if not %dbl% gtr %INT_flukechecks% call :sleep_actv %INT_flukechkwait%&goto :nettest
@@ -221,13 +216,14 @@ if %CT_updn%==dn if %dbl% gtr %INT_flukechecks% call :resetConnection
 set dbl=0&set showdbl=&goto :eof
 
 :nt_chkRTR
-ipconfig|FINDSTR /L "Gateway Server"|FINDSTR /C:"%curRTR%">nul 2>&1 && goto :eof
-set nt_hasRTR=0&for /f "tokens=1* delims=:" %%r in ('ipconfig^|FINDSTR /L "Gateway Server" 2^>nul') do echo "%%s"|FINDSTR /r "[0-9] :">nul 2>&1 && set nt_hasRTR=1
-if %nt_hasRTR%==1 set checkconnects=force&goto :eof
-call :testSite_set&goto :eof
+if defined curRTR ipconfig /all|FINDSTR /L "Gateway Server"|FINDSTR /C:"%curRTR%">nul 2>&1 && goto :eof
+set nt_changed=0&ipconfig /all|FINDSTR /L "Gateway Server" 2>nul|FINDSTR /r "[0-9] :[0-9a-z]">nul 2>&1 && set nt_changed=1
+if defined curADR if not "%nt_changed%"=="1" ipconfig|FINDSTR /C:"adapter !%curADR%!:" >nul 2>&1 || set nt_changed=1
+if %nt_changed%==1 set checkconnects=force&goto :eof
+set curRTR=&goto :eof
 
 :nt_enabled
-(if "%no_admin%"=="::" goto :eof)&if "%curADR%"=="" goto :eof
+(if defined no_admin goto :eof)&if "%curADR%"=="" goto :eof
 set "nt_e_s=set fixed=1&set flux_STR=%flux_STR% 2&call :sleep_actv %INT_fixwait%&set nt_e_s=&goto :eof"
 ipconfig |FINDSTR /C:"adapter !%curADR%!:">nul && goto :eof
 set status=Enabling adapter...&set curcolor=%CO_p%&%debgn%call :header
@@ -517,21 +513,21 @@ if not "%requestAdmin%"=="1" %dIA_done%&goto :eof
 %dIA_done%&goto :eof
 
 :Ask4NET
-if "%1"=="router" if "%fullAuto%"=="1" set curRTR=%testSite%&goto :eof
+if "%1"=="router" if "%fullAuto%"=="1" set curRTR=%net_1_gw%&goto :eof
 if "%1"=="adapter" if "%fullAuto%"=="1" set curADR=&set h_curADR=allAdapter&goto :eof
-if "%1"=="" if "%fullAuto%"=="1" set curADR=&set curRTR=%testSite%&set h_curADR=allAdapter&goto :eof
+if "%1"=="" if "%fullAuto%"=="1" set curADR=net_1_cn&set curRTR=%net_1_gw%&set h_curADR=net_1_cn&goto :eof
 if "%1"=="adapter" call :EnumerateAdapters
 %debgn%set /a lines=%net_arrLen%+11
 %debgn%call :SETMODECON 70 %lines%
 echo.&echo Which one would you like to monitor?&echo.&echo Choose by the selection number below.
-if not "%1"=="router" echo You may also enter x to cancel.
-if "%1"=="router" echo You may also type in a router address to use, or x to cancel.
+if "%1"=="router" echo You may also type in a router address to use.
 echo.&if not "%1"=="adapter" echo  #     Router Adress                  Associated Connection
 if not "%1"=="adapter" echo  ----- ------------------------------ -----------------------------
 if not "%1"=="adapter" for /l %%n in (1,1,%net_arrLen%) do set showroutr%%n=[%%n]%statspacer%
 if not "%1"=="adapter" for /l %%n in (1,1,%net_arrLen%) do set "showroutr%%n=!showroutr%%n:~0,5! !net_%%n_gw!%statspacer%"
 if not "%1"=="adapter" for /l %%n in (1,1,%net_arrLen%) do set "showroutr%%n=!showroutr%%n:~0,36! !net_%%n_cn!%statspacer%"
 if not "%1"=="adapter" for /l %%n in (1,1,%net_arrLen%) do echo -!showroutr%%n:~0,68!
+if not "%1"=="adapter" echo -[x]   (Use a website address)        (Reset all adapters on error)
 if "%1"=="adapter" echo  #     Connection
 if "%1"=="adapter" echo  ----- -------------------------------------------
 if "%1"=="adapter" for /l %%n in (1,1,%adapters_arrLen%) do set showconn%%n=[%%n]%statspacer%
@@ -543,8 +539,9 @@ if "%usrinput%"=="" set usrinput=1
 if not "%1"=="adapter" for /l %%n in (1,1,%net_arrLen%) do if "%usrinput%"=="%%n" set curRTR=!net_%%n_gw!
 if not "%1"=="adapter" if "%manualAdapter%"=="" for /l %%n in (1,1,%net_arrLen%) do if "%usrinput%"=="%%n" set curADR=net_%%n_cn
 if "%1"=="adapter" for /l %%n in (1,1,%adapters_arrLen%) do if "%usrinput%"=="%%n" set curADR=adapters_%%n_name
-if "%usrinput%"=="x" if not "%1"=="adapter" set curRTR=%testSite%&set manualRouter=none
-if "%usrinput%"=="x" if not "%1"=="router" set manualAdapter=all&set curADR=&set h_curADR=allAdapter&goto :eof
+if "%usrinput%"=="x" if not "%1"=="adapter" call :testSite_set&set manualRouter=none
+if "%usrinput%"=="x" if "%1"=="adapter" set manualAdapter=all&set curADR=&set h_curADR=allAdapter&goto :eof
+if "%usrinput%"=="x" if "%1"=="" set manualAdapter=all&set curADR=&set h_curADR=allAdapter&call :testSite_set&set manualRouter=none&goto :eof
 if "%1"=="router" if "%curRTR%"=="" cls&echo.&echo.&echo Use "%usrinput%" as router address?
 if "%1"=="router" if "%curRTR%"=="" set /p usrinput2=[y/n] 
 if "%1"=="router" if "%curRTR%"=="" if "%usrinput2%"=="" set curRTR=%usrinput%
@@ -676,7 +673,7 @@ call :sleep 3&goto :eof
 @call :setn_defaults&call :init_settnBOOL !settingsBOOL!
 @if "%pretty%"=="0" set debgn=::
 %debgn%@echo off&call :init_colors %theme%
-call :init_settnSTR viewmode %viewmode%&call :init_settnSTR channel %channel%&set version=5.0.365
+call :init_settnSTR viewmode %viewmode%&call :init_settnSTR channel %channel%&set version=5.0.366
 echo ";%viewmode%;"|FINDSTR /L ";mini; ;normal;">nul || set viewmode=%D_viewmode%
 echo ";%channel%;"|FINDSTR /L ";v; ;b; ;d;">nul || set channel=%D_channel%
 set SMC_last=&call :SETMODECON&call :iecho Verify Settings...&%debgn%COLOR %curcolor%
@@ -702,8 +699,8 @@ call :init_bar&set ie_last=&set settingsINT=&set settingsBOOL=&goto :eof
 @goto :eof
 
 :init_CID
-%init_CID%setlocal&set charSTR=000000000abcdefghijklmnopqrstuvwxyz1234567890&set CIDchars=0&set init_CID=::
-set cidchar=%random:~0,2%&if !cidchar! gtr 45 goto :init_CID
+%init_CID%setlocal&set charSTR=abcdefghijklmnopqrstuvwxyz1234567890&set CIDchars=0&set init_CID=::
+set cidchar=35*%random%/32768
 set /a CIDchars+=1&set CID=%CID%!charSTR:~%cidchar%,1!%random:~1,1%
 if %CIDchars% lss 3 goto :init_CID
 endlocal&set CID=%CID:~0,5%&goto :eof
