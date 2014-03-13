@@ -1,4 +1,4 @@
-::Quick Net Fix 5.0.366 (DEV)
+::Quick Net Fix 5.0.367 (DEV)
 
 ::Documentation and updated versions can be found at
 ::https://code.google.com/p/quick-net-fix/
@@ -120,7 +120,7 @@ echo. !h_flux_STR:~-%colnum%!
 echo.
 if defined h_curADR	echo  Adapter:   !%h_curADR%!
 if defined curRTR	echo  Router:    %curRTR%
-if defined uptime	echo  Uptime:    %uptime% [started %GRT_RT% ago]
+if defined uptime	echo  Uptime:    %uptime% [started %RTGRT% ago]
 if defined flux		echo  Stability: %flux%
 echo.
 if defined numfixes	echo  Fixes:     %numfixes%
@@ -267,44 +267,38 @@ set "SMC_last=%cols%%lines%"&MODE CON COLS=%cols% LINES=%lines%&goto :eof
 set /a up+=0&set /a uptime=((up*10000)/(up+down))>nul 2>&1
 set /a uptime+=0&if %up% geq 100000 set /a up=up/10&set /a down=down/10
 if not %uptime% equ 0 set uptime=%uptime:~0,-2%.%uptime:~-2%
-set uptime=%uptime%%%&call :getruntime&goto :eof
+set uptime=%uptime%%%&call :TMR GRT DSP RTGRT&goto :eof
 
-:getruntime
-%toolong%
-if "%GRT_s_year%"=="" goto :getruntime_init
-set GRT_c_year=%DATE:~10,4%&set GRT_c_month=%DATE:~4,2%&set GRT_c_day=%DATE:~7,2%
-set GRT_c_hour=%TIME:~0,2%&set GRT_c_min=%TIME:~3,2%&set GRT_c_sec=%TIME:~6,2%
-for /f "tokens=1 delims==" %%a in ('set GRT_c_') do if "!%%a:~0,1!"=="0" set /a %%a=!%%a:~1,1!+0
-set GRT_mo2=28&set /a GRT_leapyear=GRT_c_year*10/4
-if %GRT_leapyear:~-1% equ 0 set GRT_mo2=29
-set /a GRT_lastmonth=GRT_c_month-1
-if %GRT_c_month% lss %GRT_s_month% set /a GRT_c_month+=12&set /a GRT_c_year-=1
-if %GRT_c_day% lss %GRT_s_day% set /a GRT_c_day+=GRT_mo%GRT_lastmonth%&set /a GRT_c_month-=1
-if %GRT_c_hour% lss %GRT_s_hour% set /a GRT_c_hour+=24&set /a GRT_c_day-=1
-if %GRT_c_min% lss %GRT_s_min% set /a GRT_c_min+=60&set /a GRT_c_hour-=1
-if %GRT_c_sec% lss %GRT_s_sec% set /a GRT_c_sec+=60&set /a GRT_c_min-=1
-set /a GRT_c_year=GRT_c_year-GRT_s_year
-set /a GRT_c_month=GRT_c_month-GRT_s_month
-set /a GRT_c_day=GRT_c_day-GRT_s_day
-set /a GRT_c_hour=GRT_c_hour-GRT_s_hour
-set /a GRT_c_min=GRT_c_min-GRT_s_min
-set /a GRT_c_sec=GRT_c_sec-GRT_s_sec
-for /f "tokens=1 delims==" %%a in ('set GRT_c_') do if !%%a! leq 0 set /a %%a=0
-if %GRT_c_min% leq 9 set GRT_c_min=0%GRT_c_min%
-if %GRT_c_sec% leq 9 set GRT_c_sec=0%GRT_c_sec%
-if %GRT_c_year% geq 10000 set GRT_RT=Over 10,000 years&set toolong=goto :eof&goto :eof
-set GRT_RT=%GRT_c_hour%:%GRT_c_min%:%GRT_c_sec%
-if %GRT_c_year% neq 0 set GRT_RT=%GRT_c_year%y %GRT_c_month%m %GRT_c_day%d %GRT_RT%&goto :eof
-if %GRT_c_month% neq 0 set GRT_RT=%GRT_c_month%m %GRT_c_day%d %GRT_RT%&goto :eof
-if %GRT_c_day% neq 0 set GRT_RT=%GRT_c_day%d %GRT_RT%
+:TMR
+if "%2"=="start" call :TMR_update %1_s&goto :eof
+call :TMR_update %1_c&call :TMR_expand %1_s t_s %1_c t_c t_qa t_q
+set TMR_mo2=28&set /a t_leapyear=t_c6*10/4 
+(if %t_leapyear:~-1% equ 0 set TMR_mo2=29)&set /a t_lastmo=t_c5-1
+set t_m5=12&set t_m3=24&set t_m2=60&set t_m1=60&set /a t_m4=TMR_mo%t_lastmo%+0
+for /l %%t in (1,1,5) do if !t_c%%t! lss !t_s%%t! set /a t_c%%t+=t_m%%t&set /a t_=%%t+1&set /a t_c!t_!-=1
+for /l %%t in (1,1,6) do set /a t_c%%t=t_c%%t-t_s%%t
+(for /l %%t in (1,1,6) do if !t_c%%t! leq 0 set /a "t_c%%t=0")&goto :TMR_%2
+:TMR_update
+set "%1= %TIME:~6,2% %TIME:~3,2% %TIME:~0,2% %DATE:~7,2% %DATE:~4,2% %DATE:~10,4% "
+(for /l %%t in (0,1,9) do set "%1=!%1: 0%%t = %%t !")&goto :eof
+:TMR_expand
+set t_#=0&if not "!%1!"=="" (for %%t in (!%1!) do (set /a t_#+=1&set /a %2!t_#!=%%t))&set /a t_#+=1
+if not "!%1!"=="" (if %t_#% leq 6 for /l %%t in (%t_#%,1,6) do set %2%%t=0)&shift&shift&goto :TMR_expand
 goto :eof
-:getruntime_init
-set GRT_s_year=%DATE:~10,4%&set GRT_s_month=%DATE:~4,2%&set GRT_s_day=%DATE:~7,2%
-set GRT_s_hour=%TIME:~0,2%&set GRT_s_min=%TIME:~3,2%&set GRT_s_sec=%TIME:~6,2%
-for /f "tokens=1 delims==" %%a in ('set GRT_s_') do if "!%%a:~0,1!"=="0" set /a %%a=!%%a:~1,1!+0
-set GRT_mo1=31&set GRT_mo3=31&set GRT_mo4=30&set GRT_mo5=31
-set GRT_mo6=30&set GRT_mo7=31&set GRT_mo8=31&set GRT_mo9=30
-set GRT_mo10=31&set GRT_mo11=30&set GRT_mo12=31&goto :eof
+:TMR_DSP
+(if !t_c2! leq 9 set t_0m=0)&if !t_c1! leq 9 set t_0s=0
+set t_RT=!t_c3!:%t_0m%!t_c2!:%t_0s%!t_c1!
+if !t_c6! neq 0 set %3=!t_c6!y !t_c5!m !t_c4!d %t_RT%&goto :TMR_end
+if !t_c5! neq 0 set %3=!t_c5!m !t_c4!d %t_RT%&goto :TMR_end
+if !t_c4! neq 0 set %3=!t_c4!d %t_RT%&goto :TMR_end
+set %3=%t_RT%&goto :TMR_end
+:TMR_GEQ
+for /l %%t in (6,-1,1) do if not defined t_isGEQ if not "!t_c%%t!!t_q%%t!"=="00" (if !t_c%%t! geq !t_q%%t! set t_isGEQ=0)&(if !t_c%%t! lss !t_q%%t! set t_isGEQ=1)
+call :TMR_end&exit /b %t_isGEQ%
+:TMR_clear
+(for /f "tokens=1 delims==" %%a in ('set %1_t 2^>nul') do set "%%a=")&goto :eof
+:TMR_end
+(for /f "tokens=1 delims==" %%a in ('set t_ 2^>nul') do set "%%a=")&goto :eof
 
 :EnumerateAdapters
 setlocal disabledelayedexpansion&set adapters_arrLen=0
@@ -494,24 +488,6 @@ goto :eof
 if exist "%*" for /f "usebackq tokens=2 delims==" %%v in (`FINDSTR /C:"SET %channel%=" "%*"^>nul 2^>^&1`) do set "%channel%=%%v"
 goto :eof
 
-:detectIsAdmin
-call :iecho Detect Admin Rights...&set dIA_done=for /f "tokens=1 delims==" %%p in ('set dIA_') do set "%%p="
-set "dIA_gAfile=%TMPP%\getadmin%CID%.vbs"&%no_temp%DEL /F /Q "%TMPP%\getadmin*.vbs">nul 2>&1
-for /f "tokens=*" %%s in ('sfc 2^>^&1^|MORE') do @set "dIA_sfc=!dIA_sfc!%%s"
-set no_admin=::&set dIA_sfc=&(echo "%dIA_sfc%"|findstr /I /C:"/scannow">nul 2>&1 && set "no_admin=")
-:dIA_kill
-%no_prockill%%no_tasklist%for /f "tokens=2 delims=," %%p in ('tasklist /V /FO:CSV ^|FINDSTR /C:"Limited: %ThisTitle%" 2^>nul') do (%killPID% %%p>nul 2>&1 && goto :dIA_kill)
-%no_prockill%%no_tlist%for /f %%p in ('tlist ^|FINDSTR /C:"Limited: %ThisTitle%" 2^>nul') do (%killPID% %%p>nul 2>&1 && goto :dIA_kill)
-%no_admin%%dIA_done%&goto :eof
-set ThisTitle=Limited: %ThisTitle%&title !ThisTitle!
-if not "%requestAdmin%"=="1" %dIA_done%&goto :eof
-%no_winfind%%no_prockill%%no_temp%%no_cscript%echo Set StartAdmin = CreateObject^("Shell.Application"^) > "%dIA_gAfile%"
-%no_winfind%%no_prockill%%no_temp%%no_cscript%echo StartAdmin.ShellExecute "%~s0", "", "", "runas", 1 >> "%dIA_gAfile%"
-%no_winfind%%no_prockill%%no_temp%%no_cscript%set "ie_last=Requesting Admin Rights...&echo (This will close upon successful request)"&call :iecho
-%no_winfind%%no_prockill%%no_temp%%no_cscript%start /b "" cscript //E:VBScript //B //T:1 "%dIA_gAfile%" //nologo
-%no_winfind%%no_prockill%%no_temp%%no_cscript%call :sleep 10&DEL /F /Q "%dIA_gAfile%">nul 2>&1
-%dIA_done%&goto :eof
-
 :Ask4NET
 if "%1"=="router" if "%fullAuto%"=="1" set curRTR=%net_1_gw%&goto :eof
 if "%1"=="adapter" if "%fullAuto%"=="1" set curADR=&set h_curADR=allAdapter&goto :eof
@@ -550,7 +526,107 @@ if "%1"=="router" if "%curRTR%"=="" goto :Ask4NET
 if "%1"=="adapter" if "%curADR%"=="" goto :Ask4NET
 if not "%1"=="adapter" set manualRouter=%curRTR%
 if not "%1"=="router" set manualAdapter=%curADR%&set h_curADR=%curADR%
-cls&call :SETMODECON&goto :eof
+call :SETMODECON&goto :eof
+
+:init
+@call :setn_defaults&call :init_settnBOOL !settingsBOOL!
+@if "%pretty%"=="0" set debgn=::
+%debgn%@echo off&call :init_colors %theme%
+set STRprm=;mini; ;normal;&call :init_settnSTR viewmode %viewmode%
+set STRprm=;v; ;b; ;d;&call :init_settnSTR channel %channel%&set version=5.0.367
+set SMC_last=&call :SETMODECON&call :iecho Verify Settings...&%debgn%COLOR %curcolor%
+set ThisTitle=Lectrode's Quick Net Fix %channel%%version%&call :init_settnINT %settingsINT%
+TITLE %ThisTitle%&(if "%CID%"=="" call :init_CID )&(if "%crshd%"=="" set "crshd= ")
+%alertoncrash%call :testValidPATHS&call :testCompatibility&call :detectIsAdmin&call :disableQuickEdit
+%alertoncrash%call :testCompatibility2&call :testAdapters&set alertoncrash=::&goto :crashAlert
+if "%no_admin%"=="::" set thistitle=Limited: %thistitle%&title !thistitle!
+call :TMR GRT start&%no_temp%call :iecho Clean Temp Files...&call :cleanTMPP ::
+call :iecho Initialize Variables...&set "tSs_addr=www.google.com;www.ask.com;www.yahoo.com;www.bing.com"
+set statspacer=                                                               .
+set plainbar=------------------------------------------------------------------------------
+set CT_updnL=up&set /a c4u_max=24*60*60/(INT_checkwait+1)&set /a c4u=c4u_max-((6*60)/(INT_checkwait+1))&set dbl=0
+set allAdapter=[Reset All Connections on Error]&set h_top=%plainbar%
+set TMR_mo1=31&set TMR_mo3=31&set TMR_mo4=30&set TMR_mo5=31&set TMR_mo6=30&set TMR_mo7=31
+set TMR_mo8=31&set TMR_mo9=30&set TMR_mo10=31&set TMR_mo11=30&set TMR_mo12=31
+set tSs_num=1&set curRTR=&call :init_manualRouter&if defined resetfA set "filterAdapters=%D_filterAdapters%"
+call :init_manualAdapter&call :init_bar&set ie_last=&set settingsINT=&set settingsBOOL=&set STRprm=&goto :eof
+
+:iecho
+%debgn%@if not "%*"=="" set "ie_last=%*"
+%debgn%@cls&echo.&echo Please wait while qNET starts...&echo.&echo.%ie_last%
+@goto :eof
+
+:init_CID
+%init_CID%setlocal&set charSTR=abcdefghijklmnopqrstuvwxyz1234567890&set CIDchars=0&set init_CID=::
+set cidchar=35*%random%/32768
+set /a CIDchars+=1&set CID=%CID%!charSTR:~%cidchar%,1!%random:~1,1%
+if %CIDchars% lss 3 goto :init_CID
+endlocal&set CID=%CID:~0,5%&goto :eof
+
+:cleanTMPP
+%1set status=Clean temp files...&call :header
+set day=%DATE:/=-%&pushd "%TMPP%"&set excludefiles=ErrorLogs
+for /f "tokens=*" %%a IN ('xcopy *.* /d:%day:~4% /L /I null') do @if exist "%%~nxa" set "excludefiles=!excludefiles!;;%%~nxa"
+for /f "tokens=*" %%a IN ('dir /b 2^>nul') do @(@echo ";;%excludefiles%;;"|FINDSTR /C:";;%%a;;">nul || if exist "%TMPP%\%%a" DEL /F /Q "%TMPP%\%%a">nul 2>&1)
+popd&set excludefiles=&set day=&goto :eof
+
+:init_settnINT
+if "%1"=="" goto :eof
+if "!%1!"=="" set %1=D_%1
+set /a %1=%1&shift&goto :init_settnINT
+:init_settnBOOL
+@if "%1"=="" goto :eof
+@echo ",!%1!,"|FINDSTR /L ",0, ,1,">nul || set /a %1=D_%1
+@shift&goto :init_settnBOOL
+:init_settnSTR
+echo ";%2;"|FINDSTR /L /I "%STRprm%">nul && (set "%1=%2"&goto :eof)
+set %1=!D_%1!&goto :eof
+
+:init_manualRouter
+if not defined manualRouter goto :eof
+set curRTR=%manualRouter%
+if /I "%manualRouter%"=="none" call :testSite_set
+goto :eof
+
+:init_manualAdapter
+if not defined manualAdapter goto :eof
+set curADR=manualAdapter&set h_curADR=manualAdapter
+if /I "%manualAdapter%"=="all" set curADR=&set h_curADR=allAdapter
+goto :eof
+
+:testAdapters
+if defined manualAdapter goto :eof
+call :iecho Check Network Adapters...&call :EnumerateAdapters
+if defined adapters_1_name goto :eof
+if %fullAuto%==1 if not "%filterAdapters%"=="%D_filterAdapters%" set resetfA=1&set "filterAdapters=%D_filterAdapters%"&goto :testAdapters
+echo.&echo CRITICAL ERROR: No network adapters found&echo Please make sure:
+echo -filterAdapters is properly configured&echo -network adapters are installed&goto :exitthis
+
+:init_bar
+set /a colnum=cols-2&set -=
+if %colnum% leq %INT_fluxHist% goto :eof
+set /a numhyp=(colnum/INT_fluxHist)-1
+:init_bar_loop
+if not %numhyp% leq 0 set -=%-%-&set /a numhyp-=1
+if %numhyp% gtr 0 goto :init_bar_loop
+goto :eof
+
+:init_colors
+set theme=%1&echo ",%1,"|FINDSTR /I /L ",mini, ,none, ,subtle, ,vibrant, ,fullsubtle, ,fullvibrant, ,fullcolor, ,neon,">nul || set theme=%D_theme%
+set THM_subtle=07 06 04 03&set THM_vibrant=0a 0e 0c 0b&set THM_fullsubtle=20 60 40 30
+set THM_fullvibrant=a0 e0 c0 b0&set THM_fullcolor=2a 6e 4c 1b&set THM_neon=5a 9e 1c 5b
+if not "%theme%"=="none" for /f "tokens=1-4" %%c in ("!THM_%theme%!") do set CO_n=%%c&set CO_w=%%d&set CO_a=%%e&set CO_p=%%f
+(for /f "tokens=1 delims==" %%p in ('set THM_') do set "%%p=")&set curcolor=%CO_n%&goto :eof
+
+:setn_defaults
+@set settingsINT=INT_fluxHist INT_flukechecks INT_checkwait INT_fixwait INT_flukechkwait INT_timeoutmil INT_chknetwait
+@set settingsBOOL=pretty fullAuto requestAdmin check4update noStop errorlog
+@set D_pretty=1&set D_theme=subtle&set D_viewmode=normal&set D_fullAuto=1
+@set D_requestAdmin=1&set D_INT_fluxHist=25&set D_channel=v&set D_noStop=1
+@set D_INT_flukechecks=7&set D_INT_flukemaxtime=25&set D_INT_checkwait=5
+@set D_INT_fixwait=10&set D_INT_flukechkwait=1&set D_INT_timeoutmil=3000
+@set D_INT_chknetwait=10&set D_check4update=1&set D_errorlog=1
+@set D_filterAdapters=Tunnel VirtualBox VMnet VMware Loopback Pseudo Bluetooth Internal&goto :eof
 
 :testValidPATHS
 set "thisdir=%~dp0"&call :iecho Verify Environment Variables...
@@ -561,7 +637,7 @@ set PATHEXT=.COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC;%PATHEXT%
 %hassys32%%tVPS%%SYSTEMDRIVE%\WINNT
 %hassys32%%tVPS%%WINDIR%
 %hassys32%%tVPS%%~dp0
-%hassys32%echo Required commands not found.&echo Press any key to exit...&pause>nul&exit
+%hassys32%echo CRITICAL ERROR: Required commands not found.&echo Press any key to exit...&pause>nul&exit
 attrib /?>nul 2>&1 || set no_attrib=::
 %tVPT%%TEMP%
 %hastemp%%tVPT%%LOCALAPPDATA%\Temp
@@ -594,8 +670,8 @@ set hastemp=::&goto :eof
 
 :testCompatibility
 call :iecho Test Basic Commands...
-ping -n 1 127.0.0.1 >nul 2>&1 || (echo.&echo Critical error: PING error.&echo Press any key to exit...&pause>nul&exit)
-ipconfig >nul 2>&1 || (echo.&echo Critical error: IPCONFIG error.&echo Press any key to exit...&pause>nul&exit)
+ping -n 1 127.0.0.1 >nul 2>&1 || (echo.&echo CRITICAL ERROR: PING error.&echo Press any key to exit...&pause>nul&exit)
+ipconfig >nul 2>&1 || (echo.&echo CRITICAL ERROR: IPCONFIG error.&echo Press any key to exit...&pause>nul&exit)
 for %%c in (framedyn.dll) do if "%%~$PATH:c"=="" set no_taskkill=::
 for %%c in (regedit.exe) do if "%%~$PATH:c"=="" set no_regedit=::
 set no_kill=::&(kill /?>nul 2>&1 && (set prockill=kill /f&set no_kill=&set killPID=kill))
@@ -616,8 +692,26 @@ bitsadmin /?>nul 2>&1 || set no_bits=::
 netsh help >nul 2>&1 || set no_netsh=::
 call :iecho Test POWERSHELL...&powershell -?>nul 2>&1 || set no_ps=:: & title %ThisTitle%
 call :iecho Test WMIC...&call :antihang 10 ah_null wmic.exe os get status || set no_wmic=::
-if "%no_netsh%%no_wmic%"=="::::" (echo.&echo Critical error: This script requires either NETSH or WMIC.&echo Press any key to exit...&pause>nul&goto :exitthis)
+if "%no_netsh%%no_wmic%"=="::::" (echo.&echo CRITICAL ERROR: This script requires either NETSH or WMIC.&goto :exitthis)
 goto :eof
+
+:detectIsAdmin
+call :iecho Detect Admin Rights...&set dIA_done=for /f "tokens=1 delims==" %%p in ('set dIA_') do set "%%p="
+set "dIA_gAfile=%TMPP%\getadmin%CID%.vbs"&%no_temp%DEL /F /Q "%TMPP%\getadmin*.vbs">nul 2>&1
+for /f "tokens=*" %%s in ('sfc 2^>^&1^|MORE') do @set "dIA_sfc=!dIA_sfc!%%s"
+set no_admin=::&set dIA_sfc=&(echo "%dIA_sfc%"|findstr /I /C:"/scannow">nul 2>&1 && set "no_admin=")
+:dIA_kill
+%no_prockill%%no_tasklist%for /f "tokens=2 delims=," %%p in ('tasklist /V /FO:CSV ^|FINDSTR /C:"Limited: %ThisTitle%" 2^>nul') do (%killPID% %%p>nul 2>&1 && goto :dIA_kill)
+%no_prockill%%no_tlist%for /f %%p in ('tlist ^|FINDSTR /C:"Limited: %ThisTitle%" 2^>nul') do (%killPID% %%p>nul 2>&1 && goto :dIA_kill)
+%no_admin%%dIA_done%&goto :eof
+set ThisTitle=Limited: %ThisTitle%&title !ThisTitle!
+if not "%requestAdmin%"=="1" %dIA_done%&goto :eof
+%no_winfind%%no_prockill%%no_temp%%no_cscript%echo Set StartAdmin = CreateObject^("Shell.Application"^) > "%dIA_gAfile%"
+%no_winfind%%no_prockill%%no_temp%%no_cscript%echo StartAdmin.ShellExecute "%~s0", "", "", "runas", 1 >> "%dIA_gAfile%"
+%no_winfind%%no_prockill%%no_temp%%no_cscript%set "ie_last=Requesting Admin Rights...&echo (This will close upon successful request)"&call :iecho
+%no_winfind%%no_prockill%%no_temp%%no_cscript%start /b "" cscript //E:VBScript //B //T:1 "%dIA_gAfile%" //nologo
+%no_winfind%%no_prockill%%no_temp%%no_cscript%call :sleep 10&DEL /F /Q "%dIA_gAfile%">nul 2>&1
+%dIA_done%&goto :eof
 
 :disableQuickEdit
 set qkey=HKEY_CURRENT_USER\Console&set qpro=QuickEdit&call :iecho Check Console Properties...
@@ -638,10 +732,11 @@ set qkey=HKEY_CURRENT_USER\Console&set qpro=QuickEdit&call :iecho Check Console 
 goto :eof
 
 :exitthis
+@echo.&echo Script cannot continue.&%no_winfind%echo Press any key to exit...&pause>nul
 %no_prockill%%no_tasklist%for /f "tokens=2 delims=," %%p in ('tasklist /V /FO:CSV ^|FINDSTR /C:"%ThisTitle%" 2^>nul') do (%killPID% %%p>nul 2>&1 && goto :dIA_kill)
 %no_prockill%%no_tlist%for /f %%p in ('tlist ^|FINDSTR /C:"%ThisTitle%" 2^>nul') do (%killPID% %%p>nul 2>&1 && goto :dIA_kill)
 %no_temp%type nul>"%TMPP%\needxexit%CID%" 2>&1&exit
-echo Script cannot continue&echo Please close this window&pause>nul&exit
+echo Please close this window&pause>nul&exit
 
 :crashAlert
 @set "cd_start=%DATE% %TIME%"
@@ -659,104 +754,7 @@ set "cd_file=%TMPP%\ErrorLogs\%cd_end:~4,-3%%1.txt"
 if not exist "%TMPP%\ErrorLogs" md "%TMPP%\ErrorLogs"
 (echo %ThisTitle% Crash/Error Report v1.0)>"%cd_file%"
 echo Please contact ElectrodeXSnet@gmail.com to resolve this issue>>"%cd_file%"
-echo.>>"%cd_file%"
-if not "%1"=="" echo Param="%1">>"%cd_file%"
-(set)>>"%cd_file%"
-(ipconfig /all)>>"%cd_file%" 2>&1
-(netsh int show int)>>"%cd_file%" 2>&1
-(netsh mbn show int)>>"%cd_file%" 2>&1
-(ping -n 1 127.0.0.1)>>"%cd_file%" 2>&1
-(sc query state= all|FINDSTR /L "_NAME STATE")>>"%cd_file%" 2>&1
+(echo.&if not "%1"=="" echo Param="%1")>>"%cd_file%"
+(set&ipconfig /all&netsh int show int&netsh mbn show int)>>"%cd_file%" 2>&1
+(ping -n 1 127.0.0.1&sc query state= all|FINDSTR /L "_NAME STATE")>>"%cd_file%" 2>&1
 call :sleep 3&goto :eof
-
-:init
-@call :setn_defaults&call :init_settnBOOL !settingsBOOL!
-@if "%pretty%"=="0" set debgn=::
-%debgn%@echo off&call :init_colors %theme%
-call :init_settnSTR viewmode %viewmode%&call :init_settnSTR channel %channel%&set version=5.0.366
-echo ";%viewmode%;"|FINDSTR /L ";mini; ;normal;">nul || set viewmode=%D_viewmode%
-echo ";%channel%;"|FINDSTR /L ";v; ;b; ;d;">nul || set channel=%D_channel%
-set SMC_last=&call :SETMODECON&call :iecho Verify Settings...&%debgn%COLOR %curcolor%
-set ThisTitle=Lectrode's Quick Net Fix %channel%%version%&call :init_settnINT %settingsINT%
-TITLE %ThisTitle%&(if "%CID%"=="" call :init_CID )&(if "%crshd%"=="" set "crshd= ")
-%alertoncrash%call :testValidPATHS&call :testCompatibility&call :detectIsAdmin&call :disableQuickEdit
-%alertoncrash%@set alertoncrash=::&goto :crashAlert
-if "%no_admin%"=="::" set thistitle=Limited: %thistitle%&title !thistitle!
-call :getruntime&call :testCompatibility2&%no_temp%call :iecho Clean Temp Files...&call :cleanTMPP ::
-call :iecho Initialize Variables...&set "tSs_addr=www.google.com;www.ask.com;www.yahoo.com;www.bing.com"
-set statspacer=                                                               .
-set plainbar=------------------------------------------------------------------------------
-set CT_updnL=up&set /a c4u_max=24*60*60/(INT_checkwait+1)
-set /a c4u=c4u_max-((6*60)/(INT_checkwait+1))&set dbl=0
-set allAdapter=[Reset All Connections on Error]&set h_top=%plainbar%
-call :testSite_set&set curRTR=&call :init_manualRouter %manualRouter%
-for /f "tokens=1 DELIMS=:" %%a in ("%manualAdapter%") do call :init_manualAdapter %%a
-call :init_bar&set ie_last=&set settingsINT=&set settingsBOOL=&goto :eof
-
-:iecho
-%debgn%@if not "%*"=="" set "ie_last=%*"
-%debgn%@cls&echo.&echo Please wait while qNET starts...&echo.&echo.%ie_last%
-@goto :eof
-
-:init_CID
-%init_CID%setlocal&set charSTR=abcdefghijklmnopqrstuvwxyz1234567890&set CIDchars=0&set init_CID=::
-set cidchar=35*%random%/32768
-set /a CIDchars+=1&set CID=%CID%!charSTR:~%cidchar%,1!%random:~1,1%
-if %CIDchars% lss 3 goto :init_CID
-endlocal&set CID=%CID:~0,5%&goto :eof
-
-:cleanTMPP
-%1set status=Clean temp files...&call :header
-set day=%DATE:/=-%&pushd "%TMPP%"&set excludefiles=ErrorLogs
-for /f "tokens=*" %%a IN ('xcopy *.* /d:%day:~4% /L /I null') do @if exist "%%~nxa" set "excludefiles=!excludefiles!;;%%~nxa"
-for /f "tokens=*" %%a IN ('dir /b 2^>nul') do @(@echo ";;%excludefiles%;;"|FINDSTR /C:";;%%a;;">nul || if exist "%TMPP%\%%a" DEL /F /Q "%TMPP%\%%a">nul 2>&1)
-popd&set excludefiles=&set day=&goto :eof
-
-:init_settnINT
-if "%1"=="" goto :eof
-if "!%1!"=="" set %1=D_%1
-set /a %1=%1&shift&goto :init_settnINT
-:init_settnBOOL
-@if "%1"=="" goto :eof
-@echo ",!%1!,"|FINDSTR /L ",0, ,1,">nul || set /a %1=D_%1
-@shift&goto :init_settnBOOL
-:init_settnSTR
-if "%2"=="" set %1=!D_%1!&goto :eof
-set %1=%2&goto :eof
-
-:init_manualRouter
-if not defined manualRouter goto :eof
-set curRTR=%manualRouter%
-if /I "%manualRouter%"=="none" call :testSite_set
-goto :eof
-
-:init_manualAdapter
-if not defined manualAdapter goto :eof
-set curADR=manualAdapter&set h_curADR=manualAdapter
-if /I "%manualAdapter%"=="all" set curADR=&set h_curADR=allAdapter
-goto :eof
-
-:init_bar
-set /a colnum=cols-2&set -=
-if %colnum% leq %INT_fluxHist% goto :eof
-set /a numhyp=(colnum/INT_fluxHist)-1
-:init_bar_loop
-if not %numhyp% leq 0 set -=%-%-&set /a numhyp-=1
-if %numhyp% gtr 0 goto :init_bar_loop
-goto :eof
-
-:init_colors
-set theme=%1&echo ",%1,"|FINDSTR /I /L ",mini, ,none, ,subtle, ,vibrant, ,fullsubtle, ,fullvibrant, ,fullcolor, ,neon,">nul || set theme=%D_theme%
-set THM_subtle=07 06 04 03&set THM_vibrant=0a 0e 0c 0b&set THM_fullsubtle=20 60 40 30
-set THM_fullvibrant=a0 e0 c0 b0&set THM_fullcolor=2a 6e 4c 1b&set THM_neon=5a 9e 1c 5b
-if not "%theme%"=="none" for /f "tokens=1-4" %%c in ("!THM_%theme%!") do set CO_n=%%c&set CO_w=%%d&set CO_a=%%e&set CO_p=%%f
-(for /f "tokens=1 delims==" %%p in ('set THM_') do set "%%p=")&set curcolor=%CO_n%&goto :eof
-
-:setn_defaults
-@set settingsINT=INT_fluxHist INT_flukechecks INT_checkwait INT_fixwait INT_flukechkwait INT_timeoutmil INT_chknetwait
-@set settingsBOOL=pretty fullAuto requestAdmin check4update noStop errorlog
-@set D_pretty=1&set D_theme=subtle&set D_viewmode=normal&set D_fullAuto=1
-@set D_requestAdmin=1&set D_INT_fluxHist=25&set D_channel=v&set D_noStop=1
-@set D_INT_flukechecks=7&set D_INT_flukemaxtime=25&set D_INT_checkwait=5
-@set D_INT_fixwait=10&set D_INT_flukechkwait=1&set D_INT_timeoutmil=3000
-@set D_INT_chknetwait=10&set D_check4update=1&set D_errorlog=1&goto :eof
