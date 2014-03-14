@@ -1,4 +1,4 @@
-::Quick Net Fix 5.0.367 (DEV)
+::Quick Net Fix 5.0.368 (DEV)
 
 ::Documentation and updated versions can be found at
 ::https://code.google.com/p/quick-net-fix/
@@ -93,11 +93,11 @@ set GNI_NdADR=0&set GNI_NdRTR=1&set "line=%line:adapter =:%"
 
 :getNETINFO_parseRouter
 if %GNI_NdRTR%==0 goto :eof
-if not "%filterRouters%"=="" echo "%line%"|FINDSTR /I /L "%filterRouters%">nul && (set /a net_arrLen-=1&set GNI_NdADR=1&goto :eof)
+echo "%line%"|FINDSTR /I /L "%filterRouters% \/ ">nul && goto :eof
 for /f "tokens=1 delims=%%" %%r in ("%line%") do set "line=%%r"
 set line=%line:*: =%
-if "%line%"=="" (set /a net_arrLen-=1&set GNI_NdADR=1&goto :eof)
-set net_%net_arrLen%_gw=%line: =%&set GNI_NdRTR=0&goto :eof
+if "%line%"=="" goto :eof
+(if not "%line:~0,4%"=="255." set net_%net_arrLen%_gw=%line: =%&set GNI_NdRTR=0)&goto :eof
 
 :header
 call :flux_set %flux_STR%&set h_flux_STR=%plainbar%%flux_STR%&set h_flux_STR=!h_flux_STR:0=-!
@@ -217,9 +217,9 @@ set dbl=0&set showdbl=&goto :eof
 
 :nt_chkRTR
 if defined curRTR ipconfig /all|FINDSTR /L "Gateway Server"|FINDSTR /C:"%curRTR%">nul 2>&1 && goto :eof
-set nt_changed=0&ipconfig /all|FINDSTR /L "Gateway Server" 2>nul|FINDSTR /r "[0-9] :[0-9a-z]">nul 2>&1 && set nt_changed=1
+for /f "tokens=1* delims=:" %%a in ('ipconfig /all^|FINDSTR /L "Gateway Server" 2^>nul^|FINDSTR /r "[0-9] :[0-9a-z]" 2^>nul') do for /f "tokens=1" %%g in ("%%b") do echo "x%%g"|FINDSTR /I /L "%filterRouters% \/ x255.">nul || set nt_changed=1
 if defined curADR if not "%nt_changed%"=="1" ipconfig|FINDSTR /C:"adapter !%curADR%!:" >nul 2>&1 || set nt_changed=1
-if %nt_changed%==1 set checkconnects=force&goto :eof
+if "%nt_changed%"=="1" set checkconnects=force&goto :eof
 set curRTR=&goto :eof
 
 :nt_enabled
@@ -338,10 +338,8 @@ set /a adapters_arrLen+=1
 set "adapters_%adapters_arrLen%_name=%line:*: =%"&goto :eof
 
 :resetConnection
-set curcolor=%CO_p%&set status=Attempting to fix connection...&set flux_STR=%flux_STR% 2
-%debgn%call :header
-set fixed=1&if "%curADR%"=="" call :resetConnection_all
-if not "%curADR%"=="" call :resetConnection_one
+set curcolor=%CO_p%&set status=Attempting to fix connection...&set flux_STR=%flux_STR% 2&%debgn%call :header
+set fixed=1&(if "%curADR%"=="" call :resetConnection_all)&(if not "%curADR%"=="" call :resetConnection_one)
 set curcolor=%CO_p%&call :sleep_actv %INT_fixwait%&set checkconnects=force&goto :eof
 
 :resetConnection_all
@@ -533,7 +531,7 @@ call :SETMODECON&goto :eof
 @if "%pretty%"=="0" set debgn=::
 %debgn%@echo off&call :init_colors %theme%
 set STRprm=;mini; ;normal;&call :init_settnSTR viewmode %viewmode%
-set STRprm=;v; ;b; ;d;&call :init_settnSTR channel %channel%&set version=5.0.367
+set STRprm=;v; ;b; ;d;&call :init_settnSTR channel %channel%&set version=5.0.368
 set SMC_last=&call :SETMODECON&call :iecho Verify Settings...&%debgn%COLOR %curcolor%
 set ThisTitle=Lectrode's Quick Net Fix %channel%%version%&call :init_settnINT %settingsINT%
 TITLE %ThisTitle%&(if "%CID%"=="" call :init_CID )&(if "%crshd%"=="" set "crshd= ")
