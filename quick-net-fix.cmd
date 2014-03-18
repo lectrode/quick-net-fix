@@ -1,4 +1,4 @@
-::Quick Net Fix 5.0.368 (DEV)
+::Quick Net Fix 5.0.369 (DEV)
 
 ::Documentation and updated versions can be found at
 ::https://code.google.com/p/quick-net-fix/
@@ -55,7 +55,14 @@
 @set INT_fixwait=10         Default: 10 [wait x seconds after resetting connection]
 @set INT_flukechkwait=1     Default: 1  [wait x seconds between fluke checks]
 @set INT_timeoutmil=3000    Default: 3000 [wait x milliseconds (1/1000 of a second) for timeout]
-@set INT_chknetwait=10      Default: 10 [wait x number of connects before verifying router and adapter]
+@set INT_chknetwait=10      Default: 10 [wait x connects before verifying router and adapter]
+
+::-TIMERS-
+::The value is [seconds minutes hours days months years]
+::Examples: 10 minutes would be [0 10]. 2 hours would be [0 0 2]
+::Maximum values: [59 59 23 31 11 2000000000]
+@set TME_c4uwait=    Default: 0 0 0 1 [wait x time between update checks]
+
 
 :: --------------------------------------
 :: -      DO NOT EDIT BELOW HERE!       -
@@ -66,7 +73,7 @@
 
 :loop
 %debgn%call :SETMODECON
-set /a c4u+=1&set /a cleanTMPPnum+=1&call :nettest&call :sleep_actv %INT_checkwait%&goto :loop
+call :nettest&call :sleep_actv %INT_checkwait%&goto :loop
 
 :getNETINFO
 for /f "tokens=1 delims==" %%n in ('set net_ 2^>nul') do set "%%n="
@@ -244,8 +251,8 @@ set curRTR=%testSite%&goto :eof
 :sleep_actv
 call :precisiontimer SLP start&if "%1"=="" set pn=3
 if not "%1"=="" set pn=%1&if !pn! equ 0 goto :eof
-%no_temp%if not "%checkconnects%"=="force" if %cleanTMPPnum% geq 20000 (call :cleanTMPP&set cleanTMPPnum=0)
-if not "%checkconnects%"=="force" if %c4u% geq %c4u_max% call :check4update
+%no_temp%if not "%checkconnects%"=="force" set t_qa=0 10 1&call :TMR cln GEQ && call :cleanTMPP
+if not "%checkconnects%"=="force" set t_qa=%TME_c4uwait%&call :TMR c4u GEQ && call :check4update
 if "%checkconnects%"=="force" call :chkRA
 if "%CT_updn%"=="up" if %checkconnects% geq %INT_chknetwait% call :chkRA
 call :precisiontimer SLP tot&set /a pn-=(tot/100)&if !pn! lss 0 set pn=0
@@ -271,7 +278,7 @@ set uptime=%uptime%%%&call :TMR GRT DSP RTGRT&goto :eof
 
 :TMR
 if "%2"=="start" call :TMR_update %1_s&goto :eof
-call :TMR_update %1_c&call :TMR_expand %1_s t_s %1_c t_c t_qa t_q
+call :TMR_update t_c&call :TMR_expand %1_s t_s t_c t_c t_qa t_q
 set TMR_mo2=28&set /a t_leapyear=t_c6*10/4 
 (if %t_leapyear:~-1% equ 0 set TMR_mo2=29)&set /a t_lastmo=t_c5-1
 set t_m5=12&set t_m3=24&set t_m2=60&set t_m1=60&set /a t_m4=TMR_mo%t_lastmo%+0
@@ -463,9 +470,10 @@ set /a ah_waitkill+=1&%no_prockill%(%prockill% %3)>nul 2>&1
 set no_proclist=::&exit /b 2
 
 :check4update
-set c4u=%c4u_max%&if "%CT_rslt%"=="dn" goto :eof
+if "%CT_rslt%"=="dn" goto :eof
 echo "%flux_STR:~-50%"|FINDSTR /C:"2">nul && goto :eof
-set c4u=0&if "%h_top:~0,4%"=="____" goto :eof
+if defined TME_c4uwait_orig set TME_c4uwait=%TME_c4uwait_orig%&set TME_c4uwait_orig=
+call :TMR c4u start&if "%h_top:~0,4%"=="____" goto :eof
 set status=Checking for updates...&%debgn%call :header
 set use_ps=&set use_bits=::&set use_vbs=::
 set vurl=http://electrodexs.net/scripts/qNET/cur&set c4u_local=%version:.=%
@@ -531,7 +539,7 @@ call :SETMODECON&goto :eof
 @if "%pretty%"=="0" set debgn=::
 %debgn%@echo off&call :init_colors %theme%
 set STRprm=;mini; ;normal;&call :init_settnSTR viewmode %viewmode%
-set STRprm=;v; ;b; ;d;&call :init_settnSTR channel %channel%&set version=5.0.368
+set STRprm=;v; ;b; ;d;&call :init_settnSTR channel %channel%&set version=5.0.369
 set SMC_last=&call :SETMODECON&call :iecho Verify Settings...&%debgn%COLOR %curcolor%
 set ThisTitle=Lectrode's Quick Net Fix %channel%%version%&call :init_settnINT %settingsINT%
 TITLE %ThisTitle%&(if "%CID%"=="" call :init_CID )&(if "%crshd%"=="" set "crshd= ")
@@ -540,13 +548,15 @@ TITLE %ThisTitle%&(if "%CID%"=="" call :init_CID )&(if "%crshd%"=="" set "crshd=
 if "%no_admin%"=="::" set thistitle=Limited: %thistitle%&title !thistitle!
 call :TMR GRT start&%no_temp%call :iecho Clean Temp Files...&call :cleanTMPP ::
 call :iecho Initialize Variables...&set "tSs_addr=www.google.com;www.ask.com;www.yahoo.com;www.bing.com"
-set statspacer=                                                               .
-set plainbar=------------------------------------------------------------------------------
-set CT_updnL=up&set /a c4u_max=24*60*60/(INT_checkwait+1)&set /a c4u=c4u_max-((6*60)/(INT_checkwait+1))&set dbl=0
+set CT_updnL=up&set statspacer=                                                               .
+set dbl=0&set plainbar=------------------------------------------------------------------------------
 set allAdapter=[Reset All Connections on Error]&set h_top=%plainbar%
 set TMR_mo1=31&set TMR_mo3=31&set TMR_mo4=30&set TMR_mo5=31&set TMR_mo6=30&set TMR_mo7=31
 set TMR_mo8=31&set TMR_mo9=30&set TMR_mo10=31&set TMR_mo11=30&set TMR_mo12=31
 set tSs_num=1&set curRTR=&call :init_manualRouter&if defined resetfA set "filterAdapters=%D_filterAdapters%"
+set t_m1=59&set t_m2=59&set t_m3=23&set t_m4=31&set t_m5=11&set t_m6=2000000000
+set "TME_c4uwait=!TME_c4uwait:Default:=:!&call :init_settnTME TME_c4uwait
+set TME_c4uwait=0 10&set TME_c4uwait_orig=%TME_c4uwait%&call :TMR c4u start
 call :init_manualAdapter&call :init_bar&set ie_last=&set settingsINT=&set settingsBOOL=&set STRprm=&goto :eof
 
 :iecho
@@ -562,7 +572,7 @@ if %CIDchars% lss 3 goto :init_CID
 endlocal&set CID=%CID:~0,5%&goto :eof
 
 :cleanTMPP
-%1set status=Clean temp files...&call :header
+call :TMR cln start&%1set status=Clean temp files...&call :header
 set day=%DATE:/=-%&pushd "%TMPP%"&set excludefiles=ErrorLogs
 for /f "tokens=*" %%a IN ('xcopy *.* /d:%day:~4% /L /I null') do @if exist "%%~nxa" set "excludefiles=!excludefiles!;;%%~nxa"
 for /f "tokens=*" %%a IN ('dir /b 2^>nul') do @(@echo ";;%excludefiles%;;"|FINDSTR /C:";;%%a;;">nul || if exist "%TMPP%\%%a" DEL /F /Q "%TMPP%\%%a">nul 2>&1)
@@ -579,6 +589,11 @@ set /a %1=%1&shift&goto :init_settnINT
 :init_settnSTR
 echo ";%2;"|FINDSTR /L /I "%STRprm%">nul && (set "%1=%2"&goto :eof)
 set %1=!D_%1!&goto :eof
+:init_settnTME
+for /f "tokens=1 delims=:" %%a in ("!%1!") do for /f "tokens=*" %%p in ("%%a") do set %1=%%p
+if not defined %1 set "%1=!D_%1!"&goto :eof
+call :TMR_expand %1 t_i&for /l %%t in (1,1,6) do if !t_i%%t! gtr !t_m%%t! set "t_i%%t=!t_m%%t!"
+set %1=&(for /l %%t in (1,1,6) do set "%1=!%1! !t_i%%t!")&goto :eof
 
 :init_manualRouter
 if not defined manualRouter goto :eof
@@ -623,7 +638,7 @@ if not "%theme%"=="none" for /f "tokens=1-4" %%c in ("!THM_%theme%!") do set CO_
 @set D_requestAdmin=1&set D_INT_fluxHist=25&set D_channel=v&set D_noStop=1
 @set D_INT_flukechecks=7&set D_INT_flukemaxtime=25&set D_INT_checkwait=5
 @set D_INT_fixwait=10&set D_INT_flukechkwait=1&set D_INT_timeoutmil=3000
-@set D_INT_chknetwait=10&set D_check4update=1&set D_errorlog=1
+@set D_INT_chknetwait=10&set D_check4update=1&set D_errorlog=1&set D_TME_c4uwait=0 0 0 1
 @set D_filterAdapters=Tunnel VirtualBox VMnet VMware Loopback Pseudo Bluetooth Internal&goto :eof
 
 :testValidPATHS
