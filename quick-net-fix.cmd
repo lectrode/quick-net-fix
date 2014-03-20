@@ -1,4 +1,4 @@
-::Quick Net Fix 5.0.369 (DEV)
+::Quick Net Fix 5.0.370 (DEV)
 
 ::Documentation and updated versions can be found at
 ::https://code.google.com/p/quick-net-fix/
@@ -61,7 +61,7 @@
 ::The value is [seconds minutes hours days months years]
 ::Examples: 10 minutes would be [0 10]. 2 hours would be [0 0 2]
 ::Maximum values: [59 59 23 31 11 2000000000]
-@set TME_c4uwait=    Default: 0 0 0 1 [wait x time between update checks]
+@set TME_c4uwait=0 0 0 1    Default: 0 0 0 1 [wait x time between update checks]
 
 
 :: --------------------------------------
@@ -114,13 +114,13 @@ set h_flux_STR=!h_flux_STR: =%-%!&goto :header_%viewmode%
 
 :header_mini
 set /a l_dbl=dbl-1&set h_dbl=&if not !l_dbl! leq 0 set h_dbl=!h_dbl!/%INT_flukechecks%
-COLOR %curcolor%&cls&echo  %h_top:~-35%&echo  ^|%ThisTitle:Limited: =%^|
+COLOR %CO_cur%&cls&echo  %h_top:~-35%&echo  ^|%ThisTitle:Limited: =%^|
 echo  ^| http://electrodexs.net/scripts %crshd%^|&echo. !h_flux_STR:~-%colnum%!
 echo. !%h_curADR%!&echo. %curRTR%&echo. Up: %uptime% ^| Fixes: %numfixes%
 echo. Last result: %CT_rslt% %h_dbl%&echo. %status%&goto :eof
 
 :header_normal
-COLOR %curcolor%&cls&echo  %h_top:~-50%
+COLOR %CO_cur%&cls&echo  %h_top:~-50%
 echo  ^|     -%ThisTitle:Limited: =%-        ^|
 echo  ^|       http://electrodexs.net/scripts          %crshd%^|
 echo. !h_flux_STR:~-%colnum%!
@@ -211,9 +211,9 @@ if not defined curRTR set nt_pt=::&set CT_updn=dn&set CT_rslt=Disconnected
 set nt_resup=::&set nt_resdn=::&set nt_resuk=::&set nt_res%CT_updn%=
 if not "%CT_updn%"=="%CT_updnL%" set /a timepassed/=2&if !timepassed! leq 0 set timepassed=1
 %nt_resup%set /a checkconnects+=1&set /a up+=timepassed+(nt_ptime/100)
-%nt_resup%set CT_updn=up&set flux_STR=%flux_STR% 0&set curcolor=%CO_n%&if "%fixed%"=="1" set /a numfixes+=1&set fixed=0
-%nt_resdn%set /a down+=timepassed+(nt_ptime/100)&set curcolor=%CO_w%&set flux_STR=%flux_STR% 1
-%nt_resuk%set flux_STR=%flux_STR% 3&set curcolor=%CO_a%&set /a down+=timepassed+(nt_ptime/100)&call :nt_stall
+%nt_resup%set CT_updn=up&set flux_STR=%flux_STR% 0&set CO_cur=%CO_n%&if "%fixed%"=="1" set /a numfixes+=1&set fixed=0
+%nt_resdn%set /a down+=timepassed+(nt_ptime/100)&set CO_cur=%CO_w%&set flux_STR=%flux_STR% 1
+%nt_resuk%set flux_STR=%flux_STR% 3&set CO_cur=%CO_a%&set /a down+=timepassed+(nt_ptime/100)&call :nt_stall
 
 set timepassed=0&if %dbl% gtr 0 if %CT_updn%==dn set showdbl=(fluke check %dbl%/%INT_flukechecks%)
 set /a dbl+=1&set CT_updnL=%CT_updn%&call :set_uptime
@@ -233,7 +233,7 @@ set curRTR=&goto :eof
 (if defined no_admin goto :eof)&if "%curADR%"=="" goto :eof
 set "nt_e_s=set fixed=1&set flux_STR=%flux_STR% 2&call :sleep_actv %INT_fixwait%&set nt_e_s=&goto :eof"
 ipconfig |FINDSTR /C:"adapter !%curADR%!:">nul && goto :eof
-set status=Enabling adapter...&set curcolor=%CO_p%&%debgn%call :header
+set status=Enabling adapter...&set CO_cur=%CO_p%&%debgn%call :header
 %no_netsh%call :rset_netsh enable %curADR% && (%nt_e_s%)
 %no_wmic%call :rset_wmic enable %curADR% && (%nt_e_s%)
 %no_temp%%no_cscript%call :rset_vbs enable %curADR%&(%nt_e_s%)
@@ -345,9 +345,9 @@ set /a adapters_arrLen+=1
 set "adapters_%adapters_arrLen%_name=%line:*: =%"&goto :eof
 
 :resetConnection
-set curcolor=%CO_p%&set status=Attempting to fix connection...&set flux_STR=%flux_STR% 2&%debgn%call :header
+set CO_cur=%CO_p%&set status=Attempting to fix connection...&set flux_STR=%flux_STR% 2&%debgn%call :header
 set fixed=1&(if "%curADR%"=="" call :resetConnection_all)&(if not "%curADR%"=="" call :resetConnection_one)
-set curcolor=%CO_p%&call :sleep_actv %INT_fixwait%&set checkconnects=force&goto :eof
+set CO_cur=%CO_p%&call :sleep_actv %INT_fixwait%&set checkconnects=force&goto :eof
 
 :resetConnection_all
 ipconfig /release>nul 2>&1&ipconfig /flushdns>nul 2>&1
@@ -539,10 +539,10 @@ call :SETMODECON&goto :eof
 @if "%pretty%"=="0" set debgn=::
 %debgn%@echo off&call :init_colors %theme%
 set STRprm=;mini; ;normal;&call :init_settnSTR viewmode %viewmode%
-set STRprm=;v; ;b; ;d;&call :init_settnSTR channel %channel%&set version=5.0.369
-set SMC_last=&call :SETMODECON&call :iecho Verify Settings...&%debgn%COLOR %curcolor%
+set STRprm=;v; ;b; ;d;&call :init_settnSTR channel %channel%&set version=5.0.370
+set SMC_last=&call :SETMODECON&call :iecho Verify Settings...&%debgn%COLOR %CO_cur%
 set ThisTitle=Lectrode's Quick Net Fix %channel%%version%&call :init_settnINT %settingsINT%
-TITLE %ThisTitle%&(if "%CID%"=="" call :init_CID )&(if "%crshd%"=="" set "crshd= ")
+set settingsINT=&set settingsBOOL=&set STRprm=&TITLE %ThisTitle%&(if "%CID%"=="" call :init_CID )&(if "%crshd%"=="" set "crshd= ")
 %alertoncrash%call :testValidPATHS&call :testCompatibility&call :detectIsAdmin&call :disableQuickEdit
 %alertoncrash%call :testCompatibility2&call :testAdapters&set alertoncrash=::&goto :crashAlert
 if "%no_admin%"=="::" set thistitle=Limited: %thistitle%&title !thistitle!
@@ -555,9 +555,9 @@ set TMR_mo1=31&set TMR_mo3=31&set TMR_mo4=30&set TMR_mo5=31&set TMR_mo6=30&set T
 set TMR_mo8=31&set TMR_mo9=30&set TMR_mo10=31&set TMR_mo11=30&set TMR_mo12=31
 set tSs_num=1&set curRTR=&call :init_manualRouter&if defined resetfA set "filterAdapters=%D_filterAdapters%"
 set t_m1=59&set t_m2=59&set t_m3=23&set t_m4=31&set t_m5=11&set t_m6=2000000000
-set "TME_c4uwait=!TME_c4uwait:Default:=:!&call :init_settnTME TME_c4uwait
+set "TME_c4uwait=!TME_c4uwait:Default:=:!"&call :init_settnTME TME_c4uwait
 set TME_c4uwait=0 10&set TME_c4uwait_orig=%TME_c4uwait%&call :TMR c4u start
-call :init_manualAdapter&call :init_bar&set ie_last=&set settingsINT=&set settingsBOOL=&set STRprm=&goto :eof
+call :init_manualAdapter&call :init_bar&set ie_last=&goto :eof
 
 :iecho
 %debgn%@if not "%*"=="" set "ie_last=%*"
@@ -566,7 +566,7 @@ call :init_manualAdapter&call :init_bar&set ie_last=&set settingsINT=&set settin
 
 :init_CID
 %init_CID%setlocal&set charSTR=abcdefghijklmnopqrstuvwxyz1234567890&set CIDchars=0&set init_CID=::
-set cidchar=35*%random%/32768
+set /a cidchar=35*%random%/32768
 set /a CIDchars+=1&set CID=%CID%!charSTR:~%cidchar%,1!%random:~1,1%
 if %CIDchars% lss 3 goto :init_CID
 endlocal&set CID=%CID:~0,5%&goto :eof
@@ -592,7 +592,7 @@ set %1=!D_%1!&goto :eof
 :init_settnTME
 for /f "tokens=1 delims=:" %%a in ("!%1!") do for /f "tokens=*" %%p in ("%%a") do set %1=%%p
 if not defined %1 set "%1=!D_%1!"&goto :eof
-call :TMR_expand %1 t_i&for /l %%t in (1,1,6) do if !t_i%%t! gtr !t_m%%t! set "t_i%%t=!t_m%%t!"
+call :TMR_expand %1 t_i&(for /l %%t in (1,1,6) do if !t_i%%t! gtr !t_m%%t! set "t_i%%t=!t_m%%t!")&for /l %%t in (1,1,6) do set /a "t_i%%t+=0"
 set %1=&(for /l %%t in (1,1,6) do set "%1=!%1! !t_i%%t!")&goto :eof
 
 :init_manualRouter
@@ -629,7 +629,7 @@ set theme=%1&echo ",%1,"|FINDSTR /I /L ",mini, ,none, ,subtle, ,vibrant, ,fullsu
 set THM_subtle=07 06 04 03&set THM_vibrant=0a 0e 0c 0b&set THM_fullsubtle=20 60 40 30
 set THM_fullvibrant=a0 e0 c0 b0&set THM_fullcolor=2a 6e 4c 1b&set THM_neon=5a 9e 1c 5b
 if not "%theme%"=="none" for /f "tokens=1-4" %%c in ("!THM_%theme%!") do set CO_n=%%c&set CO_w=%%d&set CO_a=%%e&set CO_p=%%f
-(for /f "tokens=1 delims==" %%p in ('set THM_') do set "%%p=")&set curcolor=%CO_n%&goto :eof
+(for /f "tokens=1 delims==" %%p in ('set THM_') do set "%%p=")&set CO_cur=%CO_n%&goto :eof
 
 :setn_defaults
 @set settingsINT=INT_fluxHist INT_flukechecks INT_checkwait INT_fixwait INT_flukechkwait INT_timeoutmil INT_chknetwait
