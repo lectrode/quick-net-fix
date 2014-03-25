@@ -1,4 +1,4 @@
-::Quick Net Fix 5.0.371 (DEV)
+::Quick Net Fix 5.0.372 (DEV)
 
 ::Documentation and updated versions can be found at
 ::https://code.google.com/p/quick-net-fix/
@@ -544,7 +544,7 @@ call :SETMODECON&goto :eof
 %debgn%@echo off&call :init_colors %theme%
 set STRprm=;mini; ;normal;&call :init_settnSTR viewmode %viewmode%
 set SMC_last=&call :SETMODECON&call :iecho Verify Settings...&%debgn%COLOR %CO_cur%
-set STRprm=;v; ;b; ;d;&call :init_settnSTR channel %channel%&set version=5.0.371
+set STRprm=;v; ;b; ;d;&call :init_settnSTR channel %channel%&set version=5.0.372
 set ThisTitle=Lectrode's Quick Net Fix %channel%%version%
 call :init_settnINT %settingsINT%&set settingsINT=&set settingsBOOL=&set STRprm=&set criterr=
 TITLE %ThisTitle%&(if "%CID%"=="" call :init_CID )&(if "%crshd%"=="" set "crshd= ")
@@ -689,10 +689,10 @@ set no_pskill=::&pskill /?>nul 2>&1& if !errorlevel! equ -1 set prockill=pskill 
 set no_tskill=::&(tskill /?>nul 2>&1 && (set no_tskill=&set prockill=tskill&set killPID=tskill))
 %no_taskkill%set no_taskkill=::&(taskkill /?>nul 2>&1 && (set no_taskkill=&set prockill=taskkill /f /im&set killPID=taskkill /pid))
 if "%prockill%"=="" set no_prockill=::
-tlist /?>nul 2>&1 || set no_tlist=::
-tasklist /?>nul 2>&1 || set no_tasklist=::
+set no_tlist=::&tlist /?>nul 2>&1 && (set no_tlist=&set winfind=tlist)
+set no_tasklist=::&tasklist /?>nul 2>&1 && (set no_tasklist=&set "winfind=tasklist /V /FO:CSV")
 pslist >nul 2>&1 || set no_pslist=::
-if "%no_tlist%%no_tasklist%"=="::::" set no_winfind=::
+if "%winfind%"=="" set no_winfind=::
 if "%no_tlist%%no_tasklist%%no_pslist%"=="::::::" set no_proclist=::
 set no_reg=::&set reg1=::&set reg2=::&(reg /?>nul 2>&1 && set no_reg=&set reg1=)&if !errorlevel!==5005 set no_reg=&set reg2=
 cscript /?>nul|| (set no_cscript=::&call :iecho)
@@ -710,19 +710,20 @@ call :iecho Detect Admin Rights...&set dIA_done=for /f "tokens=1 delims==" %%p i
 set "dIA_gAfile=%TMPP%\getadmin%CID%.vbs"&%no_temp%DEL /F /Q "%TMPP%\getadmin*.vbs">nul 2>&1
 for /f "tokens=*" %%s in ('sfc 2^>^&1^|MORE') do @set "dIA_sfc=!dIA_sfc!%%s"
 set no_admin=::&set dIA_sfc=&(echo "%dIA_sfc%"|findstr /I /C:"/scannow">nul 2>&1 && set "no_admin=")
+set dIA_noreq=%no_winfind%%no_prockill%%no_temp%%no_cscript%&set dIA_nokl=%no_winfind%%no_prockill%
 :dIA_kill
-%no_prockill%%no_tasklist%%dIA_PSwait%for /f %%p in ('tasklist /V /FO:CSV ^|FINDSTR /C:"cmd.exe" 2^>nul^|FINDSTR /C:"Windows PowerShell" 2^>nul') do (set dIA_PSwait=::&call :sleep 15&goto :dIA_kill)
-%no_prockill%%no_tasklist%for /f "tokens=2 delims=," %%p in ('tasklist /V /FO:CSV ^|FINDSTR /C:"Limited: %ThisTitle%" 2^>nul') do (%killPID% %%p>nul 2>&1 && goto :dIA_kill)
-%no_prockill%%no_tlist%%dIA_PSwait%for /f %%p in ('tlist ^|FINDSTR /C:"cmd.exe" 2^>nul^|FINDSTR /C:"Windows PowerShell" 2^>nul') do (set dIA_PSwait=::&call :sleep 15&goto :dIA_kill)
-%no_prockill%%no_tlist%for /f %%p in ('tlist ^|FINDSTR /C:"Limited: %ThisTitle%" 2^>nul') do (%killPID% %%p>nul 2>&1 && goto :dIA_kill)
+%dIA_nokl%for /f "tokens=*" %%p in ('%winfind% ^|FINDSTR /C:"cmd.exe" 2^>nul') do (set /a dIA_tsk#+=1&set "dIA_tsk!dIA_tsk#!=%%p")
+%dIA_nokl%%dIA_PSwait%for /f %%p in ('set dIA_tsk ^|FINDSTR /C:"Windows PowerShell" 2^>nul') do (set dIA_PSwait=::&call :sleep 15&goto :dIA_kill)
+%dIA_nokl%%no_tasklist%for /f "tokens=2 delims=," %%p in ('set dIA_tsk ^|FINDSTR /C:"Limited: %ThisTitle%" 2^>nul') do (%killPID% %%p>nul 2>&1 && goto :dIA_kill)
+%dIA_nokl%%no_tlist%for /f %%p in ('set dIA_tsk ^|FINDSTR /C:"Limited: %ThisTitle%" 2^>nul') do (%killPID% %%p>nul 2>&1 && goto :dIA_kill)
 %no_admin%%dIA_done%&goto :eof
 set ThisTitle=Limited: %ThisTitle%&title !ThisTitle!
 if not "%requestAdmin%"=="1" %dIA_done%&goto :eof
-%no_winfind%%no_prockill%%no_temp%%no_cscript%echo Set StartAdmin = CreateObject^("Shell.Application"^) > "%dIA_gAfile%"
-%no_winfind%%no_prockill%%no_temp%%no_cscript%echo StartAdmin.ShellExecute "%~s0", "", "", "runas", 1 >> "%dIA_gAfile%"
-%no_winfind%%no_prockill%%no_temp%%no_cscript%set "ie_last=Requesting Admin Rights...&echo (This will close upon successful request)"&call :iecho
-%no_winfind%%no_prockill%%no_temp%%no_cscript%start /b "" cscript //E:VBScript //B //T:1 "%dIA_gAfile%" //nologo
-%no_winfind%%no_prockill%%no_temp%%no_cscript%call :sleep 10&DEL /F /Q "%dIA_gAfile%">nul 2>&1
+%dIA_noreq%echo Set StartAdmin = CreateObject^("Shell.Application"^) > "%dIA_gAfile%"
+%dIA_noreq%echo StartAdmin.ShellExecute "%~s0", "", "", "runas", 1 >> "%dIA_gAfile%"
+%dIA_noreq%set "ie_last=Requesting Admin Rights...&echo (This will close upon successful request)"&call :iecho
+%dIA_noreq%start /b "" cscript //E:VBScript //B //T:1 "%dIA_gAfile%" //nologo
+%dIA_noreq%call :sleep 10&DEL /F /Q "%dIA_gAfile%">nul 2>&1
 %dIA_done%&goto :eof
 
 :disableQuickEdit
