@@ -1,4 +1,4 @@
-::Quick Net Fix 5.0.370 (DEV)
+::Quick Net Fix 5.0.371 (DEV)
 
 ::Documentation and updated versions can be found at
 ::https://code.google.com/p/quick-net-fix/
@@ -16,8 +16,8 @@
 ::Examples: Wireless Network Connection or ALL (optional)
 ::Names with special characters (% & ! ^) must be as follows (notice the quotes):
 ::@set "manualAdapter=N&me with specia! c%%aracters"
-::NOTE: Names with ^ before another special character cannot be parsed
-::NOTE: If the name has "%" (ie "A%apter Name") it must be written "%%" (ie "A%%apter Name")
+::NOTE: Names with ^ in addition to other special characters cannot be parsed
+::NOTE: If the name has "%" (e.g. "A%apter Name") it must be written "%%" (e.g. "A%%apter Name")
 @set manualAdapter=
 
 ::-Filters- (Separate filter keywords with space. Matches are filtered OUT)
@@ -45,7 +45,7 @@
 ::Restart script if it crashes (1=enabled; 0=disabled)
 @set noStop=1
 
-::Output Errorlog (records script errors, requires write access, 1=enabled; 0=disabled)
+::Output Error log (records script errors, requires write access, 1=enabled; 0=disabled)
 @set errorLog=1
 
 ::-Advanced-
@@ -67,13 +67,17 @@
 :: --------------------------------------
 :: -      DO NOT EDIT BELOW HERE!       -
 :: --------------------------------------
-@PROMPT=^>&setlocal enabledelayedexpansion enableextensions
+@set "criterr=&echo.&echo FATAL ERROR&echo.&echo Press any key to exit...&pause>nul&exit"
+@echo "%~dpnx0"|FINDSTR /L "& ! ^ ">nul && (cls&echo Path to Script Has Unsupported Symbols (^& ! ^^^)&echo "%~dpnx0"%criterr%)
 %noclose%@set noclose=::&start "" "cmd" /k "%~dpnx0"&exit
+@PROMPT=^>&(setlocal>nul 2>&1 || (cls&echo =SETLOCAL Not Supported=%criterr%))
+@set /a d=(6+1)>nul 2>&1 || (cls&echo =Basic Math Not Supported=%criterr%)
+@endlocal&setlocal enableextensions enabledelayedexpansion
+@set d=1&if not "!d!"=="1" (cls&echo =Delayed Expansion Not Supported=%criterr%)
 @call :init&call :chkRA
 
 :loop
-%debgn%call :SETMODECON
-call :nettest&call :sleep_actv %INT_checkwait%&goto :loop
+%debgn%call :SETMODECON&call :nettest&call :sleep_actv %INT_checkwait%&goto :loop
 
 :getNETINFO
 for /f "tokens=1 delims==" %%n in ('set net_ 2^>nul') do set "%%n="
@@ -223,14 +227,14 @@ if %CT_updn%==dn if %dbl% gtr %INT_flukechecks% call :resetConnection
 set dbl=0&set showdbl=&goto :eof
 
 :nt_chkRTR
-if defined curRTR ipconfig /all|FINDSTR /L "Gateway Server"|FINDSTR /C:"%curRTR%">nul 2>&1 && goto :eof
+if defined curRTR ipconfig /all|FINDSTR /L "Gateway Server" 2>nul|FINDSTR /C:"%curRTR%">nul 2>&1 && goto :eof
 for /f "tokens=1* delims=:" %%a in ('ipconfig /all^|FINDSTR /L "Gateway Server" 2^>nul^|FINDSTR /r "[0-9] :[0-9a-z]" 2^>nul') do for /f "tokens=1" %%g in ("%%b") do echo "x%%g"|FINDSTR /I /L "%filterRouters% \/ x255.">nul || set nt_changed=1
 if defined curADR if not "%nt_changed%"=="1" ipconfig|FINDSTR /C:"adapter !%curADR%!:" >nul 2>&1 || set nt_changed=1
 if "%nt_changed%"=="1" set checkconnects=force&goto :eof
 set curRTR=&goto :eof
 
 :nt_enabled
-(if defined no_admin goto :eof)&if "%curADR%"=="" goto :eof
+(if defined no_admin goto :eof)&if not defined curADR goto :eof
 set "nt_e_s=set fixed=1&set flux_STR=%flux_STR% 2&call :sleep_actv %INT_fixwait%&set nt_e_s=&goto :eof"
 ipconfig |FINDSTR /C:"adapter !%curADR%!:">nul && goto :eof
 set status=Enabling adapter...&set CO_cur=%CO_p%&%debgn%call :header
@@ -279,7 +283,7 @@ set uptime=%uptime%%%&call :TMR GRT DSP RTGRT&goto :eof
 :TMR
 if "%2"=="start" call :TMR_update %1_s&goto :eof
 call :TMR_update t_c&call :TMR_expand %1_s t_s t_c t_c t_qa t_q
-set TMR_mo2=28&set /a t_leapyear=t_c6*10/4 
+set TMR_mo2=28&set /a t_leapyear=t_c6*10/4
 (if %t_leapyear:~-1% equ 0 set TMR_mo2=29)&set /a t_lastmo=t_c5-1
 set t_m5=12&set t_m3=24&set t_m2=60&set t_m1=60&set /a t_m4=TMR_mo%t_lastmo%+0
 for /l %%t in (1,1,5) do if !t_c%%t! lss !t_s%%t! set /a t_c%%t+=t_m%%t&set /a t_=%%t+1&set /a t_c!t_!-=1
@@ -290,14 +294,14 @@ set "%1= %TIME:~6,2% %TIME:~3,2% %TIME:~0,2% %DATE:~7,2% %DATE:~4,2% %DATE:~10,4
 (for /l %%t in (0,1,9) do set "%1=!%1: 0%%t = %%t !")&goto :eof
 :TMR_expand
 set t_#=0&if not "!%1!"=="" (for %%t in (!%1!) do (set /a t_#+=1&set /a %2!t_#!=%%t))&set /a t_#+=1
-if not "!%1!"=="" (if %t_#% leq 6 for /l %%t in (%t_#%,1,6) do set %2%%t=0)&shift&shift&goto :TMR_expand
+if not "!%1!"=="" (if %t_#% leq 6 for /l %%t in (%t_#%,1,6) do set /a %2%%t=0)&shift&shift&goto :TMR_expand
 goto :eof
 :TMR_DSP
 (if !t_c2! leq 9 set t_0m=0)&if !t_c1! leq 9 set t_0s=0
 set t_RT=!t_c3!:%t_0m%!t_c2!:%t_0s%!t_c1!
-if !t_c6! neq 0 set %3=!t_c6!y !t_c5!m !t_c4!d %t_RT%&goto :TMR_end
-if !t_c5! neq 0 set %3=!t_c5!m !t_c4!d %t_RT%&goto :TMR_end
-if !t_c4! neq 0 set %3=!t_c4!d %t_RT%&goto :TMR_end
+if !t_c6! gtr 0 set %3=!t_c6!y !t_c5!m !t_c4!d %t_RT%&goto :TMR_end
+if !t_c5! gtr 0 set %3=!t_c5!m !t_c4!d %t_RT%&goto :TMR_end
+if !t_c4! gtr 0 set %3=!t_c4!d %t_RT%&goto :TMR_end
 set %3=%t_RT%&goto :TMR_end
 :TMR_GEQ
 for /l %%t in (6,-1,1) do if not defined t_isGEQ if not "!t_c%%t!!t_q%%t!"=="00" (if !t_c%%t! geq !t_q%%t! set t_isGEQ=0)&(if !t_c%%t! lss !t_q%%t! set t_isGEQ=1)
@@ -539,10 +543,11 @@ call :SETMODECON&goto :eof
 @if "%pretty%"=="0" set debgn=::
 %debgn%@echo off&call :init_colors %theme%
 set STRprm=;mini; ;normal;&call :init_settnSTR viewmode %viewmode%
-set STRprm=;v; ;b; ;d;&call :init_settnSTR channel %channel%&set version=5.0.370
 set SMC_last=&call :SETMODECON&call :iecho Verify Settings...&%debgn%COLOR %CO_cur%
-set ThisTitle=Lectrode's Quick Net Fix %channel%%version%&call :init_settnINT %settingsINT%
-set settingsINT=&set settingsBOOL=&set STRprm=&TITLE %ThisTitle%&(if "%CID%"=="" call :init_CID )&(if "%crshd%"=="" set "crshd= ")
+set STRprm=;v; ;b; ;d;&call :init_settnSTR channel %channel%&set version=5.0.371
+set ThisTitle=Lectrode's Quick Net Fix %channel%%version%
+call :init_settnINT %settingsINT%&set settingsINT=&set settingsBOOL=&set STRprm=&set criterr=
+TITLE %ThisTitle%&(if "%CID%"=="" call :init_CID )&(if "%crshd%"=="" set "crshd= ")
 %alertoncrash%call :testValidPATHS&call :testCompatibility&call :detectIsAdmin&call :disableQuickEdit
 %alertoncrash%call :testCompatibility2&call :testAdapters&set alertoncrash=::&goto :crashAlert
 if "%no_admin%"=="::" set thistitle=Limited: %thistitle%&title !thistitle!
@@ -606,14 +611,6 @@ if not defined manualAdapter goto :eof
 set curADR=manualAdapter&set h_curADR=manualAdapter
 if /I "%manualAdapter%"=="all" set curADR=&set h_curADR=allAdapter
 goto :eof
-
-:testAdapters
-if defined manualAdapter goto :eof
-call :iecho Check Network Adapters...&call :EnumerateAdapters
-if defined adapters_1_name goto :eof
-if %fullAuto%==1 if not "%filterAdapters%"=="%D_filterAdapters%" set resetfA=1&set "filterAdapters=%D_filterAdapters%"&goto :testAdapters
-echo.&echo CRITICAL ERROR: No network adapters found&echo Please make sure:
-echo -filterAdapters is properly configured&echo -network adapters are installed&goto :exitthis
 
 :init_bar
 set /a colnum=cols-2&set -=
@@ -683,8 +680,8 @@ set hastemp=::&goto :eof
 
 :testCompatibility
 call :iecho Test Basic Commands...
-ping -n 1 127.0.0.1 >nul 2>&1 || (echo.&echo CRITICAL ERROR: PING error.&echo Press any key to exit...&pause>nul&exit)
-ipconfig >nul 2>&1 || (echo.&echo CRITICAL ERROR: IPCONFIG error.&echo Press any key to exit...&pause>nul&exit)
+ping -n 1 127.0.0.1 >nul 2>&1 || (echo.&echo =PING Error=%criterr%)
+ipconfig >nul 2>&1 || (echo.&echo =IPCONFIG Error=%criterr%)
 for %%c in (framedyn.dll) do if "%%~$PATH:c"=="" set no_taskkill=::
 for %%c in (regedit.exe) do if "%%~$PATH:c"=="" set no_regedit=::
 set no_kill=::&(kill /?>nul 2>&1 && (set prockill=kill /f&set no_kill=&set killPID=kill))
@@ -703,9 +700,9 @@ goto :eof
 :testCompatibility2
 bitsadmin /?>nul 2>&1 || set no_bits=::
 netsh help >nul 2>&1 || set no_netsh=::
-call :iecho Test POWERSHELL...&powershell -?>nul 2>&1 || set no_ps=:: & title %ThisTitle%
+call :iecho Test POWERSHELL...&powershell -?>nul 2>&1 || set no_ps=:: &title %ThisTitle%
 call :iecho Test WMIC...&call :antihang 10 ah_null wmic.exe os get status || set no_wmic=::
-if "%no_netsh%%no_wmic%"=="::::" (echo.&echo CRITICAL ERROR: This script requires either NETSH or WMIC.&goto :exitthis)
+if "%no_netsh%%no_wmic%"=="::::" (cls&echo.&echo CRITICAL ERROR: This script requires either NETSH or WMIC.&goto :exitthis)
 goto :eof
 
 :detectIsAdmin
@@ -714,7 +711,9 @@ set "dIA_gAfile=%TMPP%\getadmin%CID%.vbs"&%no_temp%DEL /F /Q "%TMPP%\getadmin*.v
 for /f "tokens=*" %%s in ('sfc 2^>^&1^|MORE') do @set "dIA_sfc=!dIA_sfc!%%s"
 set no_admin=::&set dIA_sfc=&(echo "%dIA_sfc%"|findstr /I /C:"/scannow">nul 2>&1 && set "no_admin=")
 :dIA_kill
+%no_prockill%%no_tasklist%%dIA_PSwait%for /f %%p in ('tasklist /V /FO:CSV ^|FINDSTR /C:"cmd.exe" 2^>nul^|FINDSTR /C:"Windows PowerShell" 2^>nul') do (set dIA_PSwait=::&call :sleep 15&goto :dIA_kill)
 %no_prockill%%no_tasklist%for /f "tokens=2 delims=," %%p in ('tasklist /V /FO:CSV ^|FINDSTR /C:"Limited: %ThisTitle%" 2^>nul') do (%killPID% %%p>nul 2>&1 && goto :dIA_kill)
+%no_prockill%%no_tlist%%dIA_PSwait%for /f %%p in ('tlist ^|FINDSTR /C:"cmd.exe" 2^>nul^|FINDSTR /C:"Windows PowerShell" 2^>nul') do (set dIA_PSwait=::&call :sleep 15&goto :dIA_kill)
 %no_prockill%%no_tlist%for /f %%p in ('tlist ^|FINDSTR /C:"Limited: %ThisTitle%" 2^>nul') do (%killPID% %%p>nul 2>&1 && goto :dIA_kill)
 %no_admin%%dIA_done%&goto :eof
 set ThisTitle=Limited: %ThisTitle%&title !ThisTitle!
@@ -744,12 +743,22 @@ set qkey=HKEY_CURRENT_USER\Console&set qpro=QuickEdit&call :iecho Check Console 
 %no_regedit%%no_temp%regedit /S "%TMPP%\quickedit2%CID%.reg"&DEL /F /Q "%TMPP%\quickedit2%CID%.reg"&start "" "cmd" /k set CID=%CID%^& call "%~dpnx0"&exit
 goto :eof
 
+:testAdapters
+if defined manualAdapter goto :eof
+call :iecho Check Network Adapters...&set tA#=0
+for /f "tokens=*" %%n in ('ipconfig^|FINDSTR /C:"adapter"') do echo "%%n"|FINDSTR /L /I "%filterAdapters%">nul 2>&1 || set tA#=1
+set tA#=&if "%tA#%"=="1" goto :eof
+call :EnumerateAdapters&if defined adapters_1_name goto :eof
+if %fullAuto%==1 if not "%filterAdapters%"=="%D_filterAdapters%" set resetfA=1&set "filterAdapters=%D_filterAdapters%"&goto :testAdapters
+cls&echo.&echo CRITICAL ERROR: No network adapters found&echo Please make sure:
+echo -filterAdapters is properly configured&echo -network adapters are installed&goto :exitthis
+
 :exitthis
-@echo.&echo Script cannot continue.&%no_winfind%echo Press any key to exit...&pause>nul
+%et1%@set et1=::&echo.&echo Script cannot continue.&echo Press any key to exit...&pause>nul
 %no_prockill%%no_tasklist%for /f "tokens=2 delims=," %%p in ('tasklist /V /FO:CSV ^|FINDSTR /C:"%ThisTitle%" 2^>nul') do (%killPID% %%p>nul 2>&1 && goto :dIA_kill)
 %no_prockill%%no_tlist%for /f %%p in ('tlist ^|FINDSTR /C:"%ThisTitle%" 2^>nul') do (%killPID% %%p>nul 2>&1 && goto :dIA_kill)
 %no_temp%type nul>"%TMPP%\needxexit%CID%" 2>&1&exit
-echo Please close this window&pause>nul&exit
+echo Please close this window&pause>nul&goto :exitthis
 
 :crashAlert
 @set "cd_start=%DATE% %TIME%"
@@ -757,7 +766,6 @@ echo Please close this window&pause>nul&exit
 @if "%noStop%"=="1" if not exist "%TMPP%\needxexit%CID%" goto :crashAlert
 %no_temp%@if exist "%TMPP%\needxexit%CID%" DEL /F /Q "%TMPP%\needxexit%CID%">nul 2>&1
 @echo.&echo Script crashed. Please contact ElectrodeXSnet@gmail.com with the information above.&@pause>nul&exit
-
 
 :crashdump
 set "crshd=x"&if "%errorlog%"=="0" goto :eof
