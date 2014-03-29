@@ -1,4 +1,4 @@
-::Quick Net Fix 5.0.372 (DEV)
+::Quick Net Fix 5.0.373 (DEV)
 
 ::Documentation and updated versions can be found at
 ::https://code.google.com/p/quick-net-fix/
@@ -77,7 +77,7 @@
 @call :init&call :chkRA
 
 :loop
-%debgn%call :SETMODECON&call :nettest&call :sleep_actv %INT_checkwait%&goto :loop
+call :SETMODECON&call :nettest&call :sleep_actv %INT_checkwait%&goto :loop
 
 :getNETINFO
 for /f "tokens=1 delims==" %%n in ('set net_ 2^>nul') do set "%%n="
@@ -281,24 +281,21 @@ if not %uptime% equ 0 set uptime=%uptime:~0,-2%.%uptime:~-2%
 set uptime=%uptime%%%&call :TMR GRT DSP RTGRT&goto :eof
 
 :TMR
-if "%2"=="start" call :TMR_update %1_s&goto :eof
+(if "%2"=="start" call :TMR_update %1_s&goto :eof)&(if "%2"=="clear" set "%1_s="&goto :eof)
 call :TMR_update t_c&call :TMR_expand %1_s t_s t_c t_c t_qa t_q
-set TMR_mo2=28&set /a t_leapyear=t_c6*10/4
-(if %t_leapyear:~-1% equ 0 set TMR_mo2=29)&set /a t_lastmo=t_c5-1
-set t_m5=12&set t_m3=24&set t_m2=60&set t_m1=60&set /a t_m4=TMR_mo%t_lastmo%+0
-for /l %%t in (1,1,5) do if !t_c%%t! lss !t_s%%t! set /a t_c%%t+=t_m%%t&set /a t_=%%t+1&set /a t_c!t_!-=1
+set TMR_mo2=28&set /a t_leapyear=t_c6*10/4&if !t_leapyear:~-1! equ 0 set TMR_mo2=29
+set t_m5=12&set t_m3=24&set t_m2=60&set t_m1=60&set /a t_m4=TMR_mo%t_s5%+0
+for /l %%t in (1,1,5) do (if !t_c%%t! lss !t_s%%t! set /a t_c%%t+=t_m%%t&set /a t_=%%t+1&set /a t_c!t_!-=1)
 for /l %%t in (1,1,6) do set /a t_c%%t=t_c%%t-t_s%%t
 (for /l %%t in (1,1,6) do if !t_c%%t! leq 0 set /a "t_c%%t=0")&goto :TMR_%2
 :TMR_update
-set "%1= %TIME:~6,2% %TIME:~3,2% %TIME:~0,2% %DATE:~7,2% %DATE:~4,2% %DATE:~10,4% "
-(for /l %%t in (0,1,9) do set "%1=!%1: 0%%t = %%t !")&goto :eof
+set "%1= %TIME:~6,2% %TIME:~3,2% %TIME:~0,2% %DATE:~7,2% %DATE:~4,2% %DATE:~10,4%"&set "%1=!%1: 0= !"&goto :eof
 :TMR_expand
 set t_#=0&if not "!%1!"=="" (for %%t in (!%1!) do (set /a t_#+=1&set /a %2!t_#!=%%t))&set /a t_#+=1
 if not "!%1!"=="" (if %t_#% leq 6 for /l %%t in (%t_#%,1,6) do set /a %2%%t=0)&shift&shift&goto :TMR_expand
 goto :eof
 :TMR_DSP
-(if !t_c2! leq 9 set t_0m=0)&if !t_c1! leq 9 set t_0s=0
-set t_RT=!t_c3!:%t_0m%!t_c2!:%t_0s%!t_c1!
+(if %t_c2% leq 9 set t_0m=0)&(if %t_c1% leq 9 set t_0s=0)&set t_RT=%t_c3%:!t_0m!%t_c2%:!t_0s!%t_c1%
 if !t_c6! gtr 0 set %3=!t_c6!y !t_c5!m !t_c4!d %t_RT%&goto :TMR_end
 if !t_c5! gtr 0 set %3=!t_c5!m !t_c4!d %t_RT%&goto :TMR_end
 if !t_c4! gtr 0 set %3=!t_c4!d %t_RT%&goto :TMR_end
@@ -306,8 +303,6 @@ set %3=%t_RT%&goto :TMR_end
 :TMR_GEQ
 for /l %%t in (6,-1,1) do if not defined t_isGEQ if not "!t_c%%t!!t_q%%t!"=="00" (if !t_c%%t! geq !t_q%%t! set t_isGEQ=0)&(if !t_c%%t! lss !t_q%%t! set t_isGEQ=1)
 call :TMR_end&exit /b %t_isGEQ%
-:TMR_clear
-(for /f "tokens=1 delims==" %%a in ('set %1_t 2^>nul') do set "%%a=")&goto :eof
 :TMR_end
 (for /f "tokens=1 delims==" %%a in ('set t_ 2^>nul') do set "%%a=")&goto :eof
 
@@ -337,8 +332,7 @@ if "%line%"=="NetConnectionID" goto :eof
 set /a adapters_arrLen+=1
 set "adapters_%adapters_arrLen%_name=%line%"&goto :eof
 :EA_parse_netsh
-if "%line:~0,11%"=="Admin State" goto :eof
-if "%line:~0,4%"=="----" goto :eof
+(if "%line:~0,11%"=="Admin State" goto :eof)&if "%line:~0,4%"=="----" goto :eof
 set /a adapters_arrLen+=1
 set EA_tokens=3&(for /f "tokens=2* delims= " %%c in ("%line%") do echo "%%c"|FINDSTR /I /C:"connected" /C:"Unreachable">nul || set EA_tokens=2)
 for /f "tokens=%EA_tokens%* delims= " %%c in ("%line%") do set "adapters_%adapters_arrLen%_name=%%d"
@@ -544,7 +538,7 @@ call :SETMODECON&goto :eof
 %debgn%@echo off&call :init_colors %theme%
 set STRprm=;mini; ;normal;&call :init_settnSTR viewmode %viewmode%
 set SMC_last=&call :SETMODECON&call :iecho Verify Settings...&%debgn%COLOR %CO_cur%
-set STRprm=;v; ;b; ;d;&call :init_settnSTR channel %channel%&set version=5.0.372
+set STRprm=;v; ;b; ;d;&call :init_settnSTR channel %channel%&set version=5.0.373
 set ThisTitle=Lectrode's Quick Net Fix %channel%%version%
 call :init_settnINT %settingsINT%&set settingsINT=&set settingsBOOL=&set STRprm=&set criterr=
 TITLE %ThisTitle%&(if "%CID%"=="" call :init_CID )&(if "%crshd%"=="" set "crshd= ")
@@ -560,7 +554,7 @@ set TMR_mo1=31&set TMR_mo3=31&set TMR_mo4=30&set TMR_mo5=31&set TMR_mo6=30&set T
 set TMR_mo8=31&set TMR_mo9=30&set TMR_mo10=31&set TMR_mo11=30&set TMR_mo12=31
 set tSs_num=1&set curRTR=&call :init_manualRouter&if defined resetfA set "filterAdapters=%D_filterAdapters%"
 set t_m1=59&set t_m2=59&set t_m3=23&set t_m4=31&set t_m5=11&set t_m6=2000000000
-set "TME_c4uwait=!TME_c4uwait:Default:=:!"&call :init_settnTME TME_c4uwait
+set "TME_c4uwait=%TME_c4uwait:Default:=:%"&call :init_settnTME TME_c4uwait
 set TME_c4uwait=0 10&set TME_c4uwait_orig=%TME_c4uwait%&call :TMR c4u start
 call :init_manualAdapter&call :init_bar&set ie_last=&goto :eof
 
@@ -577,7 +571,7 @@ if %CIDchars% lss 3 goto :init_CID
 endlocal&set CID=%CID:~0,5%&goto :eof
 
 :cleanTMPP
-call :TMR cln start&%1set status=Clean temp files...&call :header
+call :TMR cln start&%1set status=Clean temp files...&%debgn%call :header
 set day=%DATE:/=-%&pushd "%TMPP%"&set excludefiles=ErrorLogs
 for /f "tokens=*" %%a IN ('xcopy *.* /d:%day:~4% /L /I null') do @if exist "%%~nxa" set "excludefiles=!excludefiles!;;%%~nxa"
 for /f "tokens=*" %%a IN ('dir /b 2^>nul') do @(@echo ";;%excludefiles%;;"|FINDSTR /C:";;%%a;;">nul || if exist "%TMPP%\%%a" DEL /F /Q "%TMPP%\%%a">nul 2>&1)
@@ -716,15 +710,15 @@ set dIA_noreq=%no_winfind%%no_prockill%%no_temp%%no_cscript%&set dIA_nokl=%no_wi
 %dIA_nokl%%dIA_PSwait%for /f %%p in ('set dIA_tsk ^|FINDSTR /C:"Windows PowerShell" 2^>nul') do (set dIA_PSwait=::&call :sleep 15&goto :dIA_kill)
 %dIA_nokl%%no_tasklist%for /f "tokens=2 delims=," %%p in ('set dIA_tsk ^|FINDSTR /C:"Limited: %ThisTitle%" 2^>nul') do (%killPID% %%p>nul 2>&1 && goto :dIA_kill)
 %dIA_nokl%%no_tlist%for /f %%p in ('set dIA_tsk ^|FINDSTR /C:"Limited: %ThisTitle%" 2^>nul') do (%killPID% %%p>nul 2>&1 && goto :dIA_kill)
-%no_admin%%dIA_done%&goto :eof
+%no_admin%(%dIA_done%)&goto :eof
 set ThisTitle=Limited: %ThisTitle%&title !ThisTitle!
-if not "%requestAdmin%"=="1" %dIA_done%&goto :eof
+if not "%requestAdmin%"=="1" (%dIA_done%)&goto :eof
 %dIA_noreq%echo Set StartAdmin = CreateObject^("Shell.Application"^) > "%dIA_gAfile%"
 %dIA_noreq%echo StartAdmin.ShellExecute "%~s0", "", "", "runas", 1 >> "%dIA_gAfile%"
 %dIA_noreq%set "ie_last=Requesting Admin Rights...&echo (This will close upon successful request)"&call :iecho
 %dIA_noreq%start /b "" cscript //E:VBScript //B //T:1 "%dIA_gAfile%" //nologo
 %dIA_noreq%call :sleep 10&DEL /F /Q "%dIA_gAfile%">nul 2>&1
-%dIA_done%&goto :eof
+(%dIA_done%)&goto :eof
 
 :disableQuickEdit
 set qkey=HKEY_CURRENT_USER\Console&set qpro=QuickEdit&call :iecho Check Console Properties...
