@@ -1,4 +1,4 @@
-::Quick Net Fix 5.0.373 (DEV)
+::Quick Net Fix 5.0.374 (DEV)
 
 ::Documentation and updated versions can be found at
 ::https://code.google.com/p/quick-net-fix/
@@ -289,7 +289,7 @@ for /l %%t in (1,1,5) do (if !t_c%%t! lss !t_s%%t! set /a t_c%%t+=t_m%%t&set /a 
 for /l %%t in (1,1,6) do set /a t_c%%t=t_c%%t-t_s%%t
 (for /l %%t in (1,1,6) do if !t_c%%t! leq 0 set /a "t_c%%t=0")&goto :TMR_%2
 :TMR_update
-set "%1= %TIME:~6,2% %TIME:~3,2% %TIME:~0,2% %DATE:~7,2% %DATE:~4,2% %DATE:~10,4%"&set "%1=!%1: 0= !"&goto :eof
+set "%1= %TIME:~6,2% %TIME:~3,2% %TIME:~0,2% %DATE:~7,2% %DATE:~4,2% %DATE:~10,4%"&(for /l %%p in (0,1,9) do set "%1=!%1: 0%%p = %%p !")&goto :eof
 :TMR_expand
 set t_#=0&if not "!%1!"=="" (for %%t in (!%1!) do (set /a t_#+=1&set /a %2!t_#!=%%t))&set /a t_#+=1
 if not "!%1!"=="" (if %t_#% leq 6 for /l %%t in (%t_#%,1,6) do set /a %2%%t=0)&shift&shift&goto :TMR_expand
@@ -538,7 +538,7 @@ call :SETMODECON&goto :eof
 %debgn%@echo off&call :init_colors %theme%
 set STRprm=;mini; ;normal;&call :init_settnSTR viewmode %viewmode%
 set SMC_last=&call :SETMODECON&call :iecho Verify Settings...&%debgn%COLOR %CO_cur%
-set STRprm=;v; ;b; ;d;&call :init_settnSTR channel %channel%&set version=5.0.373
+set STRprm=;v; ;b; ;d;&call :init_settnSTR channel %channel%&set version=5.0.374
 set ThisTitle=Lectrode's Quick Net Fix %channel%%version%
 call :init_settnINT %settingsINT%&set settingsINT=&set settingsBOOL=&set STRprm=&set criterr=
 TITLE %ThisTitle%&(if "%CID%"=="" call :init_CID )&(if "%crshd%"=="" set "crshd= ")
@@ -706,7 +706,7 @@ for /f "tokens=*" %%s in ('sfc 2^>^&1^|MORE') do @set "dIA_sfc=!dIA_sfc!%%s"
 set no_admin=::&set dIA_sfc=&(echo "%dIA_sfc%"|findstr /I /C:"/scannow">nul 2>&1 && set "no_admin=")
 set dIA_noreq=%no_winfind%%no_prockill%%no_temp%%no_cscript%&set dIA_nokl=%no_winfind%%no_prockill%
 :dIA_kill
-%dIA_nokl%for /f "tokens=*" %%p in ('%winfind% ^|FINDSTR /C:"cmd.exe" 2^>nul') do (set /a dIA_tsk#+=1&set "dIA_tsk!dIA_tsk#!=%%p")
+%dIA_nokl%for /f "tokens=*" %%p in ('%winfind% ^|FINDSTR /I /C:"cmd.exe" 2^>nul') do (set /a dIA_tsk#+=1&set "dIA_tsk!dIA_tsk#!=%%p")
 %dIA_nokl%%dIA_PSwait%for /f %%p in ('set dIA_tsk ^|FINDSTR /C:"Windows PowerShell" 2^>nul') do (set dIA_PSwait=::&call :sleep 15&goto :dIA_kill)
 %dIA_nokl%%no_tasklist%for /f "tokens=2 delims=," %%p in ('set dIA_tsk ^|FINDSTR /C:"Limited: %ThisTitle%" 2^>nul') do (%killPID% %%p>nul 2>&1 && goto :dIA_kill)
 %dIA_nokl%%no_tlist%for /f %%p in ('set dIA_tsk ^|FINDSTR /C:"Limited: %ThisTitle%" 2^>nul') do (%killPID% %%p>nul 2>&1 && goto :dIA_kill)
