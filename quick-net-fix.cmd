@@ -1,4 +1,4 @@
-::Quick Net Fix 5.0.374 (DEV)
+::Quick Net Fix 5.0.375 (DEV)
 
 ::Documentation and updated versions can be found at
 ::https://code.google.com/p/quick-net-fix/
@@ -538,7 +538,7 @@ call :SETMODECON&goto :eof
 %debgn%@echo off&call :init_colors %theme%
 set STRprm=;mini; ;normal;&call :init_settnSTR viewmode %viewmode%
 set SMC_last=&call :SETMODECON&call :iecho Verify Settings...&%debgn%COLOR %CO_cur%
-set STRprm=;v; ;b; ;d;&call :init_settnSTR channel %channel%&set version=5.0.374
+set STRprm=;v; ;b; ;d;&call :init_settnSTR channel %channel%&set version=5.0.375
 set ThisTitle=Lectrode's Quick Net Fix %channel%%version%
 call :init_settnINT %settingsINT%&set settingsINT=&set settingsBOOL=&set STRprm=&set criterr=
 TITLE %ThisTitle%&(if "%CID%"=="" call :init_CID )&(if "%crshd%"=="" set "crshd= ")
