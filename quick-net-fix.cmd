@@ -1,4 +1,4 @@
-::Quick Net Fix 5.0.375 (DEV)
+::Quick Net Fix 5.0.376 (DEV)
 
 ::Documentation and updated versions can be found at
 ::https://code.google.com/p/quick-net-fix/
@@ -67,6 +67,10 @@
 :: --------------------------------------
 :: -      DO NOT EDIT BELOW HERE!       -
 :: --------------------------------------
+@set LF=^
+
+
+@for /f %%a in ('copy /Z "%~dpf0" nul') do @set "CR=%%a"
 @set "criterr=&echo.&echo FATAL ERROR&echo.&echo Press any key to exit...&pause>nul&exit"
 @echo "%~dpnx0"|FINDSTR /L "& ! ^ ">nul && (cls&echo Path to Script Has Unsupported Symbols (^& ! ^^^)&echo "%~dpnx0"%criterr%)
 %noclose%@set noclose=::&start "" "cmd" /k "%~dpnx0"&exit
@@ -74,6 +78,7 @@
 @set /a d=(6+1)>nul 2>&1 || (cls&echo =Basic Math Not Supported=%criterr%)
 @endlocal&setlocal enableextensions enabledelayedexpansion
 @set d=1&if not "!d!"=="1" (cls&echo =Delayed Expansion Not Supported=%criterr%)
+@FINDSTR "!CR!!LF!" "%~dpnx0" >nul || (cls&echo =EOL is not CRLF: Please convert or re-download=%criterr%)
 @call :init&call :chkRA
 
 :loop
