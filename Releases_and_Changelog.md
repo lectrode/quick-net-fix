@@ -5,7 +5,7 @@
   * **Removed functions:** Dynamic Settings, Theme: crazy, Viewmode: details
   * **Removed settings:** requestdisableIPv6, flukemaxtime
   * Added settings: [channel](channel.md), [noStop](noStop.md), [errorLog](errorLog.md), [c4uwait](c4uwait.md)
-    * When noStop is enabled, script will restart itself if it crashes ("crashing" is not likely, but this way the script is sure to stay running)
+    * When noStop is enabled, script will restart itself in the rare event of an unexpected stop
     * When errorLog is enabled, a crash/error log will be generated
   * **COMPATABILITY**: Confirms script `EOL` format is `CRLF` (Windows) before allowing script to continue ([More info...](http://code.google.com/p/quick-net-fix/source/detail?r=a58e393e3ec079ef36fcd97d59c53a3f6621419c))
   * **Smarter and quicker adaptation to changing network configuration**
