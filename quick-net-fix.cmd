@@ -1,7 +1,7 @@
-::Quick Net Fix 5.0.377 (DEV)
+::Quick Net Fix 5.0.378 (DEV)
 
 ::Documentation and updated versions can be found at
-::https://code.google.com/p/quick-net-fix/
+::https://github.com/lectrode/quick-net-fix
 
 ::------------------------
 ::-       SETTINGS       -
@@ -16,7 +16,7 @@
 ::Examples: Wireless Network Connection or ALL (optional)
 ::Names with special characters (% & ! ^) must be as follows (notice the quotes):
 ::@set "manualAdapter=N&me with specia! c%%aracters"
-::NOTE: Names with ^ in addition to other special characters cannot be parsed
+::NOTE: Names with ^ cannot be accurately parsed
 ::NOTE: If the name has "%" (e.g. "A%apter Name") it must be written "%%" (e.g. "A%%apter Name")
 @set manualAdapter=
 
@@ -25,44 +25,39 @@
 @set filterAdapters=Tunnel VirtualBox VMnet VMware Loopback Pseudo Bluetooth Internal
 
 ::-GUI-
-@set pretty=1
 @set theme=subtle           none,subtle,vibrant,fullsubtle,fullvibrant,fullcolor,neon
 @set viewmode=normal        mini,normal
 
 ::-Updates-
 ::This script can check for updates only; it does not download or install them
-@set check4update=1
-@set channel=d              v=Release; b=Beta; d=DEV
+@set check4update=1         0=false, 1=true
+@set channel=d              v=Release; b=Beta; d=Development
 
-::-User Interaction-
-::Setting fullAuto to 1 will omit all user input and best guess is made for each decision.
-@set fullAuto=1
+::-Boolean-
+::0=false, 1=true
+@set pretty=1               Default: 1 [Hide raw commands and output]
+@set fullAuto=1             Default: 1 [Omit all user input]
+@set requestAdmin=1         Default: 1 [Request admin rights (unavailable on XP/Server2003)]
+@set noStop=1               Default: 1 [Restart script if it crashes]
+@set errorLog=1             Default: 1 [Record script errors (requires write access)]
 
-::Setting requestAdmin to 1 will request admin rights if it doesn't already have them.
-::Admin rights are needed to enable/disable the Network Connection
-::NOTE: Cannot request admin rights on Windows XP/Server 2003 or earlier.
-@set requestAdmin=1
+::NOTE: Admin rights are required to fix certain connectivity issues
 
-::Restart script if it crashes (1=enabled; 0=disabled)
-@set noStop=1
-
-::Output Error log (records script errors, requires write access, 1=enabled; 0=disabled)
-@set errorLog=1
-
-::-Advanced-
-@set INT_fluxHist=50        Default: 50 [number of last tests to determine Stability]
-@set INT_flukechecks=7      Default: 7  [test x times to verify result]
-@set INT_checkwait=5        Default: 5  [wait x seconds between connectivity tests]
-@set INT_fixwait=10         Default: 10 [wait x seconds after resetting connection]
-@set INT_flukechkwait=1     Default: 1  [wait x seconds between fluke checks]
-@set INT_timeoutmil=3000    Default: 3000 [wait x milliseconds (1/1000 of a second) for timeout]
-@set INT_chknetwait=10      Default: 10 [wait x connects before verifying router and adapter]
-
-::-TIMERS-
+::-Timers-
 ::The value is [seconds minutes hours days months years]
 ::Examples: 10 minutes would be [0 10]. 2 hours would be [0 0 2]
 ::Maximum values: [59 59 23 31 11 2000000000]
 @set TME_c4uwait=0 0 0 1    Default: 0 0 0 1 [wait x time between update checks]
+
+::-Advanced-
+::Values are non-negative integers
+@set INT_fluxHist=50        Default: 50 [number of last tests to determine Stability]
+@set INT_flukechecks=7      Default: 7  [test x additional times to verify result]
+@set INT_checkwait=5        Default: 5  [wait x seconds between connectivity tests]
+@set INT_fixwait=10         Default: 10 [wait x seconds after resetting connection]
+@set INT_flukechkwait=1     Default: 1  [wait x seconds between fluke checks]
+@set INT_timeoutmil=3000    Default: 3000 [wait x milliseconds (1/1000 of a second) for timeout]
+@set INT_chknetwait=10      Default: 10 [wait x connects between network configuration checks]
 
 
 :: --------------------------------------
@@ -74,9 +69,10 @@
 @for /f %%a in ('copy /Z "%~dpf0" nul') do @set "CR=%%a"
 @set "criterr=&echo.&echo FATAL ERROR&echo.&echo Press any key to exit...&pause>nul&exit"
 @echo "%~dpnx0"|FINDSTR /L "& ! ^ ">nul && (cls&echo Path to Script Has Unsupported Symbols (^& ! ^^^)&echo "%~dpnx0"%criterr%)
+@set "thisdir=%~dp0" || (cls&echo Path to Script is Unsupported&echo "%~dpnx0"%criterr%)
 %noclose%@set noclose=::&start "" "cmd" /k "%~dpnx0"&exit
-@PROMPT=^>&(setlocal>nul 2>&1 || (cls&echo =SETLOCAL Not Supported=%criterr%))
-@set /a d=(6+1)>nul 2>&1 || (cls&echo =Basic Math Not Supported=%criterr%)
+@PROMPT=^>&setlocal>nul || (cls&echo =SETLOCAL Not Supported=%criterr%)
+@set /a d=(6+1)>nul || (cls&echo =Basic Math Not Supported=%criterr%)
 @endlocal&setlocal enableextensions enabledelayedexpansion
 @set d=1&if not "!d!"=="1" (cls&echo =Delayed Expansion Not Supported=%criterr%)
 @FINDSTR "!CR!!LF!" "%~dpnx0" >nul || (cls&echo =EOL is not CRLF: Please convert or re-download=%criterr%)
@@ -186,10 +182,7 @@ set curADR=manualAdapter&set h_curADR=manualAdapter
 if /i "%manualAdapter%"=="all" set curADR=&set h_curADR=allAdapters
 if %net_arrLen%==0 goto :eof
 if %net_arrLen%==1 set curRTR=%net_1_gw%&goto :eof
-for /l %%n in (1,1,%net_arrLen%) do if "%manualAdapter%"=="!net_%%n_cn!" (set curRTR=!net_%%n_gw!&goto :eof)
-set curRTR=%net_1_gw%&for /l %%n in (1,1,%net_arrLen%) do if not "!net_%%n_gw!"=="" if /i not "%net_1_gw%"=="!net_%%n_gw!" set curRTR=
-if "%curRTR%"=="" call :Ask4NET router
-goto :eof
+(for /l %%n in (1,1,%net_arrLen%) do if "%manualAdapter%"=="!net_%%n_cn!" set curRTR=!net_%%n_gw!)&goto :eof
 
 :getAdapter
 if defined manualRouter if /i not "%manualRouter%"=="none" set curRTR=%manualRouter%
@@ -220,7 +213,7 @@ if not defined curRTR set nt_pt=::&set CT_updn=dn&set CT_rslt=Disconnected
 
 set nt_resup=::&set nt_resdn=::&set nt_resuk=::&set nt_res%CT_updn%=
 if not "%CT_updn%"=="%CT_updnL%" set /a timepassed/=2&if !timepassed! leq 0 set timepassed=1
-%nt_resup%set /a checkconnects+=1&set /a up+=timepassed+(nt_ptime/100)
+%nt_resup%(if not "%checkconnects%"=="force" set /a checkconnects+=1)&set /a up+=timepassed+(nt_ptime/100)
 %nt_resup%set CT_updn=up&set flux_STR=%flux_STR% 0&set CO_cur=%CO_n%&if "%fixed%"=="1" set /a numfixes+=1&set fixed=0
 %nt_resdn%set /a down+=timepassed+(nt_ptime/100)&set CO_cur=%CO_w%&set flux_STR=%flux_STR% 1
 %nt_resuk%set flux_STR=%flux_STR% 3&set CO_cur=%CO_a%&set /a down+=timepassed+(nt_ptime/100)&call :nt_stall
@@ -250,11 +243,11 @@ set status=Enabling adapter...&set CO_cur=%CO_p%&%debgn%call :header
 goto :eof
 
 :nt_stall
-set status=%*Wait 10 seconds...&%debgn%call :header
+set status=%*Waiting 10 seconds...&%debgn%call :header
 call :sleep 10&goto :eof
 
 :testSite_set
-set testSite=&set /a tSs_num+=1&for /f "tokens=%tSs_num% delims=;" %%r in ("%tSs_addr%") do set testSite=%%r
+set testSite=&set /a tSs_num+=1&for /f "tokens=%tSs_num% delims=;" %%r in ("%tSs_addr%") do set testSite=www.%%r.com
 if "%testSite%"=="" set tSs_num=1&goto :testSite_set
 set curRTR=%testSite%&goto :eof
 
@@ -266,7 +259,7 @@ if not "%checkconnects%"=="force" set t_qa=%TME_c4uwait%&call :TMR c4u GEQ && ca
 if "%checkconnects%"=="force" call :chkRA
 if "%CT_updn%"=="up" if %checkconnects% geq %INT_chknetwait% call :chkRA
 call :precisiontimer SLP tot&set /a pn-=(tot/100)&if !pn! lss 0 set pn=0
-if not %pn%==0 set status=Wait %pn% seconds...&%debgn%call :header
+if not %pn%==0 set status=Waiting %pn% seconds...&%debgn%call :header
 call :sleep %pn%&set /a timepassed=(tot/100)+(pn)&set pn=&goto :eof
 
 :sleep
@@ -295,9 +288,10 @@ for /l %%t in (1,1,5) do (if !t_c%%t! lss !t_s%%t! set /a t_c%%t+=t_m%%t&set /a 
 for /l %%t in (1,1,6) do set /a t_c%%t=t_c%%t-t_s%%t
 (for /l %%t in (1,1,6) do if !t_c%%t! leq 0 set /a "t_c%%t=0")&goto :TMR_%2
 :TMR_update
-set "%1= %TIME:~6,2% %TIME:~3,2% %TIME:~0,2% %DATE:~7,2% %DATE:~4,2% %DATE:~10,4%"&(for /l %%p in (0,1,9) do set "%1=!%1: 0%%p = %%p !")&goto :eof
+set "%1= %TIME:~6,2% %TIME:~3,2% %TIME:~0,2% %DATE:~7,2% %DATE:~4,2% %DATE:~10,4%"
+(for /l %%p in (0,1,9) do set "%1=!%1: 0%%p = %%p !")&(for /l %%p in (0,1,9) do set "%1=!%1: 0%%p = %%p !")&goto :eof
 :TMR_expand
-set t_#=0&if not "!%1!"=="" (for %%t in (!%1!) do (set /a t_#+=1&set /a %2!t_#!=%%t))&set /a t_#+=1
+set t_#=0&if not "!%1!"=="" (for %%t in (!%1!) do (set /a t_#+=1&set /a %2!t_#!=%%t&set /a %2!t_#!+=0)2>nul)&set /a t_#+=1
 if not "!%1!"=="" (if %t_#% leq 6 for /l %%t in (%t_#%,1,6) do set /a %2%%t=0)&shift&shift&goto :TMR_expand
 goto :eof
 :TMR_DSP
@@ -379,7 +373,7 @@ exit /b %errorlevel%
 call :antihang 10 ah_null wmic.exe path win32_networkadapter where "NetConnectionID='!%2!'" call %1>nul 2>&1
 exit /b %errorlevel%
 :rset_vbs
-set rs_tf=true&if /I "%1"=="enable" set rs_tf=false
+set rs_tf=true&set "rs_andor=&&"&if /I "%1"=="enable" (set rs_tf=false&set "rs_andor=||")
 set rs_file=%TMPP%\%1adapter%CID%.vbs
 @echo on
 @echo Const ssfCONTROLS = 3 '>"%rs_file%"
@@ -415,9 +409,11 @@ set rs_file=%TMPP%\%1adapter%CID%.vbs
 @echo next '>>"%rs_file%"&echo if bEnabled = %rs_tf% then '>>"%rs_file%"
 @echo o%1Verb.DoIt '>>"%rs_file%"&echo end if '>>"%rs_file%"
 @echo wscript.sleep 2000 '>>"%rs_file%"
-%debgn%@echo off&call :header
-call :antihang 25 ah_null cscript.exe //E:VBScript //T:25 //NoLogo "%rs_file%"
-DEL /F /Q "%rs_file%">nul 2>&1&exit /b 0
+%debgn%@echo off&call :header&set rs_atmp=0
+:rset_vbs_redo
+set /a rs_atmp+=1&call :antihang 25 ah_null cscript.exe //E:VBScript //T:25 //NoLogo "%rs_file%"
+ipconfig|FINDSTR /I /C:"adapter !%2!:">nul 2>&1 %rs_andor% if %rs_atmp% leq 2 (call :sleep 2&goto :rset_vbs_redo)
+DEL /F /Q "%rs_file%">nul 2>&1&set rs_andor=&set rs_tf=&set rs_file=&set rs_atmp=&exit /b 0
 
 :antihang
 set ah_proc=%*&set ah_proc=!ah_proc:%1 %2 =!&set procsuccess=1&set /a ah_maxwait=(%1*10)/4
@@ -474,7 +470,7 @@ set /a ah_waitkill+=1&%no_prockill%(%prockill% %3)>nul 2>&1
 set no_proclist=::&exit /b 2
 
 :check4update
-if "%CT_rslt%"=="dn" goto :eof
+if "%CT_updn%"=="dn" goto :eof
 echo "%flux_STR:~-50%"|FINDSTR /C:"2">nul && goto :eof
 if defined TME_c4uwait_orig set TME_c4uwait=%TME_c4uwait_orig%&set TME_c4uwait_orig=
 call :TMR c4u start&if "%h_top:~0,4%"=="____" goto :eof
@@ -498,53 +494,54 @@ goto :eof
 if exist "%*" for /f "usebackq tokens=2 delims==" %%v in (`FINDSTR /C:"SET %channel%=" "%*"^>nul 2^>^&1`) do set "%channel%=%%v"
 goto :eof
 
+:cleanTMPP
+call :TMR cln start&%1set status=Clean temp files...&%debgn%call :header
+set day=%DATE:/=-%&pushd "%TMPP%"&set excludefiles=ErrorLogs
+for /f "tokens=*" %%a IN ('xcopy *.* /d:%day:~4% /L /I null') do @if exist "%%~nxa" set "excludefiles=!excludefiles!;;%%~nxa"
+for /f "tokens=*" %%a IN ('dir /b 2^>nul') do @(@echo ";;%excludefiles%;;"|FINDSTR /C:";;%%a;;">nul || if exist "%TMPP%\%%a" DEL /F /Q "%TMPP%\%%a">nul 2>&1)
+popd&set excludefiles=&set day=&goto :eof
+
 :Ask4NET
-if "%1"=="router" if "%fullAuto%"=="1" set curRTR=%net_1_gw%&goto :eof
 if "%1"=="adapter" if "%fullAuto%"=="1" set curADR=&set h_curADR=allAdapter&goto :eof
 if "%1"=="" if "%fullAuto%"=="1" set curADR=net_1_cn&set curRTR=%net_1_gw%&set h_curADR=net_1_cn&goto :eof
 if "%1"=="adapter" call :EnumerateAdapters
 %debgn%set /a lines=%net_arrLen%+11
 %debgn%call :SETMODECON 70 %lines%
 echo.&echo Which one would you like to monitor?&echo.&echo Choose by the selection number below.
-if "%1"=="router" echo You may also type in a router address to use.
-echo.&if not "%1"=="adapter" echo  #     Router Adress                  Associated Connection
-if not "%1"=="adapter" echo  ----- ------------------------------ -----------------------------
-if not "%1"=="adapter" for /l %%n in (1,1,%net_arrLen%) do set showroutr%%n=[%%n]%statspacer%
-if not "%1"=="adapter" for /l %%n in (1,1,%net_arrLen%) do set "showroutr%%n=!showroutr%%n:~0,5! !net_%%n_gw!%statspacer%"
-if not "%1"=="adapter" for /l %%n in (1,1,%net_arrLen%) do set "showroutr%%n=!showroutr%%n:~0,36! !net_%%n_cn!%statspacer%"
-if not "%1"=="adapter" for /l %%n in (1,1,%net_arrLen%) do echo -!showroutr%%n:~0,68!
-if not "%1"=="adapter" echo -[x]   (Use a website address)        (Reset all adapters on error)
+echo.&if "%1"=="" echo  #     Router Adress                  Associated Connection
+if "%1"=="" echo  ----- ------------------------------ -----------------------------
+if "%1"=="" for /l %%n in (1,1,%net_arrLen%) do set showroutr%%n=[%%n]%statspacer%
+if "%1"=="" for /l %%n in (1,1,%net_arrLen%) do set "showroutr%%n=!showroutr%%n:~0,5! !net_%%n_gw!%statspacer%"
+if "%1"=="" for /l %%n in (1,1,%net_arrLen%) do set "showroutr%%n=!showroutr%%n:~0,36! !net_%%n_cn!%statspacer%"
+if "%1"=="" for /l %%n in (1,1,%net_arrLen%) do echo -!showroutr%%n:~0,68!
+if "%1"=="" echo -[x]   (Use a website address)        (Reset all adapters on error)
 if "%1"=="adapter" echo  #     Connection
 if "%1"=="adapter" echo  ----- -------------------------------------------
 if "%1"=="adapter" for /l %%n in (1,1,%adapters_arrLen%) do set showconn%%n=[%%n]%statspacer%
 if "%1"=="adapter" for /l %%n in (1,1,%adapters_arrLen%) do set "showconn%%n=!showconn%%n:~0,5! !adapters_%%n_name!%statspacer%"
 if "%1"=="adapter" for /l %%n in (1,1,%adapters_arrLen%) do echo -!showconn%%n:~0,50!
+if "%1"=="adapter" echo -[x]   (Reset all adapters on error)
 echo.&set usrinput=&set usrinput2=
 set /p usrinput=[] 
 if "%usrinput%"=="" set usrinput=1
-if not "%1"=="adapter" for /l %%n in (1,1,%net_arrLen%) do if "%usrinput%"=="%%n" set curRTR=!net_%%n_gw!
-if not "%1"=="adapter" if "%manualAdapter%"=="" for /l %%n in (1,1,%net_arrLen%) do if "%usrinput%"=="%%n" set curADR=net_%%n_cn
+if "%1"=="" for /l %%n in (1,1,%net_arrLen%) do if "%usrinput%"=="%%n" set curRTR=!net_%%n_gw!
+if "%1"=="" if "%manualAdapter%"=="" for /l %%n in (1,1,%net_arrLen%) do if "%usrinput%"=="%%n" set curADR=net_%%n_cn
 if "%1"=="adapter" for /l %%n in (1,1,%adapters_arrLen%) do if "%usrinput%"=="%%n" set curADR=adapters_%%n_name
-if "%usrinput%"=="x" if not "%1"=="adapter" call :testSite_set&set manualRouter=none
+if "%usrinput%"=="x" if "%1"=="" call :testSite_set&set manualRouter=none
 if "%usrinput%"=="x" if "%1"=="adapter" set manualAdapter=all&set curADR=&set h_curADR=allAdapter&goto :eof
 if "%usrinput%"=="x" if "%1"=="" set manualAdapter=all&set curADR=&set h_curADR=allAdapter&call :testSite_set&set manualRouter=none&goto :eof
-if "%1"=="router" if "%curRTR%"=="" cls&echo.&echo.&echo Use "%usrinput%" as router address?
-if "%1"=="router" if "%curRTR%"=="" set /p usrinput2=[y/n] 
-if "%1"=="router" if "%curRTR%"=="" if "%usrinput2%"=="" set curRTR=%usrinput%
-if "%1"=="router" if "%curRTR%"=="" if /i "%usrinput2%"=="y" set curRTR=%usrinput%
-if "%1"=="router" if "%curRTR%"=="" goto :Ask4NET
 if "%1"=="adapter" if "%curADR%"=="" goto :Ask4NET
-if not "%1"=="adapter" set manualRouter=%curRTR%
-if not "%1"=="router" set manualAdapter=%curADR%&set h_curADR=%curADR%
+if "%1"=="" set manualRouter=%curRTR%
+set manualAdapter=%curADR%&set h_curADR=%curADR%
 call :SETMODECON&goto :eof
 
 :init
-@call :setn_defaults&call :init_settnBOOL !settingsBOOL!
+@call :setn_defaults&for %%s in (!settingsBOOL!) do @call :init_settnBOOL %%s !%%s!
 @if "%pretty%"=="0" set debgn=::
 %debgn%@echo off&call :init_colors %theme%
 set STRprm=;mini; ;normal;&call :init_settnSTR viewmode %viewmode%
 set SMC_last=&call :SETMODECON&call :iecho Verify Settings...&%debgn%COLOR %CO_cur%
-set STRprm=;v; ;b; ;d;&call :init_settnSTR channel %channel%&set version=5.0.377
+set STRprm=;v; ;b; ;d;&call :init_settnSTR channel %channel%&set version=5.0.378
 set ThisTitle=Lectrode's Quick Net Fix %channel%%version%
 call :init_settnINT %settingsINT%&set settingsINT=&set settingsBOOL=&set STRprm=&set criterr=
 TITLE %ThisTitle%&(if "%CID%"=="" call :init_CID )&(if "%crshd%"=="" set "crshd= ")
@@ -552,7 +549,7 @@ TITLE %ThisTitle%&(if "%CID%"=="" call :init_CID )&(if "%crshd%"=="" set "crshd=
 %alertoncrash%call :testCompatibility2&call :testAdapters&set alertoncrash=::&goto :crashAlert
 if "%no_admin%"=="::" set thistitle=Limited: %thistitle%&title !thistitle!
 call :TMR GRT start&%no_temp%call :iecho Clean Temp Files...&call :cleanTMPP ::
-call :iecho Initialize Variables...&set "tSs_addr=www.google.com;www.ask.com;www.yahoo.com;www.bing.com"
+call :iecho Initialize Variables...&set "tSs_addr=google;ask;yahoo;bing"
 set CT_updnL=up&set statspacer=                                                               .
 set dbl=0&set plainbar=------------------------------------------------------------------------------
 set allAdapter=[Reset All Connections on Error]&set h_top=%plainbar%
@@ -576,21 +573,12 @@ set /a CIDchars+=1&set CID=%CID%!charSTR:~%cidchar%,1!%random:~1,1%
 if %CIDchars% lss 3 goto :init_CID
 endlocal&set CID=%CID:~0,5%&goto :eof
 
-:cleanTMPP
-call :TMR cln start&%1set status=Clean temp files...&%debgn%call :header
-set day=%DATE:/=-%&pushd "%TMPP%"&set excludefiles=ErrorLogs
-for /f "tokens=*" %%a IN ('xcopy *.* /d:%day:~4% /L /I null') do @if exist "%%~nxa" set "excludefiles=!excludefiles!;;%%~nxa"
-for /f "tokens=*" %%a IN ('dir /b 2^>nul') do @(@echo ";;%excludefiles%;;"|FINDSTR /C:";;%%a;;">nul || if exist "%TMPP%\%%a" DEL /F /Q "%TMPP%\%%a">nul 2>&1)
-popd&set excludefiles=&set day=&goto :eof
-
 :init_settnINT
 if "%1"=="" goto :eof
 if "!%1!"=="" set %1=D_%1
 set /a %1=%1&shift&goto :init_settnINT
 :init_settnBOOL
-@if "%1"=="" goto :eof
-@echo ",!%1!,"|FINDSTR /L ",0, ,1,">nul || set /a %1=D_%1
-@shift&goto :init_settnBOOL
+@set /a "%1=%2"&(echo ",%2,"|FINDSTR /L ",0, ,1,">nul || set /a %1=D_%1)&goto :eof
 :init_settnSTR
 echo ";%2;"|FINDSTR /L /I "%STRprm%">nul && (set "%1=%2"&goto :eof)
 set %1=!D_%1!&goto :eof
@@ -639,7 +627,7 @@ if not "%theme%"=="none" for /f "tokens=1-4" %%c in ("!THM_%theme%!") do set CO_
 @set D_filterAdapters=Tunnel VirtualBox VMnet VMware Loopback Pseudo Bluetooth Internal&goto :eof
 
 :testValidPATHS
-set "thisdir=%~dp0"&call :iecho Verify Environment Variables...
+call :iecho Verify Environment Variables...
 set tVPS=call :testValidPATHS_SYSTEMROOT &set tVPT=call :testValidPATHS_TEMP 
 set PATHEXT=.COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC;%PATHEXT%
 %tVPS%%SYSTEMROOT%
@@ -648,17 +636,17 @@ set PATHEXT=.COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC;%PATHEXT%
 %hassys32%%tVPS%%WINDIR%
 %hassys32%%tVPS%%~dp0
 %hassys32%echo CRITICAL ERROR: Required commands not found.&echo Press any key to exit...&pause>nul&exit
-attrib /?>nul 2>&1 || set no_attrib=::
+attrib /?>nul || (call :iecho&set no_attrib=::)
 %tVPT%%TEMP%
-%hastemp%%tVPT%%LOCALAPPDATA%\Temp
-%hastemp%%tVPT%%USERPROFILE%\Local Settings\Temp
-%hastemp%%tVPT%%APPDATA%
-%hastemp%%tVPT%%SYSTEMDRIVE%\Windows\Temp
-%hastemp%%tVPT%%SYSTEMDRIVE%\WINNT\Temp
-%hastemp%%tVPT%%WINDIR%\Temp
-%hastemp%%tVPT%%thisdir:~0,-1%
-%hastemp%set no_temp=::
-set tVPS=&set tVPT=&set hassys32=&set hastemp=&goto :eof
+%hastmp%%tVPT%%LOCALAPPDATA%\Temp
+%hastmp%%tVPT%%USERPROFILE%\Local Settings\Temp
+%hastmp%%tVPT%%APPDATA%
+%hastmp%%tVPT%%SYSTEMDRIVE%\Windows\Temp
+%hastmp%%tVPT%%SYSTEMDRIVE%\WINNT\Temp
+%hastmp%%tVPT%%WINDIR%\Temp
+%hastmp%%tVPT%%thisdir:~0,-1%
+%hastmp%set no_temp=::
+set tVPS=&set tVPT=&set hassys32=&set hastmp=&goto :eof
 :testValidPATHS_SYSTEMROOT
 if "%*"=="" goto :eof
 set origPATH=%PATH%
@@ -676,7 +664,7 @@ if not exist "%TMPP%" md "%TMPP%">nul 2>&1
 if exist "%TMPP%" type nul>"%TMPP%\RWA%CID%.txt"
 DEL /F /Q "%TMPP%\RWA%CID%.txt">nul 2>&1 || goto :eof
 %no_attrib%ATTRIB +S +H "%TMPP%"
-set hastemp=::&goto :eof
+set hastmp=::&goto :eof
 
 :testCompatibility
 call :iecho Test Basic Commands...
@@ -700,8 +688,8 @@ goto :eof
 :testCompatibility2
 bitsadmin /?>nul 2>&1 || set no_bits=::
 netsh help >nul 2>&1 || set no_netsh=::
-call :iecho Test POWERSHELL...&powershell -?>nul 2>&1 || set no_ps=:: &title %ThisTitle%
-call :iecho Test WMIC...&call :antihang 10 ah_null wmic.exe os get status || set no_wmic=::
+call :iecho Test POWERSHELL...&powershell "echo boo|out-null" >nul 2>&1 || set no_ps=:: &title %ThisTitle%
+call :iecho Test WMIC...&call :antihang 25 ah_null wmic.exe os get status || set no_wmic=::
 if "%no_netsh%%no_wmic%"=="::::" (cls&echo.&echo CRITICAL ERROR: This script requires either NETSH or WMIC.&goto :exitthis)
 goto :eof
 
